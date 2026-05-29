@@ -436,7 +436,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         {user_preferences if user_preferences else "(No custom preferences specified)"}
         """
     
-    model_names = ['gemini-2.5-flash', 'gemini-flash-latest']
+    model_names = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.5-flash']
     response = None
     last_err = None
     for model_name in model_names:
