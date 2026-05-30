@@ -40,7 +40,7 @@ def get_timezone_offset():
 def get_google_creds():
     creds = None
     token_path = os.path.join(os.path.dirname(__file__), 'token.json')
-    creds_path = 'C:\\Users\\aljar\\Documents\\antigravity\\bold-archimedes\\credentials.json'
+    creds_path = os.path.join(os.path.dirname(__file__), 'credentials.json')
 
     if os.path.exists(token_path):
         try:
@@ -312,6 +312,16 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
     print("Sending events and tasks to Gemini for scheduling...")
     
     api_key = "<API_KEY_SCRUBBED>"
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+            if cfg.get("gemini_api_key"):
+                api_key = cfg["gemini_api_key"]
+        except Exception as e:
+            print(f"Warning: Could not read API key from config.json: {e}")
+            
     client = genai.Client(api_key=api_key)
     
     current_time = datetime.now(tz).strftime("%I:%M %p")
@@ -868,7 +878,18 @@ def main():
     
     # Check if run with -y or --yes flag for automation
     auto_apply = ('--yes' in sys.argv or '-y' in sys.argv)
-    
+    if not auto_apply:
+        # Check custom plugin settings in the same directory (when bundled)
+        try:
+            plugin_data_path = os.path.join(os.path.dirname(__file__), 'data.json')
+            if os.path.exists(plugin_data_path):
+                with open(plugin_data_path, 'r', encoding='utf-8') as f:
+                    plugin_settings = json.load(f)
+                if plugin_settings.get("autoApply") is True:
+                    auto_apply = True
+        except Exception as e:
+            print(f"Error checking plugin settings: {e}")
+            
     if auto_apply:
         if write_to_daily_note(note_path, schedule_items, headers):
             print("Daily Note successfully updated automatically!")
