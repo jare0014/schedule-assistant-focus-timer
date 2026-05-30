@@ -1,0 +1,330 @@
+/* C:\Users\aljar\Documents\Obsidian\.obsidian\plugins\timeblocker-and-task-timer\styles.css */
+
+.task-timer-view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 15px;
+  font-family: var(--font-interface);
+  overflow-y: auto;
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+}
+
+/* Header & Controls */
+.task-timer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 10px;
+}
+
+.task-timer-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-accent);
+}
+
+.auto-block-btn {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.auto-block-btn:hover {
+  opacity: 0.9;
+}
+
+/* Schedule View Task Cards */
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 12px 15px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: var(--interactive-accent);
+}
+
+.task-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  margin-right: 15px;
+}
+
+.task-card-time {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.task-card-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.task-card-play-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.task-card-play-btn:hover {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+/* Countdown Timer View */
+.timer-view-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 30px 10px;
+}
+
+.timer-task-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 25px;
+  color: var(--text-normal);
+  max-width: 90%;
+}
+
+.timer-circle-container {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--background-secondary) 60%, transparent 100%);
+  border: 4px solid var(--background-modifier-border);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+  margin-bottom: 30px;
+  transition: border-color 0.5s ease;
+}
+
+.timer-circle-container.pulsing {
+  border-color: var(--interactive-accent);
+  animation: pulse-ring 1.5s infinite;
+}
+
+.timer-countdown-text {
+  font-size: 2.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+}
+
+.timer-controls {
+  display: flex;
+  gap: 15px;
+}
+
+.timer-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  transition: all 0.2s ease;
+}
+
+.timer-btn.primary {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.timer-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Alarm View (Full Panel Alert) */
+.alarm-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #ff0033;
+  color: #ffffff;
+  z-index: 9999;
+  animation: flash-red 0.5s infinite alternate;
+  padding: 20px;
+  text-align: center;
+}
+
+.alarm-task-name {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.alarm-alert-text {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-bottom: 30px;
+  opacity: 0.9;
+}
+
+.alarm-dismiss-btn {
+  background-color: #ffffff;
+  color: #ff0033;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.alarm-dismiss-btn:hover {
+  transform: scale(1.05);
+}
+
+/* Animations */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0px rgba(var(--interactive-accent-rgb), 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 15px rgba(var(--interactive-accent-rgb), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0px rgba(var(--interactive-accent-rgb), 0);
+  }
+}
+
+@keyframes flash-red {
+  0% {
+    background-color: #cc002c;
+  }
+  100% {
+    background-color: #ff3355;
+  }
+}
+
+.timer-idle-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+  padding: 20px;
+}
+
+.timer-idle-icon {
+  color: var(--text-muted);
+  margin-bottom: 15px;
+  opacity: 0.7;
+  animation: float-icon 3s ease-in-out infinite alternate;
+}
+
+.timer-idle-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: 8px;
+}
+
+.timer-idle-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  max-width: 80%;
+  line-height: 1.4;
+}
+
+@keyframes float-icon {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-6px); }
+}
+
+.timer-btn.warning {
+  background-color: var(--background-secondary);
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+
+.timer-btn.warning:hover {
+  background-color: var(--text-error);
+  color: var(--text-on-accent);
+}
+
+.task-card-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.task-card-postpone-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.task-card-postpone-btn:hover {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}

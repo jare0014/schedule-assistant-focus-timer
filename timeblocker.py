@@ -312,15 +312,28 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
     print("Sending events and tasks to Gemini for scheduling...")
     
     api_key = "<API_KEY_SCRUBBED>"
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-    if os.path.exists(config_path):
+    # Try reading from data.json first (Obsidian plugin settings)
+    data_path = os.path.join(os.path.dirname(__file__), 'data.json')
+    if os.path.exists(data_path):
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                cfg = json.load(f)
-            if cfg.get("gemini_api_key"):
-                api_key = cfg["gemini_api_key"]
-        except Exception as e:
-            print(f"Warning: Could not read API key from config.json: {e}")
+            with open(data_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if data.get("geminiApiKey"):
+                api_key = data["geminiApiKey"]
+        except Exception:
+            pass
+            
+    # Fall back to config.json if still default
+    if api_key == "<API_KEY_SCRUBBED>":
+        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    cfg = json.load(f)
+                if cfg.get("gemini_api_key"):
+                    api_key = cfg["gemini_api_key"]
+            except Exception as e:
+                print(f"Warning: Could not read API key from config.json: {e}")
             
     client = genai.Client(api_key=api_key)
     
