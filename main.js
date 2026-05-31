@@ -984,7 +984,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
     parseAllTasks(content) {
         const lines = content.split(/\r?\n/);
         const tasks = [];
-        const taskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+        const taskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         let currentSubheading = "";
         let inPlanner = false;
         
@@ -1178,13 +1178,13 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const newTimeRange = `${newStartH}:${newStartM} - ${newEndH}:${newEndM}`;
 
         const originalLine = lines[task.lineIndex];
-        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/;
+        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/;
         const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
         lines[task.lineIndex] = newLine;
 
         let inSubheading = false;
         const subheadingIndices = [];
-        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -1886,14 +1886,14 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const newTimeRange = `${newStartH}:${newStartM} - ${newEndH}:${newEndM}`;
 
         const originalLine = lines[currentTask.lineIndex];
-        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/;
+        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/;
         const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
         lines[currentTask.lineIndex] = newLine;
 
         // Re-sort within the subheading (e.g. Work, House, Admin)
         let inSubheading = false;
         const subheadingIndices = [];
-        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
