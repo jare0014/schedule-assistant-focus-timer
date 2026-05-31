@@ -1147,7 +1147,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
         const busyIntervals = allTasks
-            .filter(t => t.endMinutes > currentMinutes && t.lineIndex !== task.lineIndex)
+            .filter(t => t.status !== 'completed' && t.endMinutes > currentMinutes && t.lineIndex !== task.lineIndex)
             .map(t => ({
                 start: t.startMinutes,
                 end: t.endMinutes
@@ -1855,7 +1855,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
         // Find all busy intervals after now (excluding the current task itself)
         const busyIntervals = allTasks
-            .filter(t => t.endMinutes > currentMinutes && t.lineIndex !== currentTask.lineIndex)
+            .filter(t => t.status !== 'completed' && t.endMinutes > currentMinutes && t.lineIndex !== currentTask.lineIndex)
             .map(t => ({
                 start: t.startMinutes,
                 end: t.endMinutes
