@@ -1,0 +1,10 @@
+{
+  "id": "schedule-assistant-focus-timer",
+  "name": "Schedule Assistant with Focus Timer",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Displays a timeblocked schedule view with focus timers, flashing alarms, and Web Audio sirens.",
+  "author": "Alex Jarecki",
+  "authorUrl": "",
+  "isDesktopOnly": true
+}

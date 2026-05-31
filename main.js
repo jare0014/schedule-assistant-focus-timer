@@ -23,7 +23,7 @@ class TaskTimerView extends obsidian.ItemView {
     }
 
     getDisplayText() {
-        return "Timeblocker and Task Timer";
+        return "Schedule Assistant with Focus Timer";
     }
 
     getIcon() {
@@ -110,8 +110,8 @@ class TaskTimerView extends obsidian.ItemView {
             return;
         }
 
-        // 3. Parse tasks
-        const tasks = this.plugin.parseAllTasks(content);
+        // 3. Parse tasks (filter out completed tasks)
+        const tasks = this.plugin.parseAllTasks(content).filter(t => t.status !== 'completed');
         if (tasks.length === 0) {
             this.renderIdleView(viewContainer);
             return;
@@ -517,7 +517,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
         try {
             const { containerEl } = this;
             containerEl.empty();
-            containerEl.createEl('h2', { text: 'Timeblocker and Task Timer Settings' });
+            containerEl.createEl('h2', { text: 'Schedule Assistant with Focus Timer Settings' });
 
             new obsidian.Setting(containerEl)
                 .setName('Default Timer Duration')
@@ -702,7 +702,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
             const fs = require('fs');
             const vaultPath = this.app.vault.adapter.getBasePath();
             const sep = vaultPath.includes('/') ? '/' : '\\';
-            const prefsPath = `${vaultPath}${sep}.obsidian${sep}plugins${sep}timeblocker-and-task-timer${sep}preferences.txt`;
+            const prefsPath = `${vaultPath}${sep}.obsidian${sep}plugins${sep}schedule-assistant-focus-timer${sep}preferences.txt`;
 
             let prefsContent = "";
             try {
@@ -794,14 +794,14 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         );
 
         // Add ribbon icon to open view
-        this.addRibbonIcon('alarm-clock', 'Open Task Timer', () => {
+        this.addRibbonIcon('alarm-clock', 'Open Schedule Assistant', () => {
             this.activateView();
         });
 
         // Add command to open view
         this.addCommand({
             id: 'open-task-timer',
-            name: 'Open Task Timer View',
+            name: 'Open Schedule Assistant View',
             callback: () => this.activateView(),
         });
 
@@ -873,7 +873,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const { spawn } = require('child_process');
         
         const vaultPath = this.app.vault.adapter.getBasePath();
-        const pluginDir = path.join(vaultPath, '.obsidian', 'plugins', 'timeblocker-and-task-timer');
+        const pluginDir = path.join(vaultPath, '.obsidian', 'plugins', 'schedule-assistant-focus-timer');
         const scriptPath = path.join(pluginDir, 'timeblocker.py');
         
         if (!fs.existsSync(scriptPath)) {
@@ -1631,10 +1631,10 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const fs = require('fs');
         const vaultPath = this.app.vault.adapter.getBasePath();
         const sep = vaultPath.includes('/') ? '/' : '\\';
-        const tokenPath = `${vaultPath}${sep}.obsidian${sep}plugins${sep}timeblocker-and-task-timer${sep}token.json`;
+        const tokenPath = `${vaultPath}${sep}.obsidian${sep}plugins${sep}schedule-assistant-focus-timer${sep}token.json`;
         
         if (!fs.existsSync(tokenPath)) {
-            throw new Error("Google authentication token.json not found in timeblocker-and-task-timer.");
+            throw new Error("Google authentication token.json not found in schedule-assistant-focus-timer.");
         }
         
         let tokenData;
