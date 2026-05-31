@@ -407,9 +407,9 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         7. Timed buttons for pending tasks:
            a. Only pending tasks (excluding calendar events) should have timer buttons. Do NOT add `BUTTON[...]` buttons to completed tasks (`- [x]`) or calendar events.
            b. For all pending timed tasks, format them exactly like this example (with backticks ONLY around the BUTTON parts):
-              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` `BUTTON[postpone]` [src](URL)
-              Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and `BUTTON[postpone]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
-              Every timed pending task MUST have a timer button and a postpone button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and `BUTTON[postpone]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
+              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` [src](URL)
+              Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and. Do NOT wrap the rest of the task description, the time, or the links in backticks.
+              Every timed pending task MUST have a timer button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
@@ -470,9 +470,9 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         7. Timed buttons for pending tasks:
            a. Only pending tasks (excluding calendar events) should have timer buttons. Do NOT add `BUTTON[...]` buttons to completed tasks (`- [x]`) or calendar events.
            b. For all pending timed tasks, format them exactly like this example (with backticks ONLY around the BUTTON parts):
-              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` `BUTTON[postpone]` [src](URL)
-              Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and `BUTTON[postpone]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
-              Every timed pending task MUST have a timer button and a postpone button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and `BUTTON[postpone]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
+              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` [src](URL)
+              Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and. Do NOT wrap the rest of the task description, the time, or the links in backticks.
+              Every timed pending task MUST have a timer button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
