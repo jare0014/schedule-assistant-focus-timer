@@ -1365,9 +1365,9 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 const content = await this.app.vault.read(dailyFile);
                 const allTasks = this.parseAllTasks(content);
                 
-                // Parse time range from the clicked line content
-                const clickedTaskRegex = /^(?:\s*-\s+\[[ x]\])?\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
-                const match = lineContent.match(clickedTaskRegex);
+                // Parse time range from the clicked line content anywhere in the string
+                const timeRangeRegex = /\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\b/i;
+                const match = lineContent.match(timeRangeRegex);
                 if (match) {
                     let startH = parseInt(match[1]);
                     const startM = parseInt(match[2]);
@@ -1390,7 +1390,10 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     const clickedStartMinutes = startH * 60 + startM;
                     const clickedEndMinutes = endH * 60 + endM;
                     
-                    let clickedDescription = match[7].replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
+                    let clickedDescription = lineContent.replace(match[0], '').trim();
+                    clickedDescription = clickedDescription.replace(/^\s*-\s+\[[ x]\]\s*/, '');
+                    clickedDescription = clickedDescription.replace(/^\s*-\s*/, '');
+                    clickedDescription = clickedDescription.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
                     clickedDescription = clickedDescription.replace(/\[src\]\(.*?\)/g, '').trim();
                     clickedDescription = clickedDescription.replace(/\s+src$/i, '').trim();
                     clickedDescription = clickedDescription.replace(/#\w+/g, '').trim();
