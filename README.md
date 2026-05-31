@@ -1,6 +1,6 @@
-# Timeblocker and Task Timer Obsidian Plugin
+# Schedule Assistant with Focus Timer
 
-A powerful, integrated timeblocking, active task tracking, and biometric sync plugin. It retrieves your Google Calendar events, Google Tasks, Todoist tasks, and Fitbit health data, parses your local Daily Note checklist, and uses generative AI (Gemini or Ollama) to build an optimized daily schedule.
+A powerful, integrated daily timeblocking, active focus tracking, and biometric sync plugin. It retrieves your Google Calendar events, Google Tasks, Todoist tasks, and Fitbit health data, parses your local Daily Note checklist, and uses generative AI (Gemini or Ollama) to build an optimized daily schedule.
 
 All credentials and API tokens are securely stored in your operating system's keychain wrapper (`SecretStorage`), ensuring there are no plain text secrets left in your vault.
 
@@ -30,7 +30,7 @@ All credentials and API tokens are securely stored in your operating system's ke
 
 ## 🔒 Configuration & Secure API Setup
 
-Go to **Settings** > **Timeblocker and Task Timer**:
+Go to **Settings** > **Schedule Assistant with Focus Timer**:
 
 ### 1. AI Provider Setup
 Choose between:
@@ -63,16 +63,16 @@ This plugin runs your local `fitbit_pull.py` script securely by injecting creden
 
 ### A. Generating Your Schedule
 1. In Obsidian, open the Command Palette (`Ctrl + P` / `Cmd + P`).
-2. Run: `Timeblocker and Task Timer: Generate Daily Schedule (Timeblocker)`.
+2. Run: `Schedule Assistant with Focus Timer: Generate Daily Schedule (Schedule Assistant)`.
 3. Review, modify, or adjust the schedule in the popup window.
 4. Click **Write to Daily Note** to insert the structured checkboxes under `## 📅Day Planner`.
 
 ### B. Operating Task Timers
 1. Hover or place your cursor on a timed checkbox item in your daily note (e.g. `- [ ] 10:00 - 10:20 Neck Rest `BUTTON[timer-20]``).
-2. Open the Command Palette and run: `Timeblocker and Task Timer: Start [X] Minute Timer` (or use the open sidebar clock ribbon icon).
+2. Open the Command Palette and run: `Schedule Assistant with Focus Timer: Start [X] Minute Timer` (or use the open sidebar clock ribbon icon).
 3. The sidebar timer will track your progress and log pauses, resumes, and completions directly to today's log under `## 🪵 Log`.
 
 ### C. Syncing Fitbit Data
 1. Open your Daily Note.
-2. Click the **🧠 Check In** button (or run command `Timeblocker and Task Timer: Sync Fitbit Data` in the Command Palette).
+2. Click the **🧠 Check In** button (or run command `Schedule Assistant with Focus Timer: Sync Fitbit Data` in the Command Palette).
 3. The check-in window will load your Fitbit details and sync them directly to your frontmatter.

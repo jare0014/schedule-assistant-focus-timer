@@ -223,7 +223,7 @@ def extract_daily_note_tasks(note_path):
         if in_planner:
             stripped = line.strip()
             # Extract checklist items (both open and completed)
-            if stripped.startswith('- [ ]') or stripped.startswith('- [x]'):
+            if stripped.startswith('- [ ]') or stripped.startswith('- [x]') or stripped.startswith('- [X]'):
                 # Strip out any existing inline timer buttons to let Gemini regenerate clean ones
                 clean_task = stripped.replace('`BUTTON[timer-', '').replace('BUTTON[timer-', '')
                 clean_task = clean_task.replace(']`', '').replace(']', '')
@@ -394,7 +394,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            (Include all inbox reviews, sync fixes, cancellation tasks, dentist calls, checklist cleanups, digital maintenance, etc.)
            
         5. Respect scheduled times and completion status:
-           a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status as `- [x]`. Do NOT move, change, or remove completed tasks.
+           a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` or `- [X]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status (either `- [x]` or `- [X]`). Do NOT move, change, or remove completed tasks.
            b. **Pending Tasks Scheduling**: All pending/uncompleted tasks (marked with `- [ ]` from the daily note, or tasks from Todoist/Google Tasks) MUST be scheduled to start chronologically after the current time of {current_time} (or after 06:00 AM if {current_time} is earlier in the day).
            c. **Overdue / Moved Tasks**: If an existing pending task in the daily note had a scheduled time range in the past (before {current_time}), you MUST reschedule it to start after {current_time}.
            d. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time if it is in the future. If it is in the past, reschedule it to start after {current_time}. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
@@ -457,7 +457,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            (Include all inbox reviews, sync fixes, cancellation tasks, dentist calls, checklist cleanups, digital maintenance, etc.)
            
         5. Respect scheduled times and completion status:
-           a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status as `- [x]`. Do NOT move, change, or remove completed tasks.
+           a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` or `- [X]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status (either `- [x]` or `- [X]`). Do NOT move, change, or remove completed tasks.
            b. **Pending Tasks Scheduling**: All pending/uncompleted tasks (marked with `- [ ]` from the daily note, or tasks from Todoist/Google Tasks) MUST be scheduled to start chronologically after the current time of {current_time} (or after 06:00 AM if {current_time} is earlier in the day).
            c. **Overdue / Moved Tasks**: If an existing pending task in the daily note had a scheduled time range in the past (before {current_time}), you MUST reschedule it to start after {current_time}.
            d. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time if it is in the future. If it is in the past, reschedule it to start after {current_time}. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
@@ -664,7 +664,7 @@ class ScheduleApp:
         self.current_schedule = initial_schedule
         
         self.root = tk.Tk()
-        self.root.title("Daily Task Scheduler & Timeblocker")
+        self.root.title("Schedule Assistant with Focus Timer")
         self.root.geometry("700x820")
         self.root.configure(bg="#1e1e1e")
         

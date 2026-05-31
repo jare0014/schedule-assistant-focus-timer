@@ -823,7 +823,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         // Add generate schedule command
         this.addCommand({
             id: 'load-tasks',
-            name: 'Generate Daily Schedule (Timeblocker)',
+            name: 'Generate Daily Schedule (Schedule Assistant)',
             callback: () => this.runTaskLoader()
         });
 
@@ -984,7 +984,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
     parseAllTasks(content) {
         const lines = content.split(/\r?\n/);
         const tasks = [];
-        const taskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+        const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         let currentSubheading = "";
         let inPlanner = false;
         
@@ -1004,7 +1004,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 }
                 const match = line.match(taskRegex);
                 if (match) {
-                    const status = match[1] === 'x' ? 'completed' : 'pending';
+                    const status = (match[1] === 'x' || match[1] === 'X') ? 'completed' : 'pending';
                     let startH = parseInt(match[2]);
                     const startM = parseInt(match[3]);
                     const startAmpm = match[4];
@@ -1066,7 +1066,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
 
         // Try to match HH:MM - HH:MM format
-        const clickedTaskRegex = /^(?:\s*-\s+\[[ x]\])?\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+        const clickedTaskRegex = /^(?:\s*-\s+\[[ xX]\])?\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         const match = lineContent.match(clickedTaskRegex);
         
         let clickedStartMinutes = null;
@@ -1184,7 +1184,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
         let inSubheading = false;
         const subheadingIndices = [];
-        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+        const fileTaskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -1893,7 +1893,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         // Re-sort within the subheading (e.g. Work, House, Admin)
         let inSubheading = false;
         const subheadingIndices = [];
-        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+        const fileTaskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
