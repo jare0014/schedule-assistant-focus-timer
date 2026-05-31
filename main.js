@@ -1065,36 +1065,48 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             return;
         }
 
-        // Match optionally starting with checkbox/bullet, then HH:MM - HH:MM, then the task description
+        // Try to match HH:MM - HH:MM format
         const clickedTaskRegex = /^(?:\s*-\s+\[[ x]\])?\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         const match = lineContent.match(clickedTaskRegex);
-        if (!match) {
-            new obsidian.Notice("Line does not match timeblocked task format (HH:MM - HH:MM)!");
-            return;
+        
+        let clickedStartMinutes = null;
+        let clickedEndMinutes = null;
+        let clickedDescription = "";
+
+        if (match) {
+            let startH = parseInt(match[1]);
+            const startM = parseInt(match[2]);
+            const startAmpm = match[3];
+            let endH = parseInt(match[4]);
+            const endM = parseInt(match[5]);
+            const endAmpm = match[6];
+            
+            if (startAmpm) {
+                const ampm = startAmpm.toLowerCase();
+                if (ampm === 'pm' && startH < 12) startH += 12;
+                if (ampm === 'am' && startH === 12) startH = 0;
+            }
+            if (endAmpm) {
+                const ampm = endAmpm.toLowerCase();
+                if (ampm === 'pm' && endH < 12) endH += 12;
+                if (ampm === 'am' && endH === 12) endH = 0;
+            }
+
+            clickedStartMinutes = startH * 60 + startM;
+            clickedEndMinutes = endH * 60 + endM;
+            
+            clickedDescription = match[7];
+        } else {
+            // No time prefix - treat the entire line content as description
+            clickedDescription = lineContent;
         }
 
-        let startH = parseInt(match[1]);
-        const startM = parseInt(match[2]);
-        const startAmpm = match[3];
-        let endH = parseInt(match[4]);
-        const endM = parseInt(match[5]);
-        const endAmpm = match[6];
-        
-        if (startAmpm) {
-            const ampm = startAmpm.toLowerCase();
-            if (ampm === 'pm' && startH < 12) startH += 12;
-            if (ampm === 'am' && startH === 12) startH = 0;
-        }
-        if (endAmpm) {
-            const ampm = endAmpm.toLowerCase();
-            if (ampm === 'pm' && endH < 12) endH += 12;
-            if (ampm === 'am' && endH === 12) endH = 0;
-        }
-
-        const clickedStartMinutes = startH * 60 + startM;
-        const clickedEndMinutes = endH * 60 + endM;
-        
-        let clickedDescription = match[7].replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
+        // Clean description
+        clickedDescription = clickedDescription.replace(/^\s*-\s+\[[ x]\]\s*/, '');
+        clickedDescription = clickedDescription.replace(/^\s*-\s*/, '');
+        clickedDescription = clickedDescription.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
+        clickedDescription = clickedDescription.replace(/\[src\]\(.*?\)/g, '').trim();
+        clickedDescription = clickedDescription.replace(/\s+src$/i, '').trim();
         clickedDescription = clickedDescription.replace(/#\w+/g, '').trim();
         clickedDescription = clickedDescription.replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -1115,10 +1127,12 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const lines = content.split(/\r?\n/);
         const allTasks = this.parseAllTasks(content);
 
-        // Find the task by comparing start/end times and normalized descriptions
+        // Find the task by comparing start/end times (if available) and normalized descriptions
         const task = allTasks.find(t => {
-            const timeMatches = (t.startMinutes === clickedStartMinutes && t.endMinutes === clickedEndMinutes);
-            if (!timeMatches) return false;
+            if (clickedStartMinutes !== null && clickedEndMinutes !== null) {
+                const timeMatches = (t.startMinutes === clickedStartMinutes && t.endMinutes === clickedEndMinutes);
+                if (!timeMatches) return false;
+            }
             
             const fileDesc = t.description.toLowerCase();
             return fileDesc === clickedDescription || fileDesc.includes(clickedDescription) || clickedDescription.includes(fileDesc);
@@ -1265,12 +1279,12 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 }
                 
                 // Generic fallback for Day Planner view or other custom renderings:
-                // Check if the current element's text content contains a time-blocked pattern
+                // Find the nearest container element that contains substantial text (the task description)
                 const clone = el.cloneNode(true);
                 clone.querySelectorAll('.meta-bind-button-wrapper, .meta-bind-button, button, [class*="meta-bind"]').forEach(btn => btn.remove());
-                const txt = clone.textContent || "";
-                const timeBlockedTaskRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/i;
-                if (timeBlockedTaskRegex.test(txt)) {
+                const txt = (clone.textContent || "").trim();
+                
+                if (txt.length > 5 && !el.classList.contains('meta-bind-button') && el.tagName !== 'BUTTON') {
                     let cleaned = txt.replace(/\s+/g, ' ').trim();
                     if (!cleaned.startsWith('-')) {
                         cleaned = '- [ ] ' + cleaned;
