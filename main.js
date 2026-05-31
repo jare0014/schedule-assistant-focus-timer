@@ -1730,7 +1730,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
     }
 
     async toggleTodoistTaskStatus(taskId, complete, token) {
-        const url = `https://api.todoist.com/rest/v2/tasks/${taskId}/${complete ? 'close' : 'reopen'}`;
+        const url = `https://api.todoist.com/api/v1/tasks/${taskId}/${complete ? 'close' : 'reopen'}`;
         try {
             const response = await obsidian.requestUrl({
                 url: url,

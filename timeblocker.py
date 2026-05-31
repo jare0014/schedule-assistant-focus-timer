@@ -163,7 +163,7 @@ def get_todoist_token():
 
 def get_todoist_tasks(tz):
     token = get_todoist_token()
-    url = "https://api.todoist.com/rest/v2/tasks"
+    url = "https://api.todoist.com/api/v1/tasks"
     all_items = []
     
     print("Fetching active tasks from Todoist...")
