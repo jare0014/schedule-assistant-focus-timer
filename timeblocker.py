@@ -65,10 +65,21 @@ def get_google_creds():
                 creds = None
         
         if not creds or not creds.valid:
-            if not os.path.exists(creds_path):
-                raise FileNotFoundError(f"credentials.json not found at {creds_path}. Please place it there.")
-            flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
-            creds = flow.run_local_server(port=0)
+            env_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+            if env_creds:
+                try:
+                    client_config = json.loads(env_creds)
+                    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+                    creds = flow.run_local_server(port=0)
+                except Exception as e:
+                    print(f"Error authenticating with GOOGLE_CREDENTIALS_JSON environment variable: {e}")
+                    creds = None
+            
+            if not creds or not creds.valid:
+                if not os.path.exists(creds_path):
+                    raise FileNotFoundError(f"Google Client credentials not provided via GOOGLE_CREDENTIALS_JSON environment variable or credentials.json file at {creds_path}.")
+                flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
+                creds = flow.run_local_server(port=0)
             
         with open(token_path, 'w') as token:
             token.write(creds.to_json())
@@ -134,8 +145,24 @@ def get_google_tasks(tz):
                 
     return google_tasks
 
+def get_todoist_token():
+    token = os.environ.get("TODOIST_API_TOKEN")
+    if token:
+        return token
+    # Fallback to check plugin data.json (for backward compatibility)
+    data_path = os.path.join(os.path.dirname(__file__), 'data.json')
+    if os.path.exists(data_path):
+        try:
+            with open(data_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if data.get("todoistToken"):
+                return data["todoistToken"]
+        except Exception:
+            pass
+    return ""
+
 def get_todoist_tasks(tz):
-    token = ""
+    token = get_todoist_token()
     url = "https://api.todoist.com/api/v1/tasks"
     all_items = []
     
@@ -183,7 +210,7 @@ def extract_daily_note_tasks(note_path):
     with open(note_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    lines = content.split('\n')
+    lines = content.splitlines()
     tasks = []
     in_planner = False
     
@@ -205,22 +232,28 @@ def extract_daily_note_tasks(note_path):
 
 def get_planner_headers(note_path):
     if not os.path.exists(note_path):
-        return ["## 📅Day Planner `BUTTON[taskloader]`"]
+        return ["## 📅Day Planner", "`BUTTON[taskloader]`"]
     with open(note_path, 'r', encoding='utf-8') as f:
         content = f.read()
-    lines = content.split('\n')
+    lines = content.splitlines()
     headers = []
     found_planner = False
     for line in lines:
         if "## 📅Day Planner" in line:
             found_planner = True
-            headers.append(line)
+            headers.append("## 📅Day Planner")
             continue
         if found_planner:
             # Stop when we hit the first subheading or checklist item
             if line.startswith('###') or line.strip().startswith('- ['):
                 break
             headers.append(line)
+            
+    # Ensure taskloader button is present in the headers, on the line below the main heading
+    has_button = any("BUTTON[taskloader]" in h for h in headers)
+    if not has_button:
+        headers.insert(1, "`BUTTON[taskloader]`")
+        
     return headers
 
 def get_preferences_path():
@@ -309,33 +342,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
 
     daily_tasks_str = "\n".join(daily_tasks)
 
-    print("Sending events and tasks to Gemini for scheduling...")
-    
-    api_key = "<API_KEY_SCRUBBED>"
-    # Try reading from data.json first (Obsidian plugin settings)
-    data_path = os.path.join(os.path.dirname(__file__), 'data.json')
-    if os.path.exists(data_path):
-        try:
-            with open(data_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            if data.get("geminiApiKey"):
-                api_key = data["geminiApiKey"]
-        except Exception:
-            pass
-            
-    # Fall back to config.json if still default
-    if api_key == "<API_KEY_SCRUBBED>":
-        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    cfg = json.load(f)
-                if cfg.get("gemini_api_key"):
-                    api_key = cfg["gemini_api_key"]
-            except Exception as e:
-                print(f"Warning: Could not read API key from config.json: {e}")
-            
-    client = genai.Client(api_key=api_key)
+    print("Preparing schedule generation...")
     
     current_time = datetime.now(tz).strftime("%I:%M %p")
     
@@ -391,10 +398,10 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            b. If an "Existing Task" from the daily note already has a scheduled time range (e.g., "06:30 - 06:45"), you MUST preserve that exact time range.
            c. For all other tasks (without an explicit due time or existing time range), distribute them chronologically starting from {current_time} (or from 06:00 AM if {current_time} is earlier in the day).
         6. EVERY single schedule item (whether a calendar event, work task, house chore, or admin task) MUST be formatted as an Obsidian checklist item starting exactly with "- [ ] ". Do NOT use "*" or any other bullet character.
-        7. For all timed tasks (excluding calendar events), format them exactly like this example (with backticks ONLY around the BUTTON part):
-           - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` [src](URL)
-           Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
-           Every timed task MUST have a timer button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding button (e.g., `BUTTON[timer-20]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
+        7. For all timed tasks (excluding calendar events), format them exactly like this example (with backticks ONLY around the BUTTON parts):
+           - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` `BUTTON[postpone]` [src](URL)
+           Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and `BUTTON[postpone]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
+           Every timed task MUST have a timer button and a postpone button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and `BUTTON[postpone]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
@@ -446,10 +453,10 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            b. If an "Existing Task" from the daily note already has a scheduled time range (e.g., "06:30 - 06:45"), you MUST preserve that exact time range.
            c. For all other tasks (without an explicit due time or existing time range), distribute them chronologically starting from {current_time} (or from 06:00 AM if {current_time} is earlier in the day).
         6. EVERY single schedule item (whether a calendar event, work task, house chore, or admin task) MUST be formatted as a checklist item starting exactly with "- [ ] ". Do NOT use "*" or any other bullet character.
-        7. For all timed tasks (excluding calendar events), format them exactly like this example (with backticks ONLY around the BUTTON part):
-           - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` [src](URL)
-           Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
-           Every timed task MUST have a timer button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding button (e.g., `BUTTON[timer-20]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
+        7. For all timed tasks (excluding calendar events), format them exactly like this example (with backticks ONLY around the BUTTON parts):
+           - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` `BUTTON[postpone]` [src](URL)
+           Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and `BUTTON[postpone]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
+           Every timed task MUST have a timer button and a postpone button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and `BUTTON[postpone]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
@@ -459,34 +466,105 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         {user_preferences if user_preferences else "(No custom preferences specified)"}
         """
     
-    model_names = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.5-flash']
-    response = None
-    last_err = None
-    for model_name in model_names:
-        print(f"Trying Gemini model: {model_name}...")
-        for attempt in range(4):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
-                break
-            except Exception as e:
-                err_msg = str(e)
-                last_err = e
-                if "503" in err_msg or "unavailable" in err_msg.lower() or "demand" in err_msg.lower() or "limit" in err_msg.lower():
-                    backoff = 2 ** attempt
-                    print(f"Gemini model {model_name} call failed (transient error / demand limit). Retrying in {backoff} seconds...")
-                    time.sleep(backoff)
-                else:
-                    break
-        if response:
-            break
-            
-    if not response:
-        raise last_err
+    # Load LLM configurations from data.json
+    llm_provider = 'gemini'
+    llm_model = 'gemini-2.5-pro'
+    ollama_url = 'http://localhost:11434'
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
     
-    schedule_lines = response.text.strip().split('\n')
+    data_path = os.path.join(os.path.dirname(__file__), 'data.json')
+    if os.path.exists(data_path):
+        try:
+            with open(data_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            llm_provider = data.get("llmProvider", llm_provider)
+            llm_model = data.get("llmModel", llm_model)
+            ollama_url = data.get("ollamaUrl", ollama_url)
+            
+            if not gemini_api_key and data.get("geminiApiKey"):
+                gemini_api_key = data["geminiApiKey"]
+        except Exception:
+            pass
+
+    response_text = None
+    if llm_provider == 'gemini':
+        if not gemini_api_key:
+            config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        cfg = json.load(f)
+                    if cfg.get("gemini_api_key"):
+                        gemini_api_key = cfg["gemini_api_key"]
+                except Exception:
+                    pass
+        if not gemini_api_key:
+            gemini_api_key = "<API_KEY_SCRUBBED>"
+            
+        client = genai.Client(api_key=gemini_api_key)
+        
+        # Build model list starting with configured model
+        model_names = [llm_model]
+        for fallback in ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']:
+            if fallback not in model_names:
+                model_names.append(fallback)
+                
+        last_err = None
+        for model_name in model_names:
+            print(f"Trying Gemini model: {model_name}...")
+            for attempt in range(4):
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt
+                    )
+                    if response and response.text:
+                        response_text = response.text
+                        break
+                except Exception as e:
+                    err_msg = str(e)
+                    last_err = e
+                    if "503" in err_msg or "unavailable" in err_msg.lower() or "demand" in err_msg.lower() or "limit" in err_msg.lower():
+                        backoff = 2 ** attempt
+                        print(f"Gemini model {model_name} call failed (transient). Retrying in {backoff} seconds...")
+                        time.sleep(backoff)
+                    else:
+                        break
+            if response_text:
+                break
+        if not response_text:
+            raise last_err
+            
+    elif llm_provider == 'ollama':
+        url = f"{ollama_url.rstrip('/')}/api/generate"
+        payload = {
+            "model": llm_model,
+            "prompt": prompt,
+            "stream": False
+        }
+        
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url, 
+            data=data, 
+            headers={"Content-Type": "application/json"}
+        )
+        
+        print(f"Trying Ollama model: {llm_model} at {url}...")
+        try:
+            with urllib.request.urlopen(req, timeout=120) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                response_text = res_data.get("response", "")
+                if not response_text:
+                    raise ValueError(f"Ollama returned empty response: {res_data}")
+        except Exception as e:
+            print(f"Ollama API query failed: {e}")
+            raise e
+    else:
+        raise ValueError(f"Unknown LLM Provider: {llm_provider}")
+    
+    schedule_lines = response_text.strip().splitlines()
     filtered_lines = []
     prohibited_terms = {'lunch', 'breakfast', 'dinner', 'break', 'sleep', 'leisure time', 'morning routine', 'evening routine', 'rest'}
     for line in schedule_lines:
@@ -838,8 +916,10 @@ def main():
         pass
         
     tz = get_timezone_offset()
-    today_str = datetime.now(tz).strftime("%Y-%m-%d")
-    note_path = f"C:\\Users\\aljar\\Documents\\Obsidian\\02_Journal\\01_Daily\\{today_str}.md"
+    note_path = os.environ.get("DAILY_NOTE_PATH")
+    if not note_path:
+        today_str = datetime.now(tz).strftime("%Y-%m-%d")
+        note_path = f"C:\\Users\\aljar\\Documents\\Obsidian\\02_Journal\\01_Daily\\{today_str}.md"
     
     daily_tasks = extract_daily_note_tasks(note_path)
     headers = get_planner_headers(note_path)
