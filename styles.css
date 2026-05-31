@@ -328,3 +328,89 @@
   color: var(--text-on-accent);
   border-color: var(--interactive-accent);
 }
+
+.alarm-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 85%;
+  max-width: 300px;
+  margin-top: 15px;
+}
+
+.alarm-btn {
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+}
+
+.alarm-btn:hover {
+  transform: translateY(-1px);
+}
+
+.alarm-btn.primary {
+  background-color: #ffffff;
+  color: #ff0033;
+}
+
+.alarm-btn.success {
+  background-color: #4cd964;
+  color: #ffffff;
+}
+
+.alarm-btn.warning {
+  background-color: #ff9500;
+  color: #ffffff;
+}
+
+.alarm-btn.danger {
+  background-color: #ff3b30;
+  color: #ffffff;
+}
+
+.schedule-subheading {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-accent);
+  margin-top: 16px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 4px;
+}
+
+.task-card.completed {
+  opacity: 0.55;
+}
+
+.task-card.completed .task-card-name {
+  text-decoration: line-through;
+}
+
+.task-card-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.task-card-delete-btn:hover {
+  background-color: #ff3b30;
+  color: #ffffff;
+  border-color: #ff3b30;
+}
+

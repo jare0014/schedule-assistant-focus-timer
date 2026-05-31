@@ -1,4 +1,6 @@
 __pycache__/
+*.pyc
 credentials.json
 token.json
 config.json
+data.json

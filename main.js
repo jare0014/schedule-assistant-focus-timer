@@ -33,6 +33,18 @@ class TaskTimerView extends obsidian.ItemView {
     async onOpen() {
         this.originalTitle = document.title;
         this.renderSchedule();
+        
+        // Register vault modify event to refresh schedule view in real-time
+        this.registerEvent(
+            this.app.vault.on('modify', (file) => {
+                const dailyFile = this.getDailyNoteFile();
+                if (dailyFile && file.path === dailyFile.path) {
+                    if (!this.currentTimer && !this.isAlarming) {
+                        this.renderSchedule();
+                    }
+                }
+            })
+        );
     }
 
     async onClose() {
@@ -59,7 +71,7 @@ class TaskTimerView extends obsidian.ItemView {
             return;
         }
 
-        this.renderIdleView(viewContainer);
+        await this.renderScheduleTimeline(viewContainer);
     }
 
     renderIdleView(viewContainer) {
@@ -70,14 +82,169 @@ class TaskTimerView extends obsidian.ItemView {
         idleContainer.createDiv({ cls: 'timer-idle-desc', text: "Select a task from your Day Planner inside today's daily note to start a focus timer." });
     }
 
-    async startTimer(taskName, durationMinutes) {
+    async renderScheduleTimeline(viewContainer) {
+        // 1. Header with date and Generate Schedule button
+        const header = viewContainer.createDiv({ cls: 'task-timer-header' });
+        
+        const now = new Date();
+        const dateStr = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        header.createEl('h3', { text: dateStr });
+        
+        const genBtn = header.createEl('button', { cls: 'auto-block-btn', text: 'Generate Schedule' });
+        genBtn.onclick = () => {
+            this.plugin.runTaskLoader();
+        };
+
+        // 2. Load daily note file
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) {
+            this.renderIdleView(viewContainer);
+            return;
+        }
+
+        let content = "";
+        try {
+            content = await this.app.vault.read(dailyFile);
+        } catch(e) {
+            this.renderIdleView(viewContainer);
+            return;
+        }
+
+        // 3. Parse tasks
+        const tasks = this.plugin.parseAllTasks(content);
+        if (tasks.length === 0) {
+            this.renderIdleView(viewContainer);
+            return;
+        }
+
+        // 4. Group tasks by subheading
+        const groupedTasks = {};
+        tasks.forEach(t => {
+            const subheading = t.subheading || "Agenda";
+            if (!groupedTasks[subheading]) {
+                groupedTasks[subheading] = [];
+            }
+            groupedTasks[subheading].push(t);
+        });
+
+        // 5. Render list grouped by category
+        const listContainer = viewContainer.createDiv({ cls: 'schedule-list' });
+        
+        for (const subheading in groupedTasks) {
+            const cleanSubheading = subheading.replace(/^###\s+/, '');
+            listContainer.createDiv({ cls: 'schedule-subheading', text: cleanSubheading });
+            
+            groupedTasks[subheading].forEach(task => {
+                const card = listContainer.createDiv({ 
+                    cls: `task-card${task.status === 'completed' ? ' completed' : ''}` 
+                });
+                
+                const left = card.createDiv({ cls: 'task-card-left' });
+                const timeRangeStr = `${String(task.startHour).padStart(2, '0')}:${String(task.startMin).padStart(2, '0')} - ${String(task.endHour).padStart(2, '0')}:${String(task.endMin).padStart(2, '0')}`;
+                left.createDiv({ cls: 'task-card-time', text: timeRangeStr });
+                left.createDiv({ cls: 'task-card-name', text: task.description });
+                
+                const right = card.createDiv({ cls: 'task-card-controls' });
+
+                // Checkbox
+                const cb = right.createEl('input', { type: 'checkbox' });
+                cb.checked = task.status === 'completed';
+                cb.onclick = async (e) => {
+                    e.stopPropagation();
+                    const complete = cb.checked;
+                    await this.toggleTaskCompletion(task, complete);
+                };
+
+                if (task.status !== 'completed') {
+                    // Play Button
+                    const playBtn = right.createEl('button', { cls: 'task-card-play-btn', title: 'Start Timer' });
+                    playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+                    playBtn.onclick = () => {
+                        this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+                    };
+
+                    // Postpone Button
+                    const postBtn = right.createEl('button', { cls: 'task-card-postpone-btn', title: 'Postpone' });
+                    postBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+                    postBtn.onclick = async () => {
+                        await this.plugin.postponeTask(task);
+                        this.renderSchedule();
+                    };
+                }
+
+                // Delete Button (Not Today)
+                const delBtn = right.createEl('button', { cls: 'task-card-delete-btn', title: 'Not Today' });
+                delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+                delBtn.onclick = async () => {
+                    await this.plugin.removeTask(task);
+                    this.renderSchedule();
+                };
+            });
+        }
+    }
+
+    async toggleTaskCompletion(task, complete) {
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return;
+
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            const lines = content.split(/\r?\n/);
+            const originalLine = lines[task.lineIndex];
+            
+            if (complete) {
+                lines[task.lineIndex] = originalLine.replace('- [ ]', '- [x]');
+            } else {
+                lines[task.lineIndex] = originalLine.replace('- [x]', '- [ ]');
+            }
+
+            // Sync API
+            await this.plugin.toggleTaskStatusByLineText(originalLine, complete);
+            
+            // Save daily note
+            await this.app.vault.modify(dailyFile, lines.join('\n'));
+            this.renderSchedule();
+        } catch(e) {
+            console.error("Failed to toggle task completion:", e);
+        }
+    }
+
+    async endActiveTask(task) {
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return;
+
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            const lines = content.split(/\r?\n/);
+
+            let lineIndex = task.lineIndex;
+            if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].includes(task.description)) {
+                lineIndex = lines.findIndex(l => l.includes(task.description) && l.includes('- [ ]'));
+            }
+
+            if (lineIndex !== -1) {
+                const originalLine = lines[lineIndex];
+                lines[lineIndex] = originalLine.replace('- [ ]', '- [x]');
+                await this.plugin.toggleTaskStatusByLineText(originalLine, true);
+            }
+
+            await this.app.vault.modify(dailyFile, lines.join('\n'));
+        } catch (e) {
+            console.error("Failed to complete task:", e);
+        }
+    }
+
+    async startTimer(task, durationMinutes) {
         this.clearTimer();
+        
+        const taskName = typeof task === 'object' ? task.description : task;
         
         // Log the timer start in the daily note
         await this.plugin.logStart(taskName, durationMinutes);
         
         const totalSeconds = durationMinutes * 60;
         this.currentTimer = {
+            task: typeof task === 'object' ? task : { description: taskName, duration: durationMinutes },
             taskName: taskName,
             remainingSeconds: totalSeconds,
             totalSeconds: totalSeconds,
@@ -93,9 +260,11 @@ class TaskTimerView extends obsidian.ItemView {
 
                 if (this.currentTimer.remainingSeconds <= 0) {
                     this.clearTimer();
+                    const expiredTask = this.currentTimer.task;
+                    const expiredTaskName = this.currentTimer.taskName;
                     this.currentTimer = null;
                     await this.plugin.logUpdate(true); // Log completed
-                    this.triggerAlarm(taskName);
+                    this.triggerAlarm(expiredTask || expiredTaskName);
                 }
             }
         }, 1000);
@@ -109,14 +278,18 @@ class TaskTimerView extends obsidian.ItemView {
     }
 
     async completeTimer() {
+        const taskObj = this.currentTimer ? this.currentTimer.task : null;
         const taskName = this.currentTimer ? this.currentTimer.taskName : "Focus Block";
+        
         this.clearTimer();
         this.currentTimer = null;
         await this.plugin.logUpdate(true); // Log completed
         
-        // Render task list again instead of closing panel
-        this.renderSchedule();
+        if (taskObj) {
+            await this.endActiveTask(taskObj);
+        }
         
+        this.renderSchedule();
         new obsidian.Notice(`Completed session for "${taskName}"!`, 3000);
     }
 
@@ -126,9 +299,7 @@ class TaskTimerView extends obsidian.ItemView {
         this.currentTimer = null;
         await this.plugin.logUpdate(false); // Log incomplete
         
-        // Render task list again instead of closing panel
         this.renderSchedule();
-        
         new obsidian.Notice(`Cancelled session for "${taskName}".`, 3000);
     }
 
@@ -186,9 +357,11 @@ class TaskTimerView extends obsidian.ItemView {
         }
     }
 
-    triggerAlarm(taskName) {
+    triggerAlarm(task) {
         this.isAlarming = true;
         this.stopAlarm();
+        
+        const taskName = typeof task === 'object' ? task.description : task;
         
         this.playSiren();
         this.flashWindow();
@@ -204,15 +377,54 @@ class TaskTimerView extends obsidian.ItemView {
         
         const overlay = container.createDiv({ cls: 'alarm-overlay' });
         overlay.createDiv({ cls: 'alarm-task-name', text: taskName });
-        overlay.createDiv({ cls: 'alarm-alert-text', text: "Time has expired for this task!" });
+        overlay.createDiv({ cls: 'alarm-alert-text', text: "Focus session finished!" });
         
-        const dismissBtn = overlay.createEl('button', { 
-            cls: 'alarm-dismiss-btn', 
-            text: 'DISMISS ALARM' 
-        });
-        
-        dismissBtn.onclick = () => {
+        const controls = overlay.createDiv({ cls: 'alarm-controls' });
+
+        // End Button
+        const endBtn = controls.createEl('button', { cls: 'alarm-btn primary', text: 'End & Complete' });
+        endBtn.onclick = async () => {
             this.stopAlarm();
+            if (typeof task === 'object' && task !== null) {
+                await this.endActiveTask(task);
+            } else if (typeof task === 'string') {
+                await this.endActiveTask({ description: task });
+            }
+            this.renderSchedule();
+        };
+
+        // Continue Button
+        const continueBtn = controls.createEl('button', { cls: 'alarm-btn success', text: 'Continue Focus' });
+        continueBtn.onclick = async () => {
+            this.stopAlarm();
+            if (typeof task === 'object') {
+                await this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+            } else {
+                await this.startTimer(taskName, parseInt(this.plugin.settings.defaultDuration));
+            }
+        };
+
+        // Reschedule Button
+        const rescheduleBtn = controls.createEl('button', { cls: 'alarm-btn warning', text: 'Reschedule' });
+        rescheduleBtn.onclick = async () => {
+            this.stopAlarm();
+            if (typeof task === 'object' && task !== null) {
+                await this.plugin.postponeTask(task);
+            } else if (typeof task === 'string') {
+                await this.plugin.postponeTask({ description: task });
+            }
+            this.renderSchedule();
+        };
+
+        // Not Today Button
+        const notTodayBtn = controls.createEl('button', { cls: 'alarm-btn danger', text: 'Not Today' });
+        notTodayBtn.onclick = async () => {
+            this.stopAlarm();
+            if (typeof task === 'object' && task !== null) {
+                await this.plugin.removeTask(task);
+            } else if (typeof task === 'string') {
+                await this.plugin.removeTask({ description: task });
+            }
             this.renderSchedule();
         };
     }
@@ -302,217 +514,225 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
     }
 
     display() {
-        const { containerEl } = this;
-        containerEl.empty();
-        containerEl.createEl('h2', { text: 'Timeblocker and Task Timer Settings' });
+        try {
+            const { containerEl } = this;
+            containerEl.empty();
+            containerEl.createEl('h2', { text: 'Timeblocker and Task Timer Settings' });
 
-        new obsidian.Setting(containerEl)
-            .setName('Default Timer Duration')
-            .setDesc('Duration (in minutes) assigned to timers if not specified.')
-            .addText(text => text
-                .setPlaceholder('20')
-                .setValue(this.plugin.settings.defaultDuration)
-                .onChange(async (value) => {
-                    this.plugin.settings.defaultDuration = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new obsidian.Setting(containerEl)
-            .setName('Auto-Apply Schedule')
-            .setDesc('Skip the review GUI popup and immediately apply the generated schedule to the daily note.')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.autoApply || false)
-                .onChange(async (value) => {
-                    this.plugin.settings.autoApply = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        containerEl.createEl('h3', { text: 'API Credentials (Keychain)' });
-
-        // Gemini API Key (SecretComponent)
-        new obsidian.Setting(containerEl)
-            .setName('Gemini API Key')
-            .setDesc('Secure API key stored in your system keychain.')
-            .then(setting => {
-                const secret = new obsidian.SecretComponent(setting.controlEl);
-                let secretId = this.plugin.settings.geminiApiKeyId;
-                if (!secretId) {
-                    secretId = 'timeblocker-gemini-api-key';
-                    this.plugin.settings.geminiApiKeyId = secretId;
-                    this.plugin.saveSettings();
-                }
-                this.app.secretStorage.get(secretId).then(value => {
-                    secret.setValue(value || '');
-                });
-                secret.onChange(async (value) => {
-                    await this.app.secretStorage.store(secretId, value.trim());
-                });
-            });
-
-        // Todoist API Token (SecretComponent)
-        new obsidian.Setting(containerEl)
-            .setName('Todoist API Token')
-            .setDesc('Secure Todoist API token stored in your system keychain.')
-            .then(setting => {
-                const secret = new obsidian.SecretComponent(setting.controlEl);
-                let secretId = this.plugin.settings.todoistTokenId;
-                if (!secretId) {
-                    secretId = 'timeblocker-todoist-token';
-                    this.plugin.settings.todoistTokenId = secretId;
-                    this.plugin.saveSettings();
-                }
-                this.app.secretStorage.get(secretId).then(value => {
-                    secret.setValue(value || '');
-                });
-                secret.onChange(async (value) => {
-                    await this.app.secretStorage.store(secretId, value.trim());
-                });
-            });
-
-        // Google Credentials JSON (SecretComponent)
-        new obsidian.Setting(containerEl)
-            .setName('Google Credentials JSON')
-            .setDesc('Secure client credentials JSON string (from credentials.json) stored in your system keychain.')
-            .then(setting => {
-                const secret = new obsidian.SecretComponent(setting.controlEl);
-                let secretId = this.plugin.settings.googleCredentialsId;
-                if (!secretId) {
-                    secretId = 'timeblocker-google-credentials';
-                    this.plugin.settings.googleCredentialsId = secretId;
-                    this.plugin.saveSettings();
-                }
-                this.app.secretStorage.get(secretId).then(value => {
-                    secret.setValue(value || '');
-                });
-                secret.onChange(async (value) => {
-                    await this.app.secretStorage.store(secretId, value.trim());
-                });
-            });
-
-        containerEl.createEl('h3', { text: 'AI Model Settings' });
-
-        // LLM Provider (Dropdown)
-        new obsidian.Setting(containerEl)
-            .setName('LLM Provider')
-            .setDesc('Select the AI backend to use for daily schedule generation.')
-            .addDropdown(dropdown => dropdown
-                .addOption('gemini', 'Gemini (Google Cloud)')
-                .addOption('ollama', 'Ollama (Local)')
-                .setValue(this.plugin.settings.llmProvider)
-                .onChange(async (value) => {
-                    this.plugin.settings.llmProvider = value;
-                    if (value === 'gemini') {
-                        this.plugin.settings.llmModel = 'gemini-2.5-pro';
-                    } else {
-                        this.plugin.settings.llmModel = 'qwen2.5:7b';
-                    }
-                    await this.plugin.saveSettings();
-                    this.display();
-                }));
-
-        // LLM Model (Dropdown with Custom option)
-        const provider = this.plugin.settings.llmProvider;
-        const geminiOptions = ['gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-        const ollamaOptions = ['qwen2.5:7b', 'gemma3:4b', 'llama3', 'mistral'];
-        
-        let modelDropdownValue = this.plugin.settings.llmModel;
-        const currentOptions = provider === 'gemini' ? geminiOptions : ollamaOptions;
-        
-        if (!currentOptions.includes(modelDropdownValue) && modelDropdownValue !== 'custom') {
-            modelDropdownValue = 'custom';
-        }
-
-        new obsidian.Setting(containerEl)
-            .setName('LLM Model')
-            .setDesc('Select the model to use for schedule generation.')
-            .addDropdown(dropdown => {
-                if (provider === 'gemini') {
-                    dropdown
-                        .addOption('gemini-2.5-pro', 'Gemini 2.5 Pro')
-                        .addOption('gemini-1.5-pro', 'Gemini 1.5 Pro')
-                        .addOption('gemini-2.5-flash', 'Gemini 2.5 Flash')
-                        .addOption('gemini-2.0-flash', 'Gemini 2.0 Flash')
-                        .addOption('custom', 'Custom...');
-                } else {
-                    dropdown
-                        .addOption('qwen2.5:7b', 'Qwen 2.5 7B')
-                        .addOption('gemma3:4b', 'Gemma 3 4B')
-                        .addOption('llama3', 'Llama 3')
-                        .addOption('mistral', 'Mistral')
-                        .addOption('custom', 'Custom...');
-                }
-                
-                dropdown.setValue(modelDropdownValue)
+            new obsidian.Setting(containerEl)
+                .setName('Default Timer Duration')
+                .setDesc('Duration (in minutes) assigned to timers if not specified.')
+                .addText(text => text
+                    .setPlaceholder('20')
+                    .setValue(this.plugin.settings.defaultDuration)
                     .onChange(async (value) => {
-                        if (value === 'custom') {
-                            this.plugin.settings.llmModel = this.plugin.settings.customModel || '';
+                        this.plugin.settings.defaultDuration = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            new obsidian.Setting(containerEl)
+                .setName('Auto-Apply Schedule')
+                .setDesc('Skip the review GUI popup and immediately apply the generated schedule to the daily note.')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.autoApply || false)
+                    .onChange(async (value) => {
+                        this.plugin.settings.autoApply = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            containerEl.createEl('h3', { text: 'API Credentials (Keychain)' });
+
+            // Gemini API Key (TextComponent as password)
+            new obsidian.Setting(containerEl)
+                .setName('Gemini API Key')
+                .setDesc('Secure API key stored in your system keychain.')
+                .addText(text => {
+                    text.inputEl.type = 'password';
+                    text.setPlaceholder('Enter Gemini API Key');
+                    let secretId = this.plugin.settings.geminiApiKeyId;
+                    if (!secretId) {
+                        secretId = 'timeblocker-gemini-api-key';
+                        this.plugin.settings.geminiApiKeyId = secretId;
+                        this.plugin.saveSettings();
+                    }
+                    this.plugin.getSecret(secretId, 'geminiApiKey').then(value => {
+                        text.setValue(value || '');
+                    });
+                    text.onChange(async (value) => {
+                        await this.plugin.setSecret(secretId, value.trim(), 'geminiApiKey');
+                    });
+                });
+
+            // Todoist API Token (TextComponent as password)
+            new obsidian.Setting(containerEl)
+                .setName('Todoist API Token')
+                .setDesc('Secure Todoist API token stored in your system keychain.')
+                .addText(text => {
+                    text.inputEl.type = 'password';
+                    text.setPlaceholder('Enter Todoist API Token');
+                    let secretId = this.plugin.settings.todoistTokenId;
+                    if (!secretId) {
+                        secretId = 'timeblocker-todoist-token';
+                        this.plugin.settings.todoistTokenId = secretId;
+                        this.plugin.saveSettings();
+                    }
+                    this.plugin.getSecret(secretId, 'todoistToken').then(value => {
+                        text.setValue(value || '');
+                    });
+                    text.onChange(async (value) => {
+                        await this.plugin.setSecret(secretId, value.trim(), 'todoistToken');
+                    });
+                });
+
+            // Google Credentials JSON (TextComponent as password)
+            new obsidian.Setting(containerEl)
+                .setName('Google Credentials JSON')
+                .setDesc('Secure client credentials JSON string (from credentials.json) stored in your system keychain.')
+                .addText(text => {
+                    text.inputEl.type = 'password';
+                    text.setPlaceholder('Enter Google Credentials JSON');
+                    let secretId = this.plugin.settings.googleCredentialsId;
+                    if (!secretId) {
+                        secretId = 'timeblocker-google-credentials';
+                        this.plugin.settings.googleCredentialsId = secretId;
+                        this.plugin.saveSettings();
+                    }
+                    this.plugin.getSecret(secretId, 'googleCredentials').then(value => {
+                        text.setValue(value || '');
+                    });
+                    text.onChange(async (value) => {
+                        await this.plugin.setSecret(secretId, value.trim(), 'googleCredentials');
+                    });
+                });
+
+            containerEl.createEl('h3', { text: 'AI Model Settings' });
+
+            // LLM Provider (Dropdown)
+            new obsidian.Setting(containerEl)
+                .setName('LLM Provider')
+                .setDesc('Select the AI backend to use for daily schedule generation.')
+                .addDropdown(dropdown => dropdown
+                    .addOption('gemini', 'Gemini (Google Cloud)')
+                    .addOption('ollama', 'Ollama (Local)')
+                    .setValue(this.plugin.settings.llmProvider)
+                    .onChange(async (value) => {
+                        this.plugin.settings.llmProvider = value;
+                        if (value === 'gemini') {
+                            this.plugin.settings.llmModel = 'gemini-2.5-pro';
                         } else {
-                            this.plugin.settings.llmModel = value;
+                            this.plugin.settings.llmModel = 'qwen2.5:7b';
                         }
                         await this.plugin.saveSettings();
                         this.display();
-                    });
-            });
-
-        // Custom Model text box (only visible if selected model is custom)
-        if (modelDropdownValue === 'custom') {
-            new obsidian.Setting(containerEl)
-                .setName('Custom Model Name')
-                .setDesc('Type the exact identifier of the model (e.g. qwen2.5:14b).')
-                .addText(text => text
-                    .setPlaceholder('Enter model name')
-                    .setValue(this.plugin.settings.customModel || '')
-                    .onChange(async (value) => {
-                        this.plugin.settings.customModel = value.trim();
-                        this.plugin.settings.llmModel = value.trim();
-                        await this.plugin.saveSettings();
                     }));
-        }
 
-        // Ollama URL (only visible if provider is Ollama)
-        if (provider === 'ollama') {
-            new obsidian.Setting(containerEl)
-                .setName('Ollama Endpoint')
-                .setDesc('The base URL of your local Ollama server.')
-                .addText(text => text
-                    .setPlaceholder('http://localhost:11434')
-                    .setValue(this.plugin.settings.ollamaUrl)
-                    .onChange(async (value) => {
-                        this.plugin.settings.ollamaUrl = value.trim();
-                        await this.plugin.saveSettings();
-                    }));
-        }
-
-        const fs = require('fs');
-        const vaultPath = this.app.vault.adapter.getBasePath();
-        const sep = vaultPath.includes('/') ? '/' : '\\';
-        const prefsPath = `${vaultPath}${sep}.obsidian${sep}plugins${sep}timeblocker-and-task-timer${sep}preferences.txt`;
-
-        let prefsContent = "";
-        try {
-            if (fs.existsSync(prefsPath)) {
-                prefsContent = fs.readFileSync(prefsPath, 'utf8');
+            // LLM Model (Dropdown with Custom option)
+            const provider = this.plugin.settings.llmProvider;
+            const geminiOptions = ['gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+            const ollamaOptions = ['qwen2.5:7b', 'gemma3:4b', 'llama3', 'mistral'];
+            
+            let modelDropdownValue = this.plugin.settings.llmModel;
+            const currentOptions = provider === 'gemini' ? geminiOptions : ollamaOptions;
+            
+            if (!currentOptions.includes(modelDropdownValue) && modelDropdownValue !== 'custom') {
+                modelDropdownValue = 'custom';
             }
-        } catch (e) {
-            console.error("Failed to read preferences.txt:", e);
-        }
 
-        new obsidian.Setting(containerEl)
-            .setName('Persistent Instructions')
-            .setDesc('Saved instructions and preferences used by Gemini when generating your schedule.')
-            .addTextArea(text => {
-                text.setValue(prefsContent)
-                    .setPlaceholder('Enter your persistent scheduling instructions here...')
-                    .onChange(async (value) => {
-                        try {
-                            fs.writeFileSync(prefsPath, value, 'utf8');
-                        } catch (e) {
-                            new obsidian.Notice("Failed to save instructions: " + e.message);
-                        }
-                    });
-                text.inputEl.rows = 8;
-                text.inputEl.style.width = '100%';
-            });
+            new obsidian.Setting(containerEl)
+                .setName('LLM Model')
+                .setDesc('Select the model to use for schedule generation.')
+                .addDropdown(dropdown => {
+                    if (provider === 'gemini') {
+                        dropdown
+                            .addOption('gemini-2.5-pro', 'Gemini 2.5 Pro')
+                            .addOption('gemini-1.5-pro', 'Gemini 1.5 Pro')
+                            .addOption('gemini-2.5-flash', 'Gemini 2.5 Flash')
+                            .addOption('gemini-2.0-flash', 'Gemini 2.0 Flash')
+                            .addOption('custom', 'Custom...');
+                    } else {
+                        dropdown
+                            .addOption('qwen2.5:7b', 'Qwen 2.5 7B')
+                            .addOption('gemma3:4b', 'Gemma 3 4B')
+                            .addOption('llama3', 'Llama 3')
+                            .addOption('mistral', 'Mistral')
+                            .addOption('custom', 'Custom...');
+                    }
+                    
+                    dropdown.setValue(modelDropdownValue)
+                        .onChange(async (value) => {
+                            if (value === 'custom') {
+                                this.plugin.settings.llmModel = this.plugin.settings.customModel || '';
+                            } else {
+                                this.plugin.settings.llmModel = value;
+                            }
+                            await this.plugin.saveSettings();
+                            this.display();
+                        });
+                });
+
+            // Custom Model text box (only visible if selected model is custom)
+            if (modelDropdownValue === 'custom') {
+                new obsidian.Setting(containerEl)
+                    .setName('Custom Model Name')
+                    .setDesc('Type the exact identifier of the model (e.g. qwen2.5:14b).')
+                    .addText(text => text
+                        .setPlaceholder('Enter model name')
+                        .setValue(this.plugin.settings.customModel || '')
+                        .onChange(async (value) => {
+                            this.plugin.settings.customModel = value.trim();
+                            this.plugin.settings.llmModel = value.trim();
+                            await this.plugin.saveSettings();
+                        }));
+            }
+
+            // Ollama URL (only visible if provider is Ollama)
+            if (provider === 'ollama') {
+                new obsidian.Setting(containerEl)
+                    .setName('Ollama Endpoint')
+                    .setDesc('The base URL of your local Ollama server.')
+                    .addText(text => text
+                        .setPlaceholder('http://localhost:11434')
+                        .setValue(this.plugin.settings.ollamaUrl)
+                        .onChange(async (value) => {
+                            this.plugin.settings.ollamaUrl = value.trim();
+                            await this.plugin.saveSettings();
+                        }));
+            }
+
+            const fs = require('fs');
+            const vaultPath = this.app.vault.adapter.getBasePath();
+            const sep = vaultPath.includes('/') ? '/' : '\\';
+            const prefsPath = `${vaultPath}${sep}.obsidian${sep}plugins${sep}timeblocker-and-task-timer${sep}preferences.txt`;
+
+            let prefsContent = "";
+            try {
+                if (fs.existsSync(prefsPath)) {
+                    prefsContent = fs.readFileSync(prefsPath, 'utf8');
+                }
+            } catch (e) {
+                console.error("Failed to read preferences.txt:", e);
+            }
+
+            new obsidian.Setting(containerEl)
+                .setName('Persistent Instructions')
+                .setDesc('Saved instructions and preferences used by Gemini when generating your schedule.')
+                .addTextArea(text => {
+                    text.setValue(prefsContent)
+                        .setPlaceholder('Enter your persistent scheduling instructions here...')
+                        .onChange(async (value) => {
+                            try {
+                                fs.writeFileSync(prefsPath, value, 'utf8');
+                            } catch (e) {
+                                new obsidian.Notice("Failed to save instructions: " + e.message);
+                            }
+                        });
+                    text.inputEl.rows = 8;
+                    text.inputEl.style.width = '100%';
+                });
+        } catch (err) {
+            console.error("Task Timer settings tab error:", err);
+            containerEl.createEl('p', { text: 'Failed to display settings: ' + err.message, cls: 'theme-warning' });
+        }
     }
 }
 
@@ -524,6 +744,7 @@ const DEFAULT_SETTINGS = {
     geminiApiKeyId: '',
     todoistTokenId: '',
     googleCredentialsId: '',
+    googleCredentials: '',
     llmProvider: 'gemini',
     llmModel: 'gemini-2.5-pro',
     customModel: '',
@@ -531,6 +752,30 @@ const DEFAULT_SETTINGS = {
 };
 
 module.exports = class TaskTimerPlugin extends obsidian.Plugin {
+    async getSecret(secretId, fallbackSettingKey) {
+        if (this.app.secretStorage) {
+            try {
+                return await this.app.secretStorage.getSecret(secretId) || "";
+            } catch (e) {
+                console.error(`Failed to get secret ${secretId} from secretStorage:`, e);
+            }
+        }
+        return this.settings[fallbackSettingKey] || "";
+    }
+
+    async setSecret(secretId, value, fallbackSettingKey) {
+        if (this.app.secretStorage) {
+            try {
+                await this.app.secretStorage.setSecret(secretId, value);
+                return;
+            } catch (e) {
+                console.error(`Failed to set secret ${secretId} in secretStorage:`, e);
+            }
+        }
+        this.settings[fallbackSettingKey] = value;
+        await this.saveSettings();
+    }
+
     async onload() {
         await this.loadSettings();
         this.activeLog = null;
@@ -589,6 +834,13 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             callback: () => this.postponeClickedTask()
         });
 
+        // Add sync Fitbit command
+        this.addCommand({
+            id: 'sync-fitbit',
+            name: 'Sync Fitbit Data (Check In)',
+            callback: () => this.runFitbitSync()
+        });
+
         // Add unified task toggle command
         this.addCommand({
             id: 'toggle-task-server',
@@ -632,9 +884,9 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         new obsidian.Notice("Running scheduler... please wait.");
         
         // Retrieve secrets securely from Obsidian SecretStorage
-        const geminiApiKey = await this.app.secretStorage.get('timeblocker-gemini-api-key') || '';
-        const todoistToken = await this.app.secretStorage.get('timeblocker-todoist-token') || '';
-        const googleCredentials = await this.app.secretStorage.get('timeblocker-google-credentials') || '';
+        const geminiApiKey = await this.app.secretStorage.getSecret('timeblocker-gemini-api-key') || '';
+        const todoistToken = await this.app.secretStorage.getSecret('timeblocker-todoist-token') || '';
+        const googleCredentials = await this.app.secretStorage.getSecret('timeblocker-google-credentials') || '';
         
         const env = Object.assign({}, process.env, {
             GEMINI_API_KEY: geminiApiKey,
@@ -674,10 +926,65 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         });
     }
 
+    async runFitbitSync() {
+        const fs = require('fs');
+        const path = require('path');
+        const { spawn } = require('child_process');
+        
+        const vaultPath = this.app.vault.adapter.getBasePath();
+        const scriptPath = path.join(vaultPath, '99_System', 'Scripts', 'fitbit_pull.py');
+        
+        if (!fs.existsSync(scriptPath)) {
+            new obsidian.Notice(`Fitbit pull script not found at ${scriptPath}`);
+            return;
+        }
+        
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) {
+            new obsidian.Notice("Daily note for today not found!");
+            return;
+        }
+        
+        new obsidian.Notice("Starting Fitbit data pull (Check In)...");
+        
+        const dailyNoteFullPath = path.join(vaultPath, dailyFile.path);
+        const geminiApiKey = await this.getSecret('timeblocker-gemini-api-key', 'geminiApiKey');
+        
+        const env = Object.assign({}, process.env, {
+            GEMINI_API_KEY: geminiApiKey
+        });
+        
+        const child = spawn('python', [scriptPath, dailyNoteFullPath], {
+            cwd: path.dirname(scriptPath),
+            env: env
+        });
+        
+        let stdout = '';
+        let stderr = '';
+        
+        child.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+        
+        child.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+        
+        child.on('close', (code) => {
+            if (code === 0) {
+                new obsidian.Notice("Fitbit check-in completed successfully!");
+                console.log("Fitbit pull output:\n", stdout);
+            } else {
+                new obsidian.Notice(`Fitbit pull failed (exit code ${code}). Check console.`);
+                console.error("Fitbit pull error:\n", stderr);
+            }
+        });
+    }
+
     parseAllTasks(content) {
         const lines = content.split(/\r?\n/);
         const tasks = [];
-        const taskRegex = /^\s*-\s+\[( |x)\]\s+(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})\s+(.*)$/;
+        const taskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         let currentSubheading = "";
         let inPlanner = false;
         
@@ -698,13 +1005,28 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 const match = line.match(taskRegex);
                 if (match) {
                     const status = match[1] === 'x' ? 'completed' : 'pending';
-                    const startH = parseInt(match[2]);
+                    let startH = parseInt(match[2]);
                     const startM = parseInt(match[3]);
-                    const endH = parseInt(match[4]);
-                    const endM = parseInt(match[5]);
-                    const rawDesc = match[6];
+                    const startAmpm = match[4];
+                    let endH = parseInt(match[5]);
+                    const endM = parseInt(match[6]);
+                    const endAmpm = match[7];
+                    const rawDesc = match[8];
+
+                    if (startAmpm) {
+                        const ampm = startAmpm.toLowerCase();
+                        if (ampm === 'pm' && startH < 12) startH += 12;
+                        if (ampm === 'am' && startH === 12) startH = 0;
+                    }
+                    if (endAmpm) {
+                        const ampm = endAmpm.toLowerCase();
+                        if (ampm === 'pm' && endH < 12) endH += 12;
+                        if (ampm === 'am' && endH === 12) endH = 0;
+                    }
                     
                     let description = rawDesc.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
+                    description = description.replace(/\[src\]\(.*?\)/g, '').trim();
+                    description = description.replace(/\s+src$/i, '').trim();
                     description = description.replace(/#\w+/g, '').trim();
                     description = description.replace(/\s+/g, ' ').trim();
                     
@@ -737,12 +1059,6 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
     async postponeClickedTask() {
         const activeView = this.app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-        if (!activeView) {
-            new obsidian.Notice("No active markdown view!");
-            return;
-        }
-
-        const editor = activeView.editor;
         const lineContent = this.getClickedLineContent(activeView);
         if (!lineContent) {
             new obsidian.Notice("Could not identify the clicked task line!");
@@ -750,27 +1066,41 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
 
         // Match optionally starting with checkbox/bullet, then HH:MM - HH:MM, then the task description
-        const clickedTaskRegex = /^(?:\s*-\s+\[[ x]\])?\s*(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})\s+(.*)$/;
+        const clickedTaskRegex = /^(?:\s*-\s+\[[ x]\])?\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         const match = lineContent.match(clickedTaskRegex);
         if (!match) {
             new obsidian.Notice("Line does not match timeblocked task format (HH:MM - HH:MM)!");
             return;
         }
 
-        const startH = parseInt(match[1]);
+        let startH = parseInt(match[1]);
         const startM = parseInt(match[2]);
-        const endH = parseInt(match[3]);
-        const endM = parseInt(match[4]);
+        const startAmpm = match[3];
+        let endH = parseInt(match[4]);
+        const endM = parseInt(match[5]);
+        const endAmpm = match[6];
+        
+        if (startAmpm) {
+            const ampm = startAmpm.toLowerCase();
+            if (ampm === 'pm' && startH < 12) startH += 12;
+            if (ampm === 'am' && startH === 12) startH = 0;
+        }
+        if (endAmpm) {
+            const ampm = endAmpm.toLowerCase();
+            if (ampm === 'pm' && endH < 12) endH += 12;
+            if (ampm === 'am' && endH === 12) endH = 0;
+        }
+
         const clickedStartMinutes = startH * 60 + startM;
         const clickedEndMinutes = endH * 60 + endM;
         
-        let clickedDescription = match[5].replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
+        let clickedDescription = match[7].replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
         clickedDescription = clickedDescription.replace(/#\w+/g, '').trim();
         clickedDescription = clickedDescription.replace(/\s+/g, ' ').trim().toLowerCase();
 
-        const dailyFile = activeView.file;
+        const dailyFile = (activeView && activeView.file) || this.getDailyNoteFile();
         if (!dailyFile) {
-            new obsidian.Notice("No file associated with active view!");
+            new obsidian.Notice("No daily note file found for today!");
             return;
         }
 
@@ -834,13 +1164,13 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const newTimeRange = `${newStartH}:${newStartM} - ${newEndH}:${newEndM}`;
 
         const originalLine = lines[task.lineIndex];
-        const oldTimeRangeRegex = /\b\d{2}:\d{2}\s*-\s*\d{2}:\d{2}\b/;
+        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/;
         const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
         lines[task.lineIndex] = newLine;
 
         let inSubheading = false;
         const subheadingIndices = [];
-        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})\s+(.*)$/;
+        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -862,8 +1192,14 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             const subheadingTasks = subheadingIndices.map(idx => {
                 const line = lines[idx];
                 const m = line.match(fileTaskRegex);
-                const sh = parseInt(m[2]);
+                let sh = parseInt(m[2]);
                 const sm = parseInt(m[3]);
+                const startAmpm = m[4];
+                if (startAmpm) {
+                    const ampm = startAmpm.toLowerCase();
+                    if (ampm === 'pm' && sh < 12) sh += 12;
+                    if (ampm === 'am' && sh === 12) sh = 0;
+                }
                 return {
                     line: line,
                     startMinutes: sh * 60 + sm
@@ -927,6 +1263,21 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     clone.querySelectorAll('.meta-bind-button-wrapper, .meta-bind-button, button, [class*="meta-bind"]').forEach(btn => btn.remove());
                     return clone.textContent;
                 }
+                
+                // Generic fallback for Day Planner view or other custom renderings:
+                // Check if the current element's text content contains a time-blocked pattern
+                const clone = el.cloneNode(true);
+                clone.querySelectorAll('.meta-bind-button-wrapper, .meta-bind-button, button, [class*="meta-bind"]').forEach(btn => btn.remove());
+                const txt = clone.textContent || "";
+                const timeBlockedTaskRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/i;
+                if (timeBlockedTaskRegex.test(txt)) {
+                    let cleaned = txt.replace(/\s+/g, ' ').trim();
+                    if (!cleaned.startsWith('-')) {
+                        cleaned = '- [ ] ' + cleaned;
+                    }
+                    return cleaned;
+                }
+
                 if (el.classList.contains('markdown-preview-view') || el.classList.contains('markdown-rendered')) {
                     break;
                 }
@@ -973,26 +1324,89 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 // Strip inline Meta Bind button syntaxes
                 taskText = taskText.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
                 
+                // Strip links and trailing rendered link text "src"
+                taskText = taskText.replace(/\[src\]\(.*?\)/g, '').trim();
+                taskText = taskText.replace(/\s+src$/i, '').trim();
+                
                 // Strip tags from the task name
                 taskText = taskText.replace(/#\w+/g, '').trim();
                 
                 // Clean up any double spaces left from tag removal
                 taskText = taskText.replace(/\s+/g, ' ').trim();
                 
-                const timeRegex = /^(\d{1,2}):(\d{2})(?:\s*-\s*(\d{1,2}):(\d{2}))?\s*(.*)$/;
+                const timeRegex = /^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?(?:\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?)?\s*(.*)$/;
                 const timeMatch = taskText.match(timeRegex);
-                taskName = timeMatch ? timeMatch[5].trim() : taskText.trim();
+                taskName = timeMatch ? timeMatch[7].trim() : taskText.trim();
             }
         }
         
         // Ensure default name is clean
         taskName = taskName || `Focus Block (${durationMinutes}m)`;
         
+        // Look up the task object from the daily note to pass it to the timer
+        let matchedTask = null;
+        const dailyFile = this.getDailyNoteFile();
+        if (dailyFile && lineContent) {
+            try {
+                const content = await this.app.vault.read(dailyFile);
+                const allTasks = this.parseAllTasks(content);
+                
+                // Parse time range from the clicked line content
+                const clickedTaskRegex = /^(?:\s*-\s+\[[ x]\])?\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+                const match = lineContent.match(clickedTaskRegex);
+                if (match) {
+                    let startH = parseInt(match[1]);
+                    const startM = parseInt(match[2]);
+                    const startAmpm = match[3];
+                    let endH = parseInt(match[4]);
+                    const endM = parseInt(match[5]);
+                    const endAmpm = match[6];
+                    
+                    if (startAmpm) {
+                        const ampm = startAmpm.toLowerCase();
+                        if (ampm === 'pm' && startH < 12) startH += 12;
+                        if (ampm === 'am' && startH === 12) startH = 0;
+                    }
+                    if (endAmpm) {
+                        const ampm = endAmpm.toLowerCase();
+                        if (ampm === 'pm' && endH < 12) endH += 12;
+                        if (ampm === 'am' && endH === 12) endH = 0;
+                    }
+
+                    const clickedStartMinutes = startH * 60 + startM;
+                    const clickedEndMinutes = endH * 60 + endM;
+                    
+                    let clickedDescription = match[7].replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
+                    clickedDescription = clickedDescription.replace(/\[src\]\(.*?\)/g, '').trim();
+                    clickedDescription = clickedDescription.replace(/\s+src$/i, '').trim();
+                    clickedDescription = clickedDescription.replace(/#\w+/g, '').trim();
+                    clickedDescription = clickedDescription.replace(/\s+/g, ' ').trim().toLowerCase();
+                    
+                    matchedTask = allTasks.find(t => {
+                        const timeMatches = (t.startMinutes === clickedStartMinutes && t.endMinutes === clickedEndMinutes);
+                        if (!timeMatches) return false;
+                        
+                        const fileDesc = t.description.toLowerCase();
+                        return fileDesc === clickedDescription || fileDesc.includes(clickedDescription) || clickedDescription.includes(fileDesc);
+                    });
+                } else {
+                    // Try matching purely by description
+                    let clickedDescription = taskName.toLowerCase();
+                    matchedTask = allTasks.find(t => {
+                        const fileDesc = t.description.toLowerCase();
+                        return fileDesc === clickedDescription || fileDesc.includes(clickedDescription) || clickedDescription.includes(fileDesc);
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to match clicked task against daily note schedule", e);
+            }
+        }
+        
         await this.activateView();
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
         if (leaves.length > 0) {
             const view = leaves[0].view;
-            await view.startTimer(taskName, durationMinutes);
+            await view.startTimer(matchedTask || taskName, durationMinutes);
         }
     }
 
@@ -1271,34 +1685,97 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             status: complete ? "completed" : "needsAction"
         };
         
-        const response = await obsidian.requestUrl({
-            url: url,
-            method: 'PATCH',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body)
-        });
-        
-        if (response.status !== 200) {
-            throw new Error(`Google Tasks API returned status ${response.status}: ${response.text}`);
+        try {
+            const response = await obsidian.requestUrl({
+                url: url,
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+            
+            if (response.status !== 200) {
+                if (response.status === 404 || response.status === 410) {
+                    new obsidian.Notice(`Task already completed or deleted on Google Tasks.`);
+                    return;
+                }
+                throw new Error(`Google Tasks API returned status ${response.status}: ${response.text}`);
+            }
+        } catch (e) {
+            if (e.status === 404 || e.status === 410 || (e.message && (e.message.includes("404") || e.message.includes("410")))) {
+                new obsidian.Notice(`Task already completed or deleted on Google Tasks.`);
+                return;
+            }
+            throw e;
         }
     }
 
     async toggleTodoistTaskStatus(taskId, complete, token) {
-        const url = `https://api.todoist.com/api/v1/tasks/${taskId}/${complete ? 'close' : 'reopen'}`;
-        const response = await obsidian.requestUrl({
-            url: url,
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
+        const url = `https://api.todoist.com/rest/v2/tasks/${taskId}/${complete ? 'close' : 'reopen'}`;
+        try {
+            const response = await obsidian.requestUrl({
+                url: url,
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.status !== 204 && response.status !== 200) {
+                if (response.status === 404 || response.status === 410) {
+                    new obsidian.Notice(`Task already completed or deleted on Todoist.`);
+                    return;
+                }
+                throw new Error(`Todoist API returned status ${response.status}: ${response.text}`);
             }
-        });
-        
-        if (response.status !== 204 && response.status !== 200) {
-            throw new Error(`Todoist API returned status ${response.status}: ${response.text}`);
+        } catch (e) {
+            if (e.status === 404 || e.status === 410 || (e.message && (e.message.includes("404") || e.message.includes("410")))) {
+                new obsidian.Notice(`Task already completed or deleted on Todoist.`);
+                return;
+            }
+            throw e;
         }
+    }
+
+    async toggleTaskStatusByLineText(lineText, complete) {
+        let listId = "";
+        let taskId = "";
+        
+        const googleMatch = lineText.match(/tasks\.google\.com\/(?:#)?task\/([^\/]+)\/([^\s\)]+)/);
+        const googleQueryMatch = lineText.match(/tasks\.google\.com\/[?#](?:listId|list)=([^&]+)&(?:taskId|task)=([^\s\)]+)/);
+        
+        if (googleMatch) {
+            listId = googleMatch[1];
+            taskId = googleMatch[2];
+        } else if (googleQueryMatch) {
+            listId = googleQueryMatch[1];
+            taskId = googleQueryMatch[2];
+        }
+        
+        if (listId && taskId) {
+            new obsidian.Notice(`Updating task status on Google Tasks...`);
+            await this.toggleGoogleTaskStatus(listId, taskId, complete);
+            return true;
+        }
+        
+        const todoistMatch = lineText.match(/todoist\.com\/(?:showTask\?id=|app\/task\/|app\/project\/[^\/]+\/task\/)([A-Za-z0-9_-]+)/);
+        if (todoistMatch) {
+            const taskId = todoistMatch[1];
+            let token = "";
+            const secretId = this.settings.todoistTokenId || 'timeblocker-todoist-token';
+            token = await this.getSecret(secretId, 'todoistToken');
+            if (!token) {
+                const todoistPlugin = this.app.plugins.plugins['todoist-text'];
+                token = todoistPlugin ? todoistPlugin.settings.authToken : "";
+            }
+            
+            new obsidian.Notice(`Updating task status on Todoist...`);
+            await this.toggleTodoistTaskStatus(taskId, complete, token);
+            return true;
+        }
+        return false;
     }
 
     async toggleActiveTaskStatus(editor) {
@@ -1317,43 +1794,162 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
         
         const complete = tryingToClose;
-        
-        let listId = "";
-        let taskId = "";
-        
-        const googleMatch = lineText.match(/tasks\.google\.com\/(?:#)?task\/([^\/]+)\/([^\s\)]+)/);
-        const googleQueryMatch = lineText.match(/tasks\.google\.com\/[?#](?:listId|list)=([^&]+)&(?:taskId|task)=([^\s\)]+)/);
-        
-        if (googleMatch) {
-            listId = googleMatch[1];
-            taskId = googleMatch[2];
-        } else if (googleQueryMatch) {
-            listId = googleQueryMatch[1];
-            taskId = googleQueryMatch[2];
-        }
-        
-        if (listId && taskId) {
-            new obsidian.Notice(`Updating task status on Google Tasks...`);
-            await this.toggleGoogleTaskStatus(listId, taskId, complete);
-            new obsidian.Notice(`Google Task successfully ${complete ? 'completed' : 'reopened'}!`);
+        const success = await this.toggleTaskStatusByLineText(lineText, complete);
+        if (success) {
+            new obsidian.Notice(`Task successfully ${complete ? 'completed' : 'reopened'}!`);
             return true;
         }
-        
-        // 2. Todoist matching
-        const todoistMatch = lineText.match(/todoist\.com\/(?:showTask\?id=|app\/task\/|app\/project\/[^\/]+\/task\/)([A-Za-z0-9_-]+)/);
-        if (todoistMatch) {
-            const taskId = todoistMatch[1];
-            
-            const todoistPlugin = this.app.plugins.plugins['todoist-text'];
-            const token = todoistPlugin ? todoistPlugin.settings.authToken : (this.settings.todoistToken || "");
-            
-            new obsidian.Notice(`Updating task status on Todoist...`);
-            await this.toggleTodoistTaskStatus(taskId, complete, token);
-            new obsidian.Notice(`Todoist Task successfully ${complete ? 'completed' : 'reopened'}!`);
-            return true;
-        }
-        
         new obsidian.Notice("No active Todoist or Google Tasks link found on this line.");
         return false;
+    }
+
+    async postponeTask(task) {
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) {
+            new obsidian.Notice("Daily note not found!");
+            return;
+        }
+
+        let content = "";
+        try {
+            content = await this.app.vault.read(dailyFile);
+        } catch (e) {
+            new obsidian.Notice("Could not read daily note!");
+            return;
+        }
+
+        const lines = content.split(/\r?\n/);
+        const allTasks = this.parseAllTasks(content);
+
+        // Find the task inside allTasks
+        let currentTask = allTasks.find(t => t.lineIndex === task.lineIndex);
+        if (!currentTask) {
+            // Find by description and pending status
+            currentTask = allTasks.find(t => t.description.toLowerCase() === task.description.toLowerCase() && t.status === 'pending');
+        }
+
+        if (!currentTask) {
+            new obsidian.Notice("Could not find the task in daily note!");
+            return;
+        }
+
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        // Find all busy intervals after now (excluding the current task itself)
+        const busyIntervals = allTasks
+            .filter(t => t.endMinutes > currentMinutes && t.lineIndex !== currentTask.lineIndex)
+            .map(t => ({
+                start: t.startMinutes,
+                end: t.endMinutes
+            }));
+            
+        busyIntervals.sort((a, b) => a.start - b.start);
+
+        let newStart = currentMinutes;
+        const duration = currentTask.duration || 20;
+
+        for (const interval of busyIntervals) {
+            if (interval.start - newStart >= duration) {
+                break;
+            }
+            newStart = Math.max(newStart, interval.end);
+        }
+
+        const newEnd = newStart + duration;
+        if (newEnd > 1440) {
+            new obsidian.Notice("Cannot reschedule: task would go past midnight!");
+            return;
+        }
+
+        const newStartH = String(Math.floor(newStart / 60)).padStart(2, '0');
+        const newStartM = String(newStart % 60).padStart(2, '0');
+        const newEndH = String(Math.floor(newEnd / 60)).padStart(2, '0');
+        const newEndM = String(newEnd % 60).padStart(2, '0');
+        const newTimeRange = `${newStartH}:${newStartM} - ${newEndH}:${newEndM}`;
+
+        const originalLine = lines[currentTask.lineIndex];
+        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/;
+        const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
+        lines[currentTask.lineIndex] = newLine;
+
+        // Re-sort within the subheading (e.g. Work, House, Admin)
+        let inSubheading = false;
+        const subheadingIndices = [];
+        const fileTaskRegex = /^\s*-\s+\[( |x)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.startsWith('## ') || (line.startsWith('### ') && line.trim() !== currentTask.subheading)) {
+                if (inSubheading) break;
+            }
+            if (line.trim() === currentTask.subheading) {
+                inSubheading = true;
+                continue;
+            }
+            if (inSubheading) {
+                if (fileTaskRegex.test(line)) {
+                    subheadingIndices.push(i);
+                }
+            }
+        }
+
+        if (subheadingIndices.length > 1) {
+            const subheadingTasks = subheadingIndices.map(idx => {
+                const line = lines[idx];
+                const m = line.match(fileTaskRegex);
+                let sh = parseInt(m[2]);
+                const sm = parseInt(m[3]);
+                const startAmpm = m[4];
+                if (startAmpm) {
+                    const ampm = startAmpm.toLowerCase();
+                    if (ampm === 'pm' && sh < 12) sh += 12;
+                    if (ampm === 'am' && sh === 12) sh = 0;
+                }
+                return {
+                    line: line,
+                    startMinutes: sh * 60 + sm
+                };
+            });
+
+            subheadingTasks.sort((a, b) => a.startMinutes - b.startMinutes);
+
+            for (let i = 0; i < subheadingIndices.length; i++) {
+                lines[subheadingIndices[i]] = subheadingTasks[i].line;
+            }
+        }
+
+        try {
+            await this.app.vault.modify(dailyFile, lines.join('\n'));
+            new obsidian.Notice(`Rescheduled task to ${newTimeRange}`);
+        } catch (e) {
+            new obsidian.Notice("Failed to update daily note!");
+        }
+    }
+
+    async removeTask(task) {
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return;
+
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            const lines = content.split(/\r?\n/);
+
+            let lineIndex = task.lineIndex;
+            if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].includes(task.description)) {
+                lineIndex = lines.findIndex(l => l.includes(task.description) && (l.includes('- [ ]') || l.includes('- [x]')));
+            }
+
+            if (lineIndex !== -1) {
+                lines.splice(lineIndex, 1);
+                await this.app.vault.modify(dailyFile, lines.join('\n'));
+                new obsidian.Notice(`Task "${task.description}" removed from today's list.`);
+            } else {
+                new obsidian.Notice("Could not find task in daily note to remove.");
+            }
+        } catch (e) {
+            console.error("Failed to remove task:", e);
+            new obsidian.Notice("Error updating daily note.");
+        }
     }
 };

@@ -163,7 +163,7 @@ def get_todoist_token():
 
 def get_todoist_tasks(tz):
     token = get_todoist_token()
-    url = "https://api.todoist.com/api/v1/tasks"
+    url = "https://api.todoist.com/rest/v2/tasks"
     all_items = []
     
     print("Fetching active tasks from Todoist...")
@@ -182,7 +182,7 @@ def get_todoist_tasks(tz):
                     all_items.extend(items)
                     cursor = res_data.get("next_cursor")
                     if cursor:
-                        url = f"https://api.todoist.com/api/v1/tasks?cursor={cursor}"
+                        url = f"https://api.todoist.com/rest/v2/tasks?cursor={cursor}"
                     else:
                         break
                 else:
@@ -326,7 +326,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
                     else:
                         naive_dt = datetime.fromisoformat(date_str)
                         local_dt = naive_dt.replace(tzinfo=tz)
-                    due_time_str = f" (Due: {local_dt.strftime('%I:%M %p')})"
+                    due_time_str = f" (Due: {local_dt.strftime('%H:%M')})"
                 except Exception as e:
                     print("Error parsing due date time:", e)
                     
@@ -344,7 +344,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
 
     print("Preparing schedule generation...")
     
-    current_time = datetime.now(tz).strftime("%I:%M %p")
+    current_time = datetime.now(tz).strftime("%H:%M")
     
     if feedback and previous_schedule:
         prompt = f"""
@@ -393,15 +393,23 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            ### ⚙️ Admin & Digital Chores
            (Include all inbox reviews, sync fixes, cancellation tasks, dentist calls, checklist cleanups, digital maintenance, etc.)
            
-        5. Respect scheduled times:
-           a. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
-           b. If an "Existing Task" from the daily note already has a scheduled time range (e.g., "06:30 - 06:45"), you MUST preserve that exact time range.
-           c. For all other tasks (without an explicit due time or existing time range), distribute them chronologically starting from {current_time} (or from 06:00 AM if {current_time} is earlier in the day).
-        6. EVERY single schedule item (whether a calendar event, work task, house chore, or admin task) MUST be formatted as an Obsidian checklist item starting exactly with "- [ ] ". Do NOT use "*" or any other bullet character.
-        7. For all timed tasks (excluding calendar events), format them exactly like this example (with backticks ONLY around the BUTTON parts):
-           - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` `BUTTON[postpone]` [src](URL)
-           Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and `BUTTON[postpone]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
-           Every timed task MUST have a timer button and a postpone button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and `BUTTON[postpone]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
+        5. Respect scheduled times and completion status:
+           a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status as `- [x]`. Do NOT move, change, or remove completed tasks.
+           b. **Pending Tasks Scheduling**: All pending/uncompleted tasks (marked with `- [ ]` from the daily note, or tasks from Todoist/Google Tasks) MUST be scheduled to start chronologically after the current time of {current_time} (or after 06:00 AM if {current_time} is earlier in the day).
+           c. **Overdue / Moved Tasks**: If an existing pending task in the daily note had a scheduled time range in the past (before {current_time}), you MUST reschedule it to start after {current_time}.
+           d. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time if it is in the future. If it is in the past, reschedule it to start after {current_time}. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
+           e. **Postponed Tasks**: If an input task from the daily note contains the tag `#postpone` (e.g. added by the mobile widget), you MUST reschedule it to start after the current time {current_time} (or treat it as a pending task that needs to be scheduled for later in the day), and you MUST strip the `#postpone` tag from the final scheduled task name in your output.
+        6. Formatting checklist status:
+           a. Completed tasks MUST be formatted starting exactly with "- [x] ".
+           b. Pending tasks (including calendar events, work, house, admin) MUST be formatted starting exactly with "- [ ] ".
+           c. Do NOT use "*" or any other bullet character.
+           d. You MUST format all scheduled times using 24-hour format (e.g. 08:30 - 09:00, 15:15 - 15:35). Do NOT use AM/PM.
+        7. Timed buttons for pending tasks:
+           a. Only pending tasks (excluding calendar events) should have timer buttons. Do NOT add `BUTTON[...]` buttons to completed tasks (`- [x]`) or calendar events.
+           b. For all pending timed tasks, format them exactly like this example (with backticks ONLY around the BUTTON parts):
+              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` `BUTTON[postpone]` [src](URL)
+              Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and `BUTTON[postpone]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
+              Every timed pending task MUST have a timer button and a postpone button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and `BUTTON[postpone]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
@@ -448,15 +456,23 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            ### ⚙️ Admin & Digital Chores
            (Include all inbox reviews, sync fixes, cancellation tasks, dentist calls, checklist cleanups, digital maintenance, etc.)
            
-        5. Respect scheduled times:
-           a. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
-           b. If an "Existing Task" from the daily note already has a scheduled time range (e.g., "06:30 - 06:45"), you MUST preserve that exact time range.
-           c. For all other tasks (without an explicit due time or existing time range), distribute them chronologically starting from {current_time} (or from 06:00 AM if {current_time} is earlier in the day).
-        6. EVERY single schedule item (whether a calendar event, work task, house chore, or admin task) MUST be formatted as a checklist item starting exactly with "- [ ] ". Do NOT use "*" or any other bullet character.
-        7. For all timed tasks (excluding calendar events), format them exactly like this example (with backticks ONLY around the BUTTON parts):
-           - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` `BUTTON[postpone]` [src](URL)
-           Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and `BUTTON[postpone]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
-           Every timed task MUST have a timer button and a postpone button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and `BUTTON[postpone]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
+        5. Respect scheduled times and completion status:
+           a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status as `- [x]`. Do NOT move, change, or remove completed tasks.
+           b. **Pending Tasks Scheduling**: All pending/uncompleted tasks (marked with `- [ ]` from the daily note, or tasks from Todoist/Google Tasks) MUST be scheduled to start chronologically after the current time of {current_time} (or after 06:00 AM if {current_time} is earlier in the day).
+           c. **Overdue / Moved Tasks**: If an existing pending task in the daily note had a scheduled time range in the past (before {current_time}), you MUST reschedule it to start after {current_time}.
+           d. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time if it is in the future. If it is in the past, reschedule it to start after {current_time}. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
+           e. **Postponed Tasks**: If an input task from the daily note contains the tag `#postpone` (e.g. added by the mobile widget), you MUST reschedule it to start after the current time {current_time} (or treat it as a pending task that needs to be scheduled for later in the day), and you MUST strip the `#postpone` tag from the final scheduled task name in your output.
+        6. Formatting checklist status:
+           a. Completed tasks MUST be formatted starting exactly with "- [x] ".
+           b. Pending tasks (including calendar events, work, house, admin) MUST be formatted starting exactly with "- [ ] ".
+           c. Do NOT use "*" or any other bullet character.
+           d. You MUST format all scheduled times using 24-hour format (e.g. 08:30 - 09:00, 15:15 - 15:35). Do NOT use AM/PM.
+        7. Timed buttons for pending tasks:
+           a. Only pending tasks (excluding calendar events) should have timer buttons. Do NOT add `BUTTON[...]` buttons to completed tasks (`- [x]`) or calendar events.
+           b. For all pending timed tasks, format them exactly like this example (with backticks ONLY around the BUTTON parts):
+              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` `BUTTON[postpone]` [src](URL)
+              Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and `BUTTON[postpone]`. Do NOT wrap the rest of the task description, the time, or the links in backticks.
+              Every timed pending task MUST have a timer button and a postpone button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and `BUTTON[postpone]`) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
