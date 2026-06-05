@@ -24,10 +24,12 @@ try:
 except ImportError:
     pass
 
-# Scopes required for Google Calendar and Google Tasks
+# Scopes required for Google Calendar, Google Tasks, and Google Fit / Health API
 SCOPES = [
     'https://www.googleapis.com/auth/calendar.readonly',
-    'https://www.googleapis.com/auth/tasks'
+    'https://www.googleapis.com/auth/tasks',
+    'https://www.googleapis.com/auth/fitness.sleep.read',
+    'https://www.googleapis.com/auth/fitness.activity.read'
 ]
 
 def get_timezone_offset():
@@ -127,6 +129,7 @@ def get_google_tasks(tz):
     today_str = datetime.now(tz).strftime("%Y-%m-%d")
     google_tasks = []
     
+    debug_path = os.path.join(os.path.dirname(__file__), 'task_ingestion_debug.log')
     for tl in tasklists:
         list_id = tl['id']
         list_title = tl['title']
@@ -134,14 +137,33 @@ def get_google_tasks(tz):
         tasks_result = service.tasks().list(tasklist=list_id, showCompleted=False).execute()
         items = tasks_result.get('items', [])
         
-        for task in items:
-            due = task.get('due')
-            if due:
-                due_date = due.split('T')[0]
-                if due_date <= today_str:
-                    task['list_title'] = list_title
-                    task['list_id'] = list_id
-                    google_tasks.append(task)
+        try:
+            with open(debug_path, 'a', encoding='utf-8') as f:
+                f.write(f"\n--- Google Tasks Fetch Diagnostics for list '{list_title}' ({len(items)} items) ---\n")
+                for task in items:
+                    title = task.get('title', 'No Title')
+                    due = task.get('due')
+                    if not due:
+                        f.write(f"[EXCLUDED] '{title}' (ID: {task.get('id')}): No due date set.\n")
+                        continue
+                    due_date = due.split('T')[0]
+                    if due_date <= today_str:
+                        f.write(f"[INCLUDED] '{title}' (ID: {task.get('id')}): Due date {due_date} <= today {today_str}.\n")
+                        task['list_title'] = list_title
+                        task['list_id'] = list_id
+                        google_tasks.append(task)
+                    else:
+                        f.write(f"[EXCLUDED] '{title}' (ID: {task.get('id')}): Due date {due_date} is in the future.\n")
+        except Exception as e:
+            print(f"Google Tasks logging error: {e}")
+            for task in items:
+                due = task.get('due')
+                if due:
+                    due_date = due.split('T')[0]
+                    if due_date <= today_str:
+                        task['list_title'] = list_title
+                        task['list_id'] = list_id
+                        google_tasks.append(task)
                 
     return google_tasks
 
@@ -182,7 +204,7 @@ def get_todoist_tasks(tz):
                     all_items.extend(items)
                     cursor = res_data.get("next_cursor")
                     if cursor:
-                        url = f"https://api.todoist.com/rest/v2/tasks?cursor={cursor}"
+                        url = f"https://api.todoist.com/api/v1/tasks?cursor={cursor}"
                     else:
                         break
                 else:
@@ -194,13 +216,31 @@ def get_todoist_tasks(tz):
     today_str = datetime.now(tz).strftime("%Y-%m-%d")
     today_tasks = []
     
-    for t in all_items:
-        due = t.get("due")
-        if due:
-            due_date = due.get("date").split('T')[0]
-            # Include items due today or overdue
-            if due_date <= today_str:
-                today_tasks.append(t)
+    debug_path = os.path.join(os.path.dirname(__file__), 'task_ingestion_debug.log')
+    try:
+        with open(debug_path, 'a', encoding='utf-8') as f:
+            f.write(f"\n--- Todoist Fetch Diagnostics ({len(all_items)} total tasks returned from API) ---\n")
+            for t in all_items:
+                content = t.get("content", "No content")
+                due = t.get("due")
+                if not due:
+                    f.write(f"[EXCLUDED] '{content}' (ID: {t.get('id')}): No due date set.\n")
+                    continue
+                due_date = due.get("date").split('T')[0]
+                if due_date <= today_str:
+                    f.write(f"[INCLUDED] '{content}' (ID: {t.get('id')}): Due date {due_date} <= today {today_str}.\n")
+                    today_tasks.append(t)
+                else:
+                    f.write(f"[EXCLUDED] '{content}' (ID: {t.get('id')}): Due date {due_date} is in the future.\n")
+    except Exception as e:
+        print(f"Todoist logging error: {e}")
+        # fallback
+        for t in all_items:
+            due = t.get("due")
+            if due:
+                due_date = due.get("date").split('T')[0]
+                if due_date <= today_str:
+                    today_tasks.append(t)
                 
     return today_tasks
 
@@ -244,8 +284,8 @@ def get_planner_headers(note_path):
             headers.append("## 📅Day Planner")
             continue
         if found_planner:
-            # Stop when we hit the first subheading or checklist item
-            if line.startswith('###') or line.strip().startswith('- ['):
+            # Stop when we hit the first subheading, main heading, or checklist item
+            if line.startswith('##') or line.strip().startswith('- ['):
                 break
             headers.append(line)
             
@@ -935,8 +975,18 @@ def main():
     note_path = os.environ.get("DAILY_NOTE_PATH")
     if not note_path:
         today_str = datetime.now(tz).strftime("%Y-%m-%d")
-        note_path = f"C:\\Users\\aljar\\Documents\\Obsidian\\02_Journal\\01_Daily\\{today_str}.md"
+        vault_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        note_path = os.path.join(vault_root, "02_Journal", "01_Daily", f"{today_str}.md")
     
+    # Initialize task ingestion debug log
+    debug_log_path = os.path.join(os.path.dirname(__file__), 'task_ingestion_debug.log')
+    try:
+        with open(debug_log_path, 'w', encoding='utf-8') as f:
+            f.write(f"=== TASK INGESTION DIAGNOSTIC LOG - {datetime.now(tz).isoformat()} ===\n")
+            f.write(f"Target Daily Note: {note_path}\n")
+    except Exception as e:
+        print(f"Log initialization failed: {e}")
+
     daily_tasks = extract_daily_note_tasks(note_path)
     headers = get_planner_headers(note_path)
     
@@ -969,7 +1019,13 @@ def main():
             in_calendar = any(any(term in ev.get('summary', '').lower() for term in prohibited_terms if term in dt_lower) for ev in events)
             in_google = any(any(term in gt.get('title', '').lower() or term in gt.get('notes', '').lower() for term in prohibited_terms if term in dt_lower) for gt in google_tasks)
             if not in_todoist and not in_calendar and not in_google:
-                print(f"Filtering out likely hallucinated task from daily note: {dt}")
+                log_msg = f"[FILTERED OUT] Likely hallucinated task from daily note: {dt}"
+                print(log_msg)
+                try:
+                    with open(debug_log_path, 'a', encoding='utf-8') as f:
+                        f.write(f"\n{log_msg}\n")
+                except Exception:
+                    pass
                 continue
         filtered_daily_tasks.append(dt)
     daily_tasks = filtered_daily_tasks

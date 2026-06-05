@@ -317,6 +317,13 @@ class TaskTimerView extends obsidian.ItemView {
 
         this.updateTimerDisplay();
 
+        // Time Adjustment Controls
+        const adjustControls = timerContainer.createDiv({ cls: 'timer-adjust-controls' });
+        const plus1Btn = adjustControls.createEl('button', { cls: 'timer-btn-adjust', text: '+1m' });
+        plus1Btn.onclick = () => this.adjustActiveTimer(1);
+        const plusBtn = adjustControls.createEl('button', { cls: 'timer-btn-adjust', text: '+5m' });
+        plusBtn.onclick = () => this.adjustActiveTimer(5);
+
         const controls = timerContainer.createDiv({ cls: 'timer-controls' });
 
         this.pauseBtn = controls.createEl('button', { cls: 'timer-btn', text: 'Pause' });
@@ -327,6 +334,90 @@ class TaskTimerView extends obsidian.ItemView {
 
         const cancelBtn = controls.createEl('button', { cls: 'timer-btn warning', text: 'Cancel' });
         cancelBtn.onclick = () => this.cancelTimer();
+    }
+
+    async adjustActiveTimer(minutes) {
+        if (!this.currentTimer) return;
+
+        const timer = this.currentTimer;
+        timer.remainingSeconds = Math.max(0, timer.remainingSeconds + minutes * 60);
+        timer.totalSeconds = Math.max(0, timer.totalSeconds + minutes * 60);
+
+        const dailyFile = this.getDailyNoteFile();
+        if (dailyFile) {
+            try {
+                const content = await this.app.vault.read(dailyFile);
+                const lines = content.split(/\r?\n/);
+
+                let lineIndex = timer.task.lineIndex;
+                if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].includes(timer.taskName)) {
+                    lineIndex = lines.findIndex(l => l.includes(timer.taskName) && l.includes('- [ ]'));
+                }
+
+                if (lineIndex !== -1) {
+                    const originalLine = lines[lineIndex];
+                    const timeRangeRegex = /(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?/;
+                    const match = originalLine.match(timeRangeRegex);
+                    if (match) {
+                        let startH = parseInt(match[1]);
+                        const startM = parseInt(match[2]);
+                        const startAmpm = match[3];
+                        let endH = parseInt(match[4]);
+                        const endM = parseInt(match[5]);
+                        const endAmpm = match[6];
+
+                        if (startAmpm) {
+                            const ampm = startAmpm.toLowerCase();
+                            if (ampm === 'pm' && startH < 12) startH += 12;
+                            if (ampm === 'am' && startH === 12) startH = 0;
+                        }
+                        if (endAmpm) {
+                            const ampm = endAmpm.toLowerCase();
+                            if (ampm === 'pm' && endH < 12) endH += 12;
+                            if (ampm === 'am' && endH === 12) endH = 0;
+                        }
+
+                        const startMinutes = startH * 60 + startM;
+                        const originalEndMinutes = endH * 60 + endM;
+                        const newEndMinutes = originalEndMinutes + minutes;
+
+                        const newEndH24 = Math.floor(newEndMinutes / 60) % 24;
+                        const newEndM24 = newEndMinutes % 60;
+
+                        let newTimeRangeStr = "";
+                        if (startAmpm || endAmpm) {
+                            const startAmPmStr = startAmpm ? startAmpm.toUpperCase() : (startH >= 12 ? 'PM' : 'AM');
+                            const endAmPmStr = endAmpm ? endAmpm.toUpperCase() : (newEndH24 >= 12 ? 'PM' : 'AM');
+                            const startH12 = startH % 12 === 0 ? 12 : startH % 12;
+                            const endH12 = newEndH24 % 12 === 0 ? 12 : newEndH24 % 12;
+                            newTimeRangeStr = `${startH12}:${String(startM).padStart(2, '0')} ${startAmPmStr} - ${endH12}:${String(newEndM24).padStart(2, '0')} ${endAmPmStr}`;
+                        } else {
+                            newTimeRangeStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')} - ${String(newEndH24).padStart(2, '0')}:${String(newEndM24).padStart(2, '0')}`;
+                        }
+
+                        let newLine = originalLine.replace(timeRangeRegex, newTimeRangeStr);
+
+                        const buttonRegex = /BUTTON\[timer-(\d+)\]/;
+                        const buttonMatch = originalLine.match(buttonRegex);
+                        if (buttonMatch) {
+                            const currentDuration = parseInt(buttonMatch[1]);
+                            const newDuration = Math.max(0, currentDuration + minutes);
+                            newLine = newLine.replace(buttonRegex, `BUTTON[timer-${newDuration}]`);
+                        }
+
+                        lines[lineIndex] = newLine;
+                        await this.app.vault.modify(dailyFile, lines.join('\n'));
+
+                        timer.task.duration = Math.max(0, (timer.task.duration || 20) + minutes);
+                        timer.task.originalLine = newLine;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to adjust active task in daily note:", e);
+            }
+        }
+
+        this.updateTimerDisplay();
     }
 
     updateTimerDisplay() {
@@ -519,6 +610,31 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
             containerEl.empty();
             containerEl.createEl('h2', { text: 'Schedule Assistant with Focus Timer Settings' });
 
+            const requestWithTimeout = async (params, timeoutMs = 2500) => {
+                return Promise.race([
+                    obsidian.requestUrl(params),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
+                ]);
+            };
+
+            const createStatusBadge = (parentEl) => {
+                const badge = parentEl.createEl('span');
+                badge.style.display = 'inline-block';
+                badge.style.width = '10px';
+                badge.style.height = '10px';
+                badge.style.borderRadius = '50%';
+                badge.style.marginLeft = '8px';
+                badge.style.verticalAlign = 'middle';
+                badge.style.backgroundColor = '#8e8e93'; // default gray
+                badge.setAttribute('title', 'Checking...');
+                return badge;
+            };
+
+            const updateBadge = (badge, ok, tooltip) => {
+                badge.style.backgroundColor = ok ? '#30d158' : '#ff453a';
+                badge.setAttribute('title', tooltip);
+            };
+
             new obsidian.Setting(containerEl)
                 .setName('Default Timer Duration')
                 .setDesc('Duration (in minutes) assigned to timers if not specified.')
@@ -540,70 +656,256 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                         await this.plugin.saveSettings();
                     }));
 
+            containerEl.createEl('h3', { text: 'Remote Server Settings' });
+
+            new obsidian.Setting(containerEl)
+                .setName('Enable Remote Server')
+                .setDesc('Start a local web server to control focus timer and schedule from Android phone, tablet, and watch.')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.enableServer !== false)
+                    .onChange(async (value) => {
+                        this.plugin.settings.enableServer = value;
+                        await this.plugin.saveSettings();
+                        if (value) {
+                            await this.plugin.startServer();
+                        } else {
+                            this.plugin.stopServer();
+                        }
+                    }));
+
+            new obsidian.Setting(containerEl)
+                .setName('Remote Server Port')
+                .setDesc('The port to run the web server on (e.g. 8089). Requires server restart or toggle.')
+                .addText(text => text
+                    .setPlaceholder('8089')
+                    .setValue(this.plugin.settings.serverPort || '8089')
+                    .onChange(async (value) => {
+                        this.plugin.settings.serverPort = value.trim();
+                        await this.plugin.saveSettings();
+                        if (this.plugin.settings.enableServer) {
+                            await this.plugin.startServer();
+                        }
+                    }));
+
             containerEl.createEl('h3', { text: 'API Credentials (Keychain)' });
 
             // Gemini API Key (TextComponent as password)
-            new obsidian.Setting(containerEl)
+            let geminiSecretId = this.plugin.settings.geminiApiKeyId || 'schedule-assistant-gemini-api-key';
+            if (!this.plugin.settings.geminiApiKeyId) {
+                this.plugin.settings.geminiApiKeyId = geminiSecretId;
+                this.plugin.saveSettings();
+            }
+            const geminiSetting = new obsidian.Setting(containerEl)
                 .setName('Gemini API Key')
                 .setDesc('Secure API key stored in your system keychain.')
                 .addText(text => {
                     text.inputEl.type = 'password';
                     text.setPlaceholder('Enter Gemini API Key');
-                    let secretId = this.plugin.settings.geminiApiKeyId;
-                    if (!secretId) {
-                        secretId = 'timeblocker-gemini-api-key';
-                        this.plugin.settings.geminiApiKeyId = secretId;
-                        this.plugin.saveSettings();
-                    }
-                    this.plugin.getSecret(secretId, 'geminiApiKey').then(value => {
-                        text.setValue(value || '');
+                    this.plugin.getSecret(geminiSecretId, 'geminiApiKey').then(value => {
+                        if (!value && geminiSecretId === 'schedule-assistant-gemini-api-key') {
+                            this.plugin.getSecret('timeblocker-gemini-api-key', 'geminiApiKey').then(val => text.setValue(val || ''));
+                        } else {
+                            text.setValue(value || '');
+                        }
                     });
                     text.onChange(async (value) => {
-                        await this.plugin.setSecret(secretId, value.trim(), 'geminiApiKey');
+                        await this.plugin.setSecret(geminiSecretId, value.trim(), 'geminiApiKey');
                     });
                 });
+            const geminiBadge = createStatusBadge(geminiSetting.nameEl);
+            (async () => {
+                let geminiKey = await this.plugin.getSecret(geminiSecretId, 'geminiApiKey');
+                if (!geminiKey && geminiSecretId === 'schedule-assistant-gemini-api-key') {
+                    geminiKey = await this.plugin.getSecret('timeblocker-gemini-api-key', 'geminiApiKey');
+                }
+                if (!geminiKey) {
+                    updateBadge(geminiBadge, false, 'Missing Gemini API Key');
+                    return;
+                }
+                try {
+                    const res = await requestWithTimeout({
+                        url: `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`,
+                        method: 'GET'
+                    });
+                    if (res.status === 200) {
+                        updateBadge(geminiBadge, true, 'Gemini API: Connected');
+                    } else {
+                        updateBadge(geminiBadge, false, 'Gemini API: Invalid Key');
+                    }
+                } catch(e) {
+                    updateBadge(geminiBadge, false, 'Gemini API: Connection Error / Timeout');
+                }
+            })();
 
             // Todoist API Token (TextComponent as password)
-            new obsidian.Setting(containerEl)
+            let todoistSecretId = this.plugin.settings.todoistTokenId || 'schedule-assistant-todoist-token';
+            if (!this.plugin.settings.todoistTokenId) {
+                this.plugin.settings.todoistTokenId = todoistSecretId;
+                this.plugin.saveSettings();
+            }
+            const todoistSetting = new obsidian.Setting(containerEl)
                 .setName('Todoist API Token')
                 .setDesc('Secure Todoist API token stored in your system keychain.')
                 .addText(text => {
                     text.inputEl.type = 'password';
                     text.setPlaceholder('Enter Todoist API Token');
-                    let secretId = this.plugin.settings.todoistTokenId;
-                    if (!secretId) {
-                        secretId = 'timeblocker-todoist-token';
-                        this.plugin.settings.todoistTokenId = secretId;
-                        this.plugin.saveSettings();
-                    }
-                    this.plugin.getSecret(secretId, 'todoistToken').then(value => {
-                        text.setValue(value || '');
+                    this.plugin.getSecret(todoistSecretId, 'todoistToken').then(value => {
+                        if (!value && todoistSecretId === 'schedule-assistant-todoist-token') {
+                            this.plugin.getSecret('timeblocker-todoist-token', 'todoistToken').then(val => text.setValue(val || ''));
+                        } else {
+                            text.setValue(value || '');
+                        }
                     });
                     text.onChange(async (value) => {
-                        await this.plugin.setSecret(secretId, value.trim(), 'todoistToken');
+                        await this.plugin.setSecret(todoistSecretId, value.trim(), 'todoistToken');
                     });
                 });
+            const todoistBadge = createStatusBadge(todoistSetting.nameEl);
+            (async () => {
+                let todoistToken = await this.plugin.getSecret(todoistSecretId, 'todoistToken');
+                if (!todoistToken && todoistSecretId === 'schedule-assistant-todoist-token') {
+                    todoistToken = await this.plugin.getSecret('timeblocker-todoist-token', 'todoistToken');
+                }
+                if (!todoistToken) {
+                    updateBadge(todoistBadge, false, 'Missing Todoist API Token');
+                    return;
+                }
+                try {
+                    const res = await requestWithTimeout({
+                        url: `https://api.todoist.com/api/v1/tasks?limit=1`,
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${todoistToken}` }
+                    });
+                    if (res.status === 200) {
+                        updateBadge(todoistBadge, true, 'Todoist API: Connected');
+                    } else {
+                        updateBadge(todoistBadge, false, 'Todoist API: Invalid Token');
+                    }
+                } catch(e) {
+                    updateBadge(todoistBadge, false, 'Todoist API: Connection Error / Timeout');
+                }
+            })();
 
             // Google Credentials JSON (TextComponent as password)
-            new obsidian.Setting(containerEl)
+            let googleSecretId = this.plugin.settings.googleCredentialsId || 'schedule-assistant-google-credentials';
+            if (!this.plugin.settings.googleCredentialsId) {
+                this.plugin.settings.googleCredentialsId = googleSecretId;
+                this.plugin.saveSettings();
+            }
+            const googleSetting = new obsidian.Setting(containerEl)
                 .setName('Google Credentials JSON')
                 .setDesc('Secure client credentials JSON string (from credentials.json) stored in your system keychain.')
                 .addText(text => {
                     text.inputEl.type = 'password';
                     text.setPlaceholder('Enter Google Credentials JSON');
-                    let secretId = this.plugin.settings.googleCredentialsId;
-                    if (!secretId) {
-                        secretId = 'timeblocker-google-credentials';
-                        this.plugin.settings.googleCredentialsId = secretId;
-                        this.plugin.saveSettings();
-                    }
-                    this.plugin.getSecret(secretId, 'googleCredentials').then(value => {
-                        text.setValue(value || '');
+                    this.plugin.getSecret(googleSecretId, 'googleCredentials').then(value => {
+                        if (!value && googleSecretId === 'schedule-assistant-google-credentials') {
+                            this.plugin.getSecret('timeblocker-google-credentials', 'googleCredentials').then(val => text.setValue(val || ''));
+                        } else {
+                            text.setValue(value || '');
+                        }
                     });
                     text.onChange(async (value) => {
-                        await this.plugin.setSecret(secretId, value.trim(), 'googleCredentials');
+                        await this.plugin.setSecret(googleSecretId, value.trim(), 'googleCredentials');
                     });
                 });
+            const googleBadge = createStatusBadge(googleSetting.nameEl);
+            (async () => {
+                const fs = require('fs');
+                const vaultPath = this.app.vault.adapter.getBasePath();
+                const sep = vaultPath.includes('/') ? '/' : '\\';
+                const tokenPath = `${vaultPath}${sep}.obsidian${sep}plugins${sep}schedule-assistant-focus-timer${sep}token.json`;
+                if (!fs.existsSync(tokenPath)) {
+                    updateBadge(googleBadge, false, 'Google Workspace: Disconnected (No token.json)');
+                    return;
+                }
+                try {
+                    const token = await this.plugin.getGoogleAccessToken();
+                    const res = await requestWithTimeout({
+                        url: `https://www.googleapis.com/tasks/v1/users/@me/lists`,
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (res.status === 200) {
+                        updateBadge(googleBadge, true, 'Google Workspace: Connected');
+                    } else {
+                        updateBadge(googleBadge, false, 'Google Workspace: Auth Expired / Error');
+                    }
+                } catch(e) {
+                    updateBadge(googleBadge, false, 'Google Workspace: Connection/Auth Error / Timeout');
+                }
+            })();
+
+            // Google OAuth Connect Row & Collapsible guide
+            const fs = require('fs');
+            const vaultPath = this.app.vault.adapter.getBasePath();
+            const sep = vaultPath.includes('/') ? '/' : '\\';
+            const pluginDir = `${vaultPath}${sep}.obsidian${sep}plugins${sep}schedule-assistant-focus-timer`;
+            const hasLocalCreds = fs.existsSync(`${pluginDir}${sep}credentials.json`);
+            
+            const authSetting = new obsidian.Setting(containerEl)
+                .setName('Google Account Connection')
+                .setDesc('Authorize Calendar, Tasks, and Health APIs directly via a frictionless browser flow.');
+
+            authSetting.addButton(btn => {
+                btn.setButtonText('Connect Google Account');
+                btn.setCta();
+                btn.setDisabled(true); // default to disabled while validating
+                
+                (async () => {
+                    let hasKeyringCreds = await this.plugin.getSecret(googleSecretId, 'googleCredentials');
+                    if (!hasKeyringCreds && googleSecretId === 'schedule-assistant-google-credentials') {
+                        hasKeyringCreds = await this.plugin.getSecret('timeblocker-google-credentials', 'googleCredentials');
+                    }
+                    if (hasLocalCreds || hasKeyringCreds) {
+                        btn.setDisabled(false);
+                    }
+                })();
+
+                btn.onClick(async () => {
+                    try {
+                        await this.plugin.startGoogleOAuthFlow();
+                    } catch(e) {
+                        new obsidian.Notice("Failed to start Google OAuth flow: " + e.message);
+                    }
+                });
+            });
+
+            const details = containerEl.createEl('details');
+            details.style.marginBottom = '20px';
+            details.style.padding = '12px';
+            details.style.border = '1px solid var(--background-modifier-border)';
+            details.style.borderRadius = '6px';
+            details.style.fontSize = '0.9em';
+            details.style.backgroundColor = 'var(--background-secondary)';
+
+            const summary = details.createEl('summary', { text: 'Google Cloud Console OAuth Setup Guide' });
+            summary.style.fontWeight = 'bold';
+            summary.style.cursor = 'pointer';
+            summary.style.color = 'var(--text-accent)';
+
+            const detailsBody = details.createDiv();
+            detailsBody.style.marginTop = '10px';
+            detailsBody.innerHTML = `
+                <ol style="padding-left: 20px; color: var(--text-normal); margin-top: 6px; line-height: 1.4;">
+                    <li>Go to the <a href="https://console.cloud.google.com/">Google Cloud Console</a> and create or select a project.</li>
+                    <li>Enable the following APIs: <strong>Google Tasks API</strong>, <strong>Google Calendar API</strong>, <strong>Google Fitness API</strong>, and <strong>Google Health API</strong>.</li>
+                    <li>Configure the <strong>OAuth consent screen</strong>:
+                        <ul style="padding-left: 20px; list-style-type: circle; margin-top: 4px;">
+                            <li>Set User Type to <strong>External</strong>.</li>
+                            <li>Add scopes: <code>.../auth/calendar.readonly</code>, <code>.../auth/tasks</code>, <code>.../auth/fitness.sleep.read</code>, <code>.../auth/fitness.activity.read</code>, <code>.../auth/googlehealth.sleep.readonly</code>, and <code>.../auth/googlehealth.activity_and_fitness.readonly</code>.</li>
+                            <li><strong>IMPORTANT:</strong> Set Publishing Status to <strong>"In Production"</strong>. If left in "Testing", Google will invalidate the token every 7 days!</li>
+                        </ul>
+                    </li>
+                    <li>Go to <strong>Credentials</strong> > <strong>Create Credentials</strong> > <strong>OAuth client ID</strong>.
+                        <ul style="padding-left: 20px; list-style-type: circle; margin-top: 4px;">
+                            <li>Application type: <strong>Web application</strong></li>
+                            <li>Authorized redirect URIs: <code>http://localhost:8092</code></li>
+                        </ul>
+                    </li>
+                    <li>Download the credentials JSON, open it, copy its full content, and paste it into the <strong>Google Credentials JSON</strong> setting field above.</li>
+                </ol>
+            `;
 
             containerEl.createEl('h3', { text: 'AI Model Settings' });
 
@@ -687,7 +989,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
 
             // Ollama URL (only visible if provider is Ollama)
             if (provider === 'ollama') {
-                new obsidian.Setting(containerEl)
+                const ollamaSetting = new obsidian.Setting(containerEl)
                     .setName('Ollama Endpoint')
                     .setDesc('The base URL of your local Ollama server.')
                     .addText(text => text
@@ -697,11 +999,26 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                             this.plugin.settings.ollamaUrl = value.trim();
                             await this.plugin.saveSettings();
                         }));
+                
+                const ollamaBadge = createStatusBadge(ollamaSetting.nameEl);
+                (async () => {
+                    const ollamaUrl = this.plugin.settings.ollamaUrl || 'http://localhost:11434';
+                    try {
+                        const res = await requestWithTimeout({
+                            url: `${ollamaUrl}/api/tags`,
+                            method: 'GET'
+                        });
+                        if (res.status === 200) {
+                            updateBadge(ollamaBadge, true, 'Ollama Server: Online');
+                        } else {
+                            updateBadge(ollamaBadge, false, 'Ollama Server: Unavailable');
+                        }
+                    } catch(e) {
+                        updateBadge(ollamaBadge, false, 'Ollama Server: Offline / Timeout');
+                    }
+                })();
             }
 
-            const fs = require('fs');
-            const vaultPath = this.app.vault.adapter.getBasePath();
-            const sep = vaultPath.includes('/') ? '/' : '\\';
             const prefsPath = `${vaultPath}${sep}.obsidian${sep}plugins${sep}schedule-assistant-focus-timer${sep}preferences.txt`;
 
             let prefsContent = "";
@@ -734,9 +1051,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
             containerEl.createEl('p', { text: 'Failed to display settings: ' + err.message, cls: 'theme-warning' });
         }
     }
-}
-
-const DEFAULT_SETTINGS = {
+}const DEFAULT_SETTINGS = {
     defaultDuration: '20',
     autoApply: false,
     todoistToken: '',
@@ -748,7 +1063,9 @@ const DEFAULT_SETTINGS = {
     llmProvider: 'gemini',
     llmModel: 'gemini-2.5-pro',
     customModel: '',
-    ollamaUrl: 'http://localhost:11434'
+    ollamaUrl: 'http://localhost:11434',
+    enableServer: true,
+    serverPort: '8089'
 };
 
 module.exports = class TaskTimerPlugin extends obsidian.Plugin {
@@ -778,6 +1095,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
     async onload() {
         await this.loadSettings();
+        await this.swallowGoogleCredentials();
         this.activeLog = null;
         this.lastClickedEl = null;
 
@@ -834,11 +1152,19 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             callback: () => this.postponeClickedTask()
         });
 
-        // Add sync Fitbit command
+        // Add Add 1 Minute command
         this.addCommand({
-            id: 'sync-fitbit',
-            name: 'Sync Fitbit Data (Check In)',
-            callback: () => this.runFitbitSync()
+            id: 'adjust-timer-plus-1m',
+            name: 'Add 1 Minute to Active Focus Timer',
+            callback: () => {
+                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                if (leaves.length > 0) {
+                    const view = leaves[0].view;
+                    if (view.currentTimer) {
+                        view.adjustActiveTimer(1);
+                    }
+                }
+            }
         });
 
         // Add unified task toggle command
@@ -865,9 +1191,207 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 }
             }
         });
+
+        // Commands for phone logger have been moved to omni-logger
+
+        // Hook Settings Sidebar Organizer
+        const setting = this.app.setting;
+        if (setting && setting.open) {
+            if (!setting.open.__antigravityHooked) {
+                const originalOpen = setting.open;
+                const plugin = this;
+                setting.open = function() {
+                    const result = originalOpen.apply(this, arguments);
+                    setTimeout(() => {
+                        // Dynamically call sidebar organizers for all loaded custom plugins
+                        const activeOmni = plugin.app.plugins.getPlugin('omni-logger');
+                        if (activeOmni && typeof activeOmni.organizeCustomPluginsSidebar === 'function') {
+                            activeOmni.organizeCustomPluginsSidebar();
+                        }
+                        const activeTimer = plugin.app.plugins.getPlugin('schedule-assistant-focus-timer');
+                        if (activeTimer && typeof activeTimer.organizeCustomPluginsSidebar === 'function') {
+                            activeTimer.organizeCustomPluginsSidebar();
+                        }
+                    }, 50);
+                    return result;
+                };
+                setting.open.__antigravityHooked = true;
+                setting.open.__originalOpen = originalOpen;
+            }
+        }
+
+        if (this.settings.enableServer !== false) {
+            await this.startServer();
+        }
     }
 
-    async runTaskLoader() {
+    async startGoogleOAuthFlow() {
+        const fs = require('fs');
+        const path = require('path');
+        const http = require('http');
+        
+        const vaultPath = this.app.vault.adapter.getBasePath();
+        const sep = vaultPath.includes('/') ? '/' : '\\';
+        const pluginDir = `${vaultPath}${sep}.obsidian${sep}plugins${sep}schedule-assistant-focus-timer`;
+        
+        // 1. Get credentials from keychain/setting
+        let googleSecretId = this.settings.googleCredentialsId || 'schedule-assistant-google-credentials';
+        let credsStr = await this.getSecret(googleSecretId, 'googleCredentials');
+        if (!credsStr) {
+            credsStr = await this.getSecret('timeblocker-google-credentials', 'googleCredentials');
+        }
+        let credsData;
+        if (credsStr) {
+            try {
+                credsData = JSON.parse(credsStr);
+            } catch(e) {
+                console.error("Failed to parse Google Credentials JSON from setting:", e);
+            }
+        }
+        
+        // 2. Fallback to physical credentials.json in plugin directory
+        if (!credsData) {
+            const credsPath = `${pluginDir}${sep}credentials.json`;
+            if (fs.existsSync(credsPath)) {
+                try {
+                    credsData = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+                } catch(e) {
+                    throw new Error(`Failed to parse credentials.json: ${e.message}`);
+                }
+            }
+        }
+        
+        if (!credsData) {
+            throw new Error("Google Credentials JSON not configured in settings, and credentials.json not found in plugin directory.");
+        }
+        
+        const web = credsData.installed || credsData.web;
+        if (!web) {
+            throw new Error("Invalid Google Credentials format. Expected 'installed' or 'web' client configuration.");
+        }
+        
+        const clientId = web.client_id;
+        const clientSecret = web.client_secret;
+        const redirectUri = "http://localhost:8092";
+        
+        const scopes = [
+            "https://www.googleapis.com/auth/tasks",
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/fitness.sleep.read",
+            "https://www.googleapis.com/auth/fitness.activity.read",
+            "https://www.googleapis.com/auth/fitness.sleep.read",
+            "https://www.googleapis.com/auth/fitness.activity.read",
+            "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
+            "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly"
+        ].join(" ");
+        
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+            `response_type=code` +
+            `&client_id=${encodeURIComponent(clientId)}` +
+            `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+            `&scope=${encodeURIComponent(scopes)}` +
+            `&access_type=offline` +
+            `&prompt=consent`;
+            
+        if (this.tempOAuthServer) {
+            try {
+                this.tempOAuthServer.close();
+            } catch(e) {}
+        }
+        
+        this.tempOAuthServer = http.createServer(async (req, res) => {
+            const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            const code = url.searchParams.get("code");
+            
+            if (code) {
+                try {
+                    const tokenUrl = "https://oauth2.googleapis.com/token";
+                    const bodyDetails = {
+                        code: code,
+                        client_id: clientId,
+                        client_secret: clientSecret,
+                        redirect_uri: redirectUri,
+                        grant_type: "authorization_code"
+                    };
+                    const body = Object.keys(bodyDetails)
+                        .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(bodyDetails[key]))
+                        .join('&');
+                        
+                    const response = await obsidian.requestUrl({
+                        url: tokenUrl,
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: body
+                    });
+                    
+                    if (response.status !== 200) {
+                        throw new Error(`Token exchange failed: ${response.text}`);
+                    }
+                    
+                    const tokenResponse = response.json;
+                    const expiryDate = new Date();
+                    expiryDate.setSeconds(expiryDate.getSeconds() + (tokenResponse.expires_in || 3600));
+                    
+                    const tokenData = {
+                        token: tokenResponse.access_token,
+                        expiry: expiryDate.toISOString(),
+                        token_uri: tokenUrl,
+                        client_id: clientId,
+                        client_secret: clientSecret,
+                        refresh_token: tokenResponse.refresh_token
+                    };
+                    
+                    const tokenPath = `${pluginDir}${sep}token.json`;
+                    fs.writeFileSync(tokenPath, JSON.stringify(tokenData, null, 2), 'utf8');
+                    
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(`
+                        <html>
+                        <body style="font-family: sans-serif; text-align: center; padding-top: 50px; background: #1e1e1e; color: #fff;">
+                            <h2 style="color: #00ffd0;">Authorization Successful!</h2>
+                            <p>Google Tasks, Calendar, and Health are now connected to Schedule Assistant.</p>
+                            <p>You can close this tab and return to Obsidian.</p>
+                        </body>
+                        </html>
+                    `);
+                    
+                    new obsidian.Notice("Successfully authorized Google Workspace & Health API!");
+                } catch (err) {
+                    console.error("OAuth token exchange failed:", err);
+                    res.writeHead(500, { 'Content-Type': 'text/plain' });
+                    res.end("Authentication failed: " + err.message);
+                    new obsidian.Notice("Google authorization failed: " + err.message);
+                } finally {
+                    setTimeout(() => {
+                        if (this.tempOAuthServer) {
+                            this.tempOAuthServer.close();
+                            this.tempOAuthServer = null;
+                        }
+                    }, 1000);
+                }
+            } else {
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                res.end("Authorization code missing.");
+                setTimeout(() => {
+                    if (this.tempOAuthServer) {
+                        this.tempOAuthServer.close();
+                        this.tempOAuthServer = null;
+                    }
+                }, 1000);
+            }
+        });
+        
+        this.tempOAuthServer.listen(8092, () => {
+            console.log("Schedule Assistant OAuth temp server listening on port 8092");
+            window.open(authUrl);
+        });
+        
+        new obsidian.Notice("Opening browser to authorize Google Account...");
+    }
+
+    async runTaskLoader(autoApply = false) {
         const fs = require('fs');
         const path = require('path');
         const { spawn } = require('child_process');
@@ -881,12 +1405,19 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             return;
         }
         
-        new obsidian.Notice("Running scheduler... please wait.");
-        
         // Retrieve secrets securely from Obsidian SecretStorage
-        const geminiApiKey = await this.app.secretStorage.getSecret('timeblocker-gemini-api-key') || '';
-        const todoistToken = await this.app.secretStorage.getSecret('timeblocker-todoist-token') || '';
-        const googleCredentials = await this.app.secretStorage.getSecret('timeblocker-google-credentials') || '';
+        let geminiApiKey = await this.app.secretStorage.getSecret(this.settings.geminiApiKeyId || 'schedule-assistant-gemini-api-key') || '';
+        if (!geminiApiKey) {
+            geminiApiKey = await this.app.secretStorage.getSecret('timeblocker-gemini-api-key') || '';
+        }
+        let todoistToken = await this.app.secretStorage.getSecret(this.settings.todoistTokenId || 'schedule-assistant-todoist-token') || '';
+        if (!todoistToken) {
+            todoistToken = await this.app.secretStorage.getSecret('timeblocker-todoist-token') || '';
+        }
+        let googleCredentials = await this.app.secretStorage.getSecret(this.settings.googleCredentialsId || 'schedule-assistant-google-credentials') || '';
+        if (!googleCredentials) {
+            googleCredentials = await this.app.secretStorage.getSecret('timeblocker-google-credentials') || '';
+        }
         
         const env = Object.assign({}, process.env, {
             GEMINI_API_KEY: geminiApiKey,
@@ -899,10 +1430,18 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             env.DAILY_NOTE_PATH = path.join(vaultPath, dailyFile.path);
         }
         
-        const child = spawn('python', [scriptPath], { 
+        const args = [scriptPath];
+        if (autoApply) {
+            args.push('--yes');
+        }
+        
+        const child = spawn('python', args, { 
             cwd: pluginDir,
             env: env
         });
+        
+        const progressModal = new SchedulerProgressModal(this.app, child);
+        progressModal.open();
         
         let stdout = '';
         let stderr = '';
@@ -916,6 +1455,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         });
         
         child.on('close', (code) => {
+            progressModal.setCompleted();
             if (code === 0) {
                 new obsidian.Notice("Schedule generated and applied successfully!");
                 console.log("Scheduler output:\n", stdout);
@@ -926,59 +1466,31 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         });
     }
 
-    async runFitbitSync() {
+    async swallowGoogleCredentials() {
         const fs = require('fs');
         const path = require('path');
-        const { spawn } = require('child_process');
-        
         const vaultPath = this.app.vault.adapter.getBasePath();
-        const scriptPath = path.join(vaultPath, '99_System', 'Scripts', 'fitbit_pull.py');
+        const pluginDir = path.join(vaultPath, '.obsidian', 'plugins', 'schedule-assistant-focus-timer');
+        const credsPath = path.join(pluginDir, 'credentials.json');
         
-        if (!fs.existsSync(scriptPath)) {
-            new obsidian.Notice(`Fitbit pull script not found at ${scriptPath}`);
-            return;
-        }
-        
-        const dailyFile = this.getDailyNoteFile();
-        if (!dailyFile) {
-            new obsidian.Notice("Daily note for today not found!");
-            return;
-        }
-        
-        new obsidian.Notice("Starting Fitbit data pull (Check In)...");
-        
-        const dailyNoteFullPath = path.join(vaultPath, dailyFile.path);
-        const geminiApiKey = await this.getSecret('timeblocker-gemini-api-key', 'geminiApiKey');
-        
-        const env = Object.assign({}, process.env, {
-            GEMINI_API_KEY: geminiApiKey
-        });
-        
-        const child = spawn('python', [scriptPath, dailyNoteFullPath], {
-            cwd: path.dirname(scriptPath),
-            env: env
-        });
-        
-        let stdout = '';
-        let stderr = '';
-        
-        child.stdout.on('data', (data) => {
-            stdout += data.toString();
-        });
-        
-        child.stderr.on('data', (data) => {
-            stderr += data.toString();
-        });
-        
-        child.on('close', (code) => {
-            if (code === 0) {
-                new obsidian.Notice("Fitbit check-in completed successfully!");
-                console.log("Fitbit pull output:\n", stdout);
-            } else {
-                new obsidian.Notice(`Fitbit pull failed (exit code ${code}). Check console.`);
-                console.error("Fitbit pull error:\n", stderr);
+        if (fs.existsSync(credsPath)) {
+            try {
+                const credsJson = fs.readFileSync(credsPath, 'utf8');
+                // Save JSON string to SecretStorage
+                let googleSecretId = this.settings.googleCredentialsId || 'schedule-assistant-google-credentials';
+                await this.setSecret(googleSecretId, credsJson.trim());
+                
+                // Backup and remove
+                const bakPath = credsPath + '.bak';
+                if (fs.existsSync(bakPath)) fs.unlinkSync(bakPath);
+                fs.renameSync(credsPath, bakPath);
+                fs.unlinkSync(bakPath);
+                
+                new obsidian.Notice("Success: Swallowed Google OAuth Client Credentials into secure keychain!");
+            } catch (e) {
+                console.error("Failed to swallow Google credentials:", e);
             }
-        });
+        }
     }
 
     parseAllTasks(content) {
@@ -1182,22 +1694,29 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
         lines[task.lineIndex] = newLine;
 
-        let inSubheading = false;
+        let inPlanner = false;
+        let currentSubheading = "";
         const subheadingIndices = [];
         const fileTaskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            if (line.startsWith('## ') || (line.startsWith('### ') && line.trim() !== task.subheading)) {
-                if (inSubheading) break;
-            }
-            if (line.trim() === task.subheading) {
-                inSubheading = true;
+            if (line.includes("## 📅Day Planner")) {
+                inPlanner = true;
                 continue;
             }
-            if (inSubheading) {
-                if (fileTaskRegex.test(line)) {
-                    subheadingIndices.push(i);
+            if (inPlanner && line.startsWith('## ') && !line.includes("## 📅Day Planner")) {
+                break;
+            }
+            if (inPlanner) {
+                if (line.startsWith('### ')) {
+                    currentSubheading = line.trim();
+                    continue;
+                }
+                if (currentSubheading === task.subheading) {
+                    if (fileTaskRegex.test(line)) {
+                        subheadingIndices.push(i);
+                    }
                 }
             }
         }
@@ -1238,6 +1757,465 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
     async onunload() {
         window.removeEventListener('click', this.clickTracker, true);
         this.app.workspace.detachLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        this.stopServer();
+        if (this.tempOAuthServer) {
+            try {
+                this.tempOAuthServer.close();
+            } catch(e) {}
+        }
+    }
+
+    async startServer(retryCount = 0) {
+        await this.stopServer();
+        
+        let http;
+        try {
+            http = require('http');
+        } catch (e) {
+            console.log("Node http module is not available. Skipping remote server startup.");
+            return;
+        }
+
+        const fs = require('fs');
+        const path = require('path');
+        const port = parseInt(this.settings.serverPort) || 8089;
+        const vaultPath = this.app.vault.adapter.getBasePath();
+        const pluginDir = path.join(vaultPath, '.obsidian', 'plugins', 'schedule-assistant-focus-timer');
+        const webDir = path.join(pluginDir, 'web');
+
+        this.server = http.createServer(async (req, res) => {
+
+            const setCorsHeaders = () => {
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+                res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+            };
+
+            if (req.method === 'OPTIONS') {
+                setCorsHeaders();
+                res.writeHead(200);
+                res.end();
+                return;
+            }
+
+            const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            const pathname = url.pathname;
+
+            try {
+                if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html' || pathname === '/style.css' || pathname === '/app.js')) {
+                    const file = pathname === '/' ? 'index.html' : pathname.substring(1);
+                    const filePath = path.join(webDir, file);
+                    if (fs.existsSync(filePath)) {
+                        let contentType = 'text/plain';
+                        if (file.endsWith('.html')) contentType = 'text/html';
+                        else if (file.endsWith('.css')) contentType = 'text/css';
+                        else if (file.endsWith('.js')) contentType = 'application/javascript';
+                        
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': contentType });
+                        res.end(fs.readFileSync(filePath));
+                        return;
+                    } else {
+                        setCorsHeaders();
+                        res.writeHead(404, { 'Content-Type': 'text/plain' });
+                        res.end(`File ${file} not found in ${webDir}`);
+                        return;
+                    }
+                }
+
+                if (req.method === 'GET' && pathname === '/api/status') {
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    let activeTimer = null;
+                    let isAlarming = false;
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        activeTimer = view.currentTimer;
+                        isAlarming = view.isAlarming;
+                    }
+
+                    const dailyFile = this.getDailyNoteFile();
+                    let schedule = [];
+                    let hasDailyNote = false;
+                    let dateStr = "";
+                    if (dailyFile) {
+                        hasDailyNote = true;
+                        try {
+                            const content = await this.app.vault.read(dailyFile);
+                            schedule = this.parseAllTasks(content);
+                            const now = new Date();
+                            dateStr = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                        } catch (e) {
+                            console.error("Failed to read daily note in API:", e);
+                        }
+                    }
+
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        hasDailyNote,
+                        dateStr,
+                        activeTimer: activeTimer ? {
+                            taskName: activeTimer.taskName,
+                            remainingSeconds: activeTimer.remainingSeconds,
+                            totalSeconds: activeTimer.totalSeconds,
+                            isPaused: activeTimer.isPaused,
+                            status: activeTimer.task ? activeTimer.task.status : 'pending',
+                            lineIndex: activeTimer.task ? activeTimer.task.lineIndex : null
+                        } : null,
+                        isAlarming,
+                        schedule: schedule.map(t => ({
+                            lineIndex: t.lineIndex,
+                            status: t.status,
+                            startHour: t.startHour,
+                            startMin: t.startMin,
+                            endHour: t.endHour,
+                            endMin: t.endMin,
+                            duration: t.duration,
+                            description: t.description,
+                            subheading: t.subheading ? t.subheading.replace(/^###\s+/, '') : "Agenda"
+                        }))
+                    }));
+                    return;
+                }
+
+                const readBody = () => new Promise((resolve) => {
+                    let body = '';
+                    req.on('data', chunk => { body += chunk; });
+                    req.on('end', () => {
+                        try {
+                            resolve(JSON.parse(body || '{}'));
+                        } catch(e) {
+                            resolve({});
+                        }
+                    });
+                });
+
+                if (req.method === 'POST' && pathname === '/api/timer/start') {
+                    const body = await readBody();
+                    await this.activateView();
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        let matchedTask = null;
+                        const dailyFile = this.getDailyNoteFile();
+                        if (dailyFile) {
+                            const content = await this.app.vault.read(dailyFile);
+                            const tasks = this.parseAllTasks(content);
+                            if (typeof body.lineIndex === 'number') {
+                                matchedTask = tasks.find(t => t.lineIndex === body.lineIndex);
+                            }
+                            if (!matchedTask && body.taskName) {
+                                matchedTask = tasks.find(t => t.description.toLowerCase() === body.taskName.toLowerCase());
+                            }
+                        }
+
+                        const taskInput = matchedTask || body.taskName || "Focus Block";
+                        const duration = parseInt(body.durationMinutes) || (matchedTask ? matchedTask.duration : null) || parseInt(this.settings.defaultDuration) || 20;
+                        
+                        await view.startTimer(taskInput, duration);
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true }));
+                    } else {
+                        throw new Error("Focus timer view leaf not available.");
+                    }
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/timer/pause') {
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        if (view.currentTimer) {
+                            if (!view.currentTimer.isPaused) {
+                                await view.togglePause();
+                            }
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true, isPaused: true }));
+                        } else {
+                            throw new Error("No timer currently active.");
+                        }
+                    } else {
+                        throw new Error("Focus timer view leaf not available.");
+                    }
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/timer/resume') {
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        if (view.currentTimer) {
+                            if (view.currentTimer.isPaused) {
+                                await view.togglePause();
+                            }
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true, isPaused: false }));
+                        } else {
+                            throw new Error("No timer currently active.");
+                        }
+                    } else {
+                        throw new Error("Focus timer view leaf not available.");
+                    }
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/timer/complete') {
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        if (view.currentTimer || view.isAlarming) {
+                            if (view.isAlarming) {
+                                view.stopAlarm();
+                            }
+                            if (view.currentTimer) {
+                                await view.completeTimer();
+                            } else {
+                                const dailyFile = this.getDailyNoteFile();
+                                if (dailyFile) {
+                                    const content = await this.app.vault.read(dailyFile);
+                                    const tasks = this.parseAllTasks(content);
+                                    const openTask = tasks.find(t => t.status !== 'completed');
+                                    if (openTask) {
+                                        await view.endActiveTask(openTask);
+                                    }
+                                }
+                                view.renderSchedule();
+                            }
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true }));
+                        } else {
+                            throw new Error("No active timer or alarm to complete.");
+                        }
+                    } else {
+                        throw new Error("Focus timer view leaf not available.");
+                    }
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/timer/cancel') {
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        if (view.currentTimer) {
+                            await view.cancelTimer();
+                        }
+                        if (view.isAlarming) {
+                            view.stopAlarm();
+                            view.renderSchedule();
+                        }
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true }));
+                    } else {
+                        throw new Error("Focus timer view leaf not available.");
+                    }
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/schedule/generate') {
+                    this.runTaskLoader(true).catch(e => console.error("API schedule generation background task failed:", e));
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, message: "Schedule generation triggered successfully" }));
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/timer/adjust') {
+                    const body = await readBody();
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        if (view.currentTimer) {
+                            const mins = parseInt(body.minutes) || 5;
+                            await view.adjustActiveTimer(mins);
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true }));
+                        } else {
+                            throw new Error("No timer currently active to adjust.");
+                        }
+                    } else {
+                        throw new Error("Focus timer view leaf not available.");
+                    }
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/task/toggle') {
+                    const body = await readBody();
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        const dailyFile = this.getDailyNoteFile();
+                        if (dailyFile) {
+                            const content = await this.app.vault.read(dailyFile);
+                            const tasks = this.parseAllTasks(content);
+                            const task = tasks.find(t => t.lineIndex === body.lineIndex);
+                            if (task) {
+                                await view.toggleTaskCompletion(task, body.complete);
+                                setCorsHeaders();
+                                res.writeHead(200, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify({ success: true }));
+                                return;
+                            }
+                        }
+                    }
+                    throw new Error("Task not found or view not available.");
+                }
+
+                if (req.method === 'POST' && pathname === '/api/task/postpone') {
+                    const body = await readBody();
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        const dailyFile = this.getDailyNoteFile();
+                        if (dailyFile) {
+                            const content = await this.app.vault.read(dailyFile);
+                            const tasks = this.parseAllTasks(content);
+                            const task = tasks.find(t => t.lineIndex === body.lineIndex);
+                            if (task) {
+                                if (view.currentTimer && view.currentTimer.task.lineIndex === task.lineIndex) {
+                                    view.clearTimer();
+                                    view.currentTimer = null;
+                                    await this.logUpdate(false);
+                                }
+                                if (view.isAlarming) {
+                                    view.stopAlarm();
+                                }
+                                await this.postponeTask(task);
+                                view.renderSchedule();
+                                setCorsHeaders();
+                                res.writeHead(200, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify({ success: true }));
+                                return;
+                            }
+                        }
+                    }
+                    throw new Error("Task not found or view not available.");
+                }
+
+                if (req.method === 'POST' && pathname === '/api/task/nottoday') {
+                    const body = await readBody();
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        const dailyFile = this.getDailyNoteFile();
+                        if (dailyFile) {
+                            const content = await this.app.vault.read(dailyFile);
+                            const tasks = this.parseAllTasks(content);
+                            const task = tasks.find(t => t.lineIndex === body.lineIndex);
+                            if (task) {
+                                if (view.currentTimer && view.currentTimer.task.lineIndex === task.lineIndex) {
+                                    view.clearTimer();
+                                    view.currentTimer = null;
+                                    await this.logUpdate(false);
+                                }
+                                if (view.isAlarming) {
+                                    view.stopAlarm();
+                                }
+                                await this.removeTask(task);
+                                view.renderSchedule();
+                                setCorsHeaders();
+                                res.writeHead(200, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify({ success: true }));
+                                return;
+                            }
+                        }
+                    }
+                    throw new Error("Task not found or view not available.");
+                }
+
+                setCorsHeaders();
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end("Endpoint not found");
+
+            } catch (err) {
+                console.error("API error:", err);
+                setCorsHeaders();
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message || "Internal server error" }));
+            }
+        });
+
+        this.server._sockets = new Set();
+        this.server.on('connection', (socket) => {
+            this.server._sockets.add(socket);
+            socket.on('close', () => {
+                this.server._sockets.delete(socket);
+            });
+        });
+        
+        let retries = retryCount;
+        const maxRetries = 5;
+
+        this.server.on('error', (err) => {
+            console.error("Remote server startup failed:", err);
+            if (err.code === 'EADDRINUSE' && retries < maxRetries) {
+                const nextRetry = retries + 1;
+                new obsidian.Notice(`Port ${port} in use, retrying in 1s (attempt ${nextRetry}/${maxRetries})...`);
+                setTimeout(() => {
+                    this.startServer(nextRetry);
+                }, 1000);
+            } else {
+                new obsidian.Notice(`Focus Timer Server failed to start on port ${port}: ${err.message}`);
+            }
+        });
+
+        this.server.listen(port, () => {
+            console.log(`Focus Timer Server running on port ${port}`);
+            new obsidian.Notice(`Focus Timer Server started on port ${port}`);
+        });
+    }
+
+    stopServer() {
+        return new Promise((resolve) => {
+            if (!this.server) {
+                resolve();
+                return;
+            }
+            let resolved = false;
+            const done = () => {
+                if (!resolved) {
+                    resolved = true;
+                    this.server = null;
+                    resolve();
+                }
+            };
+            const timeout = setTimeout(done, 1000);
+
+            try {
+                if (this.server._sockets) {
+                    for (const socket of this.server._sockets) {
+                        try { socket.destroy(); } catch(e) {}
+                    }
+                }
+            } catch(e) { console.error("Socket destruction error", e); }
+            
+            try {
+                if (typeof this.server.closeAllConnections === 'function') {
+                    this.server.closeAllConnections();
+                }
+            } catch(e) { console.error("closeAllConnections error", e); }
+            
+            try {
+                this.server.close((err) => {
+                    clearTimeout(timeout);
+                    if (err) {
+                        console.error("Error callback stopping remote server:", err);
+                    } else {
+                        console.log("Focus Timer Server stopped successfully.");
+                    }
+                    done();
+                });
+            } catch(e) {
+                console.error("Error stopping remote server:", e);
+                clearTimeout(timeout);
+                done();
+            }
+        });
     }
 
     async loadSettings() {
@@ -1461,9 +2439,17 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             
             let logHeaderIndex = -1;
             for (let i = 0; i < lines.length; i++) {
-                if (lines[i].includes('## 🪵 Log')) {
+                if (lines[i].includes('### Focus Log')) {
                     logHeaderIndex = i;
                     break;
+                }
+            }
+            if (logHeaderIndex === -1) {
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].includes('## 🪵 Log')) {
+                        logHeaderIndex = i;
+                        break;
+                    }
                 }
             }
             
@@ -1477,7 +2463,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 }
                 lines.splice(insertIndex, 0, logLine);
             } else {
-                lines.push('', '## 🪵 Log', logLine);
+                lines.push('', '### Focus Log', logLine);
             }
             
             await this.app.vault.modify(dailyFile, lines.join('\n'));
@@ -1664,14 +2650,17 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(bodyDetails[key]))
             .join('&');
             
-        const response = await obsidian.requestUrl({
-            url: url,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: body
-        });
+        const response = await Promise.race([
+            obsidian.requestUrl({
+                url: url,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: body
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Google OAuth token refresh timed out")), 5000))
+        ]);
         
         if (response.status !== 200) {
             throw new Error(`Failed to refresh Google API access token. HTTP Status ${response.status}`);
@@ -1891,22 +2880,29 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         lines[currentTask.lineIndex] = newLine;
 
         // Re-sort within the subheading (e.g. Work, House, Admin)
-        let inSubheading = false;
+        let inPlanner = false;
+        let currentSubheading = "";
         const subheadingIndices = [];
         const fileTaskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            if (line.startsWith('## ') || (line.startsWith('### ') && line.trim() !== currentTask.subheading)) {
-                if (inSubheading) break;
-            }
-            if (line.trim() === currentTask.subheading) {
-                inSubheading = true;
+            if (line.includes("## 📅Day Planner")) {
+                inPlanner = true;
                 continue;
             }
-            if (inSubheading) {
-                if (fileTaskRegex.test(line)) {
-                    subheadingIndices.push(i);
+            if (inPlanner && line.startsWith('## ') && !line.includes("## 📅Day Planner")) {
+                break;
+            }
+            if (inPlanner) {
+                if (line.startsWith('### ')) {
+                    currentSubheading = line.trim();
+                    continue;
+                }
+                if (currentSubheading === currentTask.subheading) {
+                    if (fileTaskRegex.test(line)) {
+                        subheadingIndices.push(i);
+                    }
                 }
             }
         }
@@ -1969,4 +2965,344 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             new obsidian.Notice("Error updating daily note.");
         }
     }
+
+    organizeCustomPluginsSidebar() {
+        const settingModal = document.querySelector('.modal.mod-settings');
+        if (!settingModal) return;
+        
+        const sidebar = settingModal.querySelector('.vertical-tab-header');
+        if (!sidebar) return;
+        
+        const communitySection = sidebar.querySelector('.vertical-tab-header-group-items[data-section="community-plugins"]');
+        if (!communitySection) return;
+        
+        let folderContainer = communitySection.querySelector('.custom-plugins-folder-container');
+        if (folderContainer) return; // Already organized
+        
+        const targetPluginIds = [
+            'schedule-assistant-focus-timer',
+            'omni-logger',
+            'google-keep-sync',
+            'grind-manager',
+            'knowledge-pipeline',
+            'git-logger'
+        ];
+        
+        const targetElements = [];
+        const navItems = communitySection.querySelectorAll('.vertical-tab-nav-item');
+        navItems.forEach(item => {
+            const id = item.getAttribute('data-setting-id');
+            if (targetPluginIds.includes(id)) {
+                targetElements.push(item);
+            }
+        });
+        
+        if (targetElements.length === 0) return;
+        
+        const folderHeader = document.createElement('div');
+        folderHeader.className = 'vertical-tab-nav-item custom-plugins-folder-header';
+        folderHeader.style.fontWeight = '600';
+        folderHeader.style.cursor = 'pointer';
+        folderHeader.style.display = 'flex';
+        folderHeader.style.alignItems = 'center';
+        folderHeader.style.justifyContent = 'space-between';
+        folderHeader.style.padding = '8px 12px';
+        folderHeader.style.marginTop = '8px';
+        folderHeader.style.borderTop = '1px solid var(--background-modifier-border)';
+        
+        const headerTitle = document.createElement('span');
+        headerTitle.textContent = '📦 Custom Plugins';
+        folderHeader.appendChild(headerTitle);
+        
+        const chevron = document.createElement('span');
+        chevron.textContent = '▼';
+        chevron.style.fontSize = '0.75rem';
+        chevron.style.transition = 'transform 0.2s ease';
+        folderHeader.appendChild(chevron);
+        
+        folderContainer = document.createElement('div');
+        folderContainer.className = 'custom-plugins-folder-container';
+        folderContainer.style.transition = 'max-height 0.25s ease-out, opacity 0.2s ease';
+        folderContainer.style.overflow = 'hidden';
+        
+        let isCollapsed = localStorage.getItem('custom-plugins-settings-collapsed') === 'true';
+        if (isCollapsed) {
+            folderContainer.style.maxHeight = '0px';
+            folderContainer.style.opacity = '0';
+            chevron.style.transform = 'rotate(-90deg)';
+        } else {
+            folderContainer.style.maxHeight = '500px';
+            folderContainer.style.opacity = '1';
+        }
+        
+        folderHeader.onclick = (e) => {
+            e.stopPropagation();
+            isCollapsed = !isCollapsed;
+            localStorage.setItem('custom-plugins-settings-collapsed', isCollapsed);
+            if (isCollapsed) {
+                folderContainer.style.maxHeight = '0px';
+                folderContainer.style.opacity = '0';
+                chevron.style.transform = 'rotate(-90deg)';
+            } else {
+                folderContainer.style.maxHeight = '500px';
+                folderContainer.style.opacity = '1';
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        };
+        
+        const firstTarget = targetElements[0];
+        try {
+            communitySection.insertBefore(folderHeader, firstTarget);
+            communitySection.insertBefore(folderContainer, firstTarget);
+        } catch(e) {
+            console.warn("Failed to insert folder container: ", e);
+        }
+        
+        targetElements.forEach(item => {
+            item.style.paddingLeft = '24px';
+            item.classList.add('custom-plugin-sub-item');
+            try {
+                folderContainer.appendChild(item);
+            } catch(e) {
+                console.warn("Failed to append item to folder container: ", e);
+            }
+        });
+    }
 };
+
+class OmniLoggerModal extends obsidian.Modal {
+    constructor(app, plugin) {
+        super(app);
+        this.plugin = plugin;
+        this.selectedType = 'calls';
+        this.selectedMode = 'ocr';
+        this.pastedImageBase64 = null;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        
+        contentEl.createEl('h2', { text: 'Omni-Logger: Consolidated Data Sync', cls: 'omni-modal-title' });
+        
+        const mainContainer = contentEl.createDiv({ cls: 'omni-modal-container' });
+        
+        // 1. Selector row
+        const selectorRow = mainContainer.createDiv({ cls: 'omni-selector-row' });
+        
+        selectorRow.createSpan({ text: 'Log Type: ' });
+        const typeSelect = selectorRow.createEl('select');
+        typeSelect.createEl('option', { value: 'calls', text: 'Work Calls' });
+        typeSelect.createEl('option', { value: 'lumosity', text: 'Lumosity Daily Scores' });
+        typeSelect.createEl('option', { value: 'health', text: 'Google Health/Vitals' });
+        typeSelect.value = this.selectedType;
+        
+        selectorRow.createSpan({ text: '  Mode: ' });
+        const modeSelect = selectorRow.createEl('select');
+        modeSelect.createEl('option', { value: 'ocr', text: 'Clipboard / OCR' });
+        modeSelect.createEl('option', { value: 'api', text: 'Direct API Payload' });
+        modeSelect.value = this.selectedMode;
+
+        // 2. Clipboard Drag & Drop Zone
+        const dropZone = mainContainer.createDiv({ cls: 'omni-drop-zone' });
+        dropZone.createEl('p', { text: 'Paste screenshot (Ctrl+V) or click to upload', cls: 'omni-drop-text' });
+        
+        const fileInput = dropZone.createEl('input', { type: 'file', accept: 'image/*' });
+        fileInput.style.display = 'none';
+        
+        dropZone.onclick = () => fileInput.click();
+        
+        // Image preview
+        const previewContainer = mainContainer.createDiv({ cls: 'omni-preview-container', style: 'display:none;' });
+        const previewImg = previewContainer.createEl('img', { cls: 'omni-preview-image' });
+        
+        // Form trigger/API elements
+        const formContainer = mainContainer.createDiv({ cls: 'omni-form-container', style: 'display:none;' });
+        
+        // Mode toggle styling/visibility helper
+        const updateVisibility = () => {
+            this.selectedType = typeSelect.value;
+            this.selectedMode = modeSelect.value;
+            
+            if (this.selectedMode === 'ocr') {
+                dropZone.style.display = 'flex';
+                if (this.pastedImageBase64) {
+                    previewContainer.style.display = 'block';
+                    dropZone.style.display = 'none';
+                } else {
+                    previewContainer.style.display = 'none';
+                }
+                formContainer.style.display = 'none';
+            } else {
+                dropZone.style.display = 'none';
+                previewContainer.style.display = 'none';
+                formContainer.style.display = 'block';
+                formContainer.empty();
+                
+                if (this.selectedType === 'health') {
+                    formContainer.createEl('p', { text: 'Pulls Sleep hours and wake up time directly from Google Health APIs.' });
+                } else {
+                    formContainer.createEl('p', { text: 'Direct API payload is not supported for this category. Please use Clipboard / OCR mode.' });
+                }
+            }
+        };
+
+        typeSelect.onchange = updateVisibility;
+        modeSelect.onchange = updateVisibility;
+        
+        // File processing handler
+        const handleImageFile = (file) => {
+            if (!file.type.startsWith('image/')) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                this.pastedImageBase64 = reader.result;
+                previewImg.src = reader.result;
+                previewContainer.style.display = 'block';
+                dropZone.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        };
+        
+        fileInput.onchange = (e) => {
+            if (e.target.files.length > 0) {
+                handleImageFile(e.target.files[0]);
+            }
+        };
+        
+        // Listen to paste event globally inside modal
+        this.pasteListener = (evt) => {
+            if (this.selectedMode !== 'ocr') return;
+            const items = (evt.clipboardData || evt.originalEvent.clipboardData).items;
+            for (const item of items) {
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    handleImageFile(file);
+                    break;
+                }
+            }
+        };
+        
+        contentEl.addEventListener('paste', this.pasteListener);
+        
+        // 3. Action and status bar
+        const statusBar = mainContainer.createDiv({ cls: 'omni-status-bar', text: 'Status: Ready' });
+        
+        const actionRow = mainContainer.createDiv({ cls: 'omni-action-row' });
+        const cancelBtn = actionRow.createEl('button', { text: 'Cancel', cls: 'omni-btn btn-cancel' });
+        cancelBtn.onclick = () => this.close();
+        
+        const processBtn = actionRow.createEl('button', { text: 'Process & Log', cls: 'omni-btn btn-process' });
+        processBtn.onclick = async () => {
+            statusBar.setText('Processing... please wait.');
+            processBtn.disabled = true;
+            try {
+                if (this.selectedMode === 'ocr') {
+                    if (!this.pastedImageBase64) {
+                        new obsidian.Notice("Please paste or upload an image first!");
+                        statusBar.setText('Error: No image provided.');
+                        processBtn.disabled = false;
+                        return;
+                    }
+                    
+                    // Extract base64 part
+                    const base64Data = this.pastedImageBase64.split(',')[1];
+                    const mimeType = this.pastedImageBase64.split(',')[0].split(':')[1].split(';')[0];
+                    
+                    // Call backend OCR processor
+                    await this.plugin.processOCR(base64Data, mimeType, this.selectedType);
+                    statusBar.setText('Successfully logged data from OCR!');
+                    new obsidian.Notice("Successfully logged scores/counts to Daily Note!");
+                    setTimeout(() => this.close(), 1500);
+                } else {
+                    // API Pull mode
+                    if (this.selectedType === 'health') {
+                        statusBar.setText('Calling Google Health API...');
+                        await this.plugin.pullGoogleHealthData();
+                        statusBar.setText('Successfully pulled Google Health data!');
+                        new obsidian.Notice("Successfully synced health stats from Google API!");
+                        setTimeout(() => this.close(), 1500);
+                    } else {
+                        statusBar.setText('Unsupported configuration.');
+                        processBtn.disabled = false;
+                    }
+                }
+            } catch (err) {
+                console.error("Omni-Logger failed:", err);
+                statusBar.setText('Error: ' + err.message);
+                processBtn.disabled = false;
+            }
+        };
+    }
+
+    onClose() {
+        if (this.pasteListener) {
+            this.contentEl.removeEventListener('paste', this.pasteListener);
+        }
+        this.contentEl.empty();
+    }
+}
+
+class SchedulerProgressModal extends obsidian.Modal {
+    constructor(app, childProcess) {
+        super(app);
+        this.childProcess = childProcess;
+        this.isCompleted = false;
+    }
+    
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        
+        contentEl.createEl('h3', { text: 'Generating Daily Schedule', style: 'text-align: center; margin-bottom: 20px;' });
+        
+        const loaderContainer = contentEl.createDiv({ style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;' });
+        
+        const spinner = loaderContainer.createDiv({ cls: 'scheduler-spinner' });
+        spinner.style.width = '40px';
+        spinner.style.height = '40px';
+        spinner.style.border = '4px solid var(--background-modifier-border)';
+        spinner.style.borderTop = '4px solid var(--text-accent)';
+        spinner.style.borderRadius = '50%';
+        spinner.style.animation = 'spin 1s linear infinite';
+        
+        if (!document.getElementById('scheduler-spinner-style')) {
+            const style = document.createElement('style');
+            style.id = 'scheduler-spinner-style';
+            style.innerHTML = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        loaderContainer.createDiv({ 
+            text: 'Schedule Assistant is creating your day plan...', 
+            style: 'margin-top: 20px; font-weight: 500; color: var(--text-normal); font-size: 1.1em;' 
+        });
+        
+        loaderContainer.createDiv({ 
+            text: 'This pulls tasks from Google Tasks, Google Calendar, and Todoist, then builds a smart timeline using Gemini.', 
+            style: 'margin-top: 10px; font-size: 0.9em; color: var(--text-muted); text-align: center; max-width: 300px;' 
+        });
+        
+        const cancelBtn = loaderContainer.createEl('button', { text: 'Cancel Process', style: 'margin-top: 25px;' });
+        cancelBtn.onclick = () => {
+            if (this.childProcess && !this.isCompleted) {
+                this.childProcess.kill();
+                new obsidian.Notice("Schedule generation cancelled.");
+            }
+            this.close();
+        };
+    }
+    
+    setCompleted() {
+        this.isCompleted = true;
+        this.close();
+    }
+    
+    onClose() {
+        this.contentEl.empty();
+    }
+}

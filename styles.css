@@ -414,3 +414,31 @@
   border-color: #ff3b30;
 }
 
+.timer-adjust-controls {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.timer-btn-adjust {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  transition: all 0.2s ease;
+}
+
+.timer-btn-adjust:hover {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  transform: translateY(-1px);
+}
+

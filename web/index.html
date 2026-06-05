@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Focus Timer & Schedule replica</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar/Left Pane: Timer View -->
+        <div class="timer-section" id="timerSection">
+            <!-- Idle State -->
+            <div class="timer-idle-card" id="timerIdleCard">
+                <div class="timer-idle-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                </div>
+                <h2 class="timer-idle-title">No Active Task</h2>
+                <p class="timer-idle-desc">Select a task from your schedule timeline below to start a focus session.</p>
+            </div>
+
+            <!-- Active Timer State -->
+            <div class="timer-active-card" id="timerActiveCard" style="display: none;">
+                <div class="timer-task-title" id="activeTaskTitle">Research & Development</div>
+                
+                <div class="progress-ring-container">
+                    <svg class="progress-ring" width="220" height="220">
+                        <circle class="progress-ring-circle-bg" stroke="rgba(255,255,255,0.06)" stroke-width="8" fill="transparent" r="98" cx="110" cy="110"/>
+                        <circle class="progress-ring-circle" id="progressCircle" stroke="#00ffd0" stroke-width="10" stroke-linecap="round" fill="transparent" r="98" cx="110" cy="110"/>
+                    </svg>
+                    <div class="countdown-text" id="countdownText">25:00</div>
+                </div>
+
+                <div class="timer-adjust-controls">
+                    <button class="timer-btn btn-adjust" id="plusOneBtn">+1m</button>
+                    <button class="timer-btn btn-adjust" id="plusFiveBtn">+5m</button>
+                </div>
+
+                <div class="timer-controls">
+                    <button class="timer-btn btn-secondary" id="pauseBtn">Pause</button>
+                    <button class="timer-btn btn-primary" id="completeBtn">Complete</button>
+                    <button class="timer-btn btn-warning" id="cancelBtn">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Alarm State Overlay -->
+            <div class="alarm-overlay" id="alarmOverlay" style="display: none;">
+                <div class="alarm-icon-container">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#ff453a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="bell-pulse">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                </div>
+                <div class="alarm-task-name" id="alarmTaskName">R&D Sprint</div>
+                <div class="alarm-alert-text">Focus session finished!</div>
+                <div class="alarm-controls">
+                    <button class="alarm-btn btn-primary" id="alarmCompleteBtn">End & Complete</button>
+                    <button class="alarm-btn btn-success" id="alarmContinueBtn">Continue Focus</button>
+                    <button class="alarm-btn btn-warning" id="alarmRescheduleBtn">Reschedule</button>
+                    <button class="alarm-btn btn-danger" id="alarmNotTodayBtn">Not Today</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule View -->
+        <div class="schedule-section" id="scheduleSection">
+            <div class="schedule-header">
+                <h1 id="scheduleDate">Mon, May 31</h1>
+                <div class="header-actions">
+                    <button class="auto-block-btn" id="generateScheduleBtn">Generate</button>
+                    <div class="header-badge" id="syncStatus">● Connected</div>
+                </div>
+            </div>
+            
+            <div class="schedule-list" id="scheduleList">
+                <!-- Javascript will render grouped tasks here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
