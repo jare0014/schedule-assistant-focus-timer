@@ -5,6 +5,7 @@ import urllib.request
 import json
 import subprocess
 import time
+import re
 from datetime import datetime, timezone, timedelta
 
 # Google APIs
@@ -321,6 +322,19 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
     if user_preferences is None:
         user_preferences = load_preferences()
 
+    # Preprocessing: Strip past times from pending tasks so the LLM is forced to reschedule them
+    processed_daily_tasks = []
+    current_time_str = datetime.now(tz).strftime("%H:%M")
+    for task in daily_tasks:
+        match = re.match(r'- \[ \]\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*(.*)', task)
+        if match:
+            start_time, end_time, details = match.groups()
+            padded_start = start_time if len(start_time.split(':')[0]) == 2 else f"0{start_time}"
+            if padded_start < current_time_str:
+                task = f"- [ ] {details}"
+        processed_daily_tasks.append(task)
+    daily_tasks = processed_daily_tasks
+
     events_str = ""
     for ev in calendar_events:
         start_raw = ev.get('start', {}).get('dateTime', ev.get('start', {}).get('date', ''))
@@ -556,7 +570,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
                 except Exception:
                     pass
         if not gemini_api_key:
-            gemini_api_key = "<API_KEY_SCRUBBED>"
+            gemini_api_key = ""
             
         client = genai.Client(api_key=gemini_api_key)
         
