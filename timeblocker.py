@@ -722,8 +722,11 @@ class ScheduleApp:
         self.root.geometry("700x820")
         self.root.configure(bg="#1e1e1e")
         
-        # Center the window
+        # Center the window and bring to front
         self.root.eval('tk::PlaceWindow . center')
+        self.root.lift()
+        self.root.attributes('-topmost', True)
+        self.root.after_idle(self.root.attributes, '-topmost', False)
         
         # UI Styling
         self.title_font = ("Segoe UI", 12, "bold")
@@ -1080,8 +1083,17 @@ def main():
             app = ScheduleApp(events, tasks, google_tasks, daily_tasks, tz, note_path, headers, schedule_items)
             app.run()
         except Exception as e:
-            # Fallback to CLI in case GUI cannot start (e.g. no DISPLAY)
+            # Fallback in case GUI cannot start (e.g. no DISPLAY)
             print(f"Failed to launch GUI: {e}")
+            if not sys.stdin.isatty():
+                print("Non-interactive environment detected. Automatically writing to Daily Note...")
+                if write_to_daily_note(note_path, schedule_items, headers):
+                    print("Daily Note successfully updated!")
+                else:
+                    print("Could not update Daily Note file. Copying to clipboard instead...")
+                    copy_to_clipboard(schedule_items)
+                return
+            
             print("Falling back to console interface.")
             sys.stdout.write("Would you like to write this directly to your Daily Note? (y/n): ")
             sys.stdout.flush()

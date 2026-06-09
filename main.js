@@ -1446,16 +1446,36 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         let stdout = '';
         let stderr = '';
         
+        const runLogPath = path.join(pluginDir, 'scheduler_run.log');
+        try {
+            fs.writeFileSync(runLogPath, `=== Scheduler Execution Log - ${new Date().toISOString()} ===\n`, 'utf8');
+        } catch (e) {
+            console.error("Failed to init scheduler_run.log:", e);
+        }
+
         child.stdout.on('data', (data) => {
-            stdout += data.toString();
+            const text = data.toString();
+            stdout += text;
+            console.log("[Scheduler stdout]:", text);
+            try {
+                fs.appendFileSync(runLogPath, `[STDOUT] ${text}`, 'utf8');
+            } catch (e) {}
         });
         
         child.stderr.on('data', (data) => {
-            stderr += data.toString();
+            const text = data.toString();
+            stderr += text;
+            console.error("[Scheduler stderr]:", text);
+            try {
+                fs.appendFileSync(runLogPath, `[STDERR] ${text}`, 'utf8');
+            } catch (e) {}
         });
         
         child.on('close', (code) => {
             progressModal.setCompleted();
+            try {
+                fs.appendFileSync(runLogPath, `=== Process Exited with Code ${code} ===\n`, 'utf8');
+            } catch (e) {}
             if (code === 0) {
                 new obsidian.Notice("Schedule generated and applied successfully!");
                 console.log("Scheduler output:\n", stdout);
