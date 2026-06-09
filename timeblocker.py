@@ -433,19 +433,16 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            Note: Google Tasks (whose links start with `https://tasks.google.com/`) are NOT calendar events. Unless a Google Task is explicitly merged with a Google Calendar event of the same name/topic, do NOT place it under the '### 📅 Calendar Events' subheading and do NOT append '[Calendar]' to it.
         2. Do NOT delete or omit any tasks from the original input list. All habits, work tasks, house chores, and admin tasks must be scheduled.
         3. Do NOT invent new tasks (such as "Lunch", "Breakfast", "Break", "Dinner", "Sleep") that are not explicitly present in the input lists.
-        4. Group the schedule items under the following four subheadings based on their nature (with an empty line before each subheading):
+        4. Group the schedule items under the following subheadings based on their nature (with an empty line before each subheading):
            
            ### 📅 Calendar Events
            (Include Google Calendar events here. Format them as checklist items: `- [ ] HH:MM - HH:MM Event Name [Calendar]`)
            
-           ### 💻 Work Tasks
-           (Include all work-related tasks, such as those with #work tag, Todoist work projects, or digital tasks for work)
+           ### ⏱️ Deep Work Sprints (50-Min Pomodoros)
+           (Include complex, high-effort tasks. Group them into sequential 50-minute blocks)
            
-           ### 🏠 House Chores & Personal
-           (Include all home/life chores like treadmill maintenance, mowing the lawn, shopping, sanctuary visits, neck rest, exercises, etc.)
-           
-           ### ⚙️ Admin & Digital Chores
-           (Include all inbox reviews, sync fixes, cancellation tasks, dentist calls, checklist cleanups, digital maintenance, etc.)
+           ### ☁️ Floating Micro-Tasks (Untimed)
+           (Include all fast administrative items: asking for time off, quick emails, simple chores. Do NOT assign time blocks to these)
            
         5. Respect scheduled times and completion status:
            a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` or `- [X]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status (either `- [x]` or `- [X]`). Do NOT move, change, or remove completed tasks.
@@ -455,15 +452,14 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            e. **Postponed Tasks**: If an input task from the daily note contains the tag `#postpone` (e.g. added by the mobile widget), you MUST reschedule it to start after the current time {current_time} (or treat it as a pending task that needs to be scheduled for later in the day), and you MUST strip the `#postpone` tag from the final scheduled task name in your output.
         6. Formatting checklist status:
            a. Completed tasks MUST be formatted starting exactly with "- [x] ".
-           b. Pending tasks (including calendar events, work, house, admin) MUST be formatted starting exactly with "- [ ] ".
+           b. Pending tasks MUST be formatted starting exactly with "- [ ] ".
            c. Do NOT use "*" or any other bullet character.
-           d. You MUST format all scheduled times using 24-hour format (e.g. 08:30 - 09:00, 15:15 - 15:35). Do NOT use AM/PM.
+           d. For Calendar Events and Deep Work Sprints, format scheduled times using 24-hour format (e.g., 08:00 - 08:50). 
+           e. For Floating Micro-Tasks, do NOT include a time range.
         7. Timed buttons for pending tasks:
-           a. Only pending tasks (excluding calendar events) should have timer buttons. Do NOT add `BUTTON[...]` buttons to completed tasks (`- [x]`) or calendar events.
-           b. For all pending timed tasks, format them exactly like this example (with backticks ONLY around the BUTTON parts):
-              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` [src](URL)
-              Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and. Do NOT wrap the rest of the task description, the time, or the links in backticks.
-              Every timed pending task MUST have a timer button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
+           a. Only Deep Work Sprints should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
+           b. For Deep Work Sprints, default to `BUTTON[timer-50]`. Format them exactly like this:
+              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-50]` [src](URL)
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
@@ -496,19 +492,16 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            Note: Google Tasks (whose links start with `https://tasks.google.com/`) are NOT calendar events. Unless a Google Task is explicitly merged with a Google Calendar event of the same name/topic, do NOT place it under the '### 📅 Calendar Events' subheading and do NOT append '[Calendar]' to it.
         2. Do NOT delete or omit any tasks from the "Existing Tasks", "Active Todoist Tasks", or "Active Google Tasks" list. All habits, work tasks, house chores (e.g. treadmill maintenance), and admin tasks must be scheduled.
         3. Do NOT invent, hallucinate, or add any new tasks (such as "Lunch", "Breakfast", "Break", "Dinner", "Sleep") that are not explicitly present in the input lists.
-        4. Group the schedule items under the following four subheadings based on their nature (with an empty line before each subheading):
+        4. Group the schedule items under the following subheadings based on their nature (with an empty line before each subheading):
            
            ### 📅 Calendar Events
            (Include Google Calendar events here. Format them as checklist items: `- [ ] HH:MM - HH:MM Event Name [Calendar]`)
            
-           ### 💻 Work Tasks
-           (Include all work-related tasks, such as those with #work tag, Todoist work projects, or digital tasks for work)
+           ### ⏱️ Deep Work Sprints (50-Min Pomodoros)
+           (Include complex, high-effort tasks. Group them into sequential 50-minute blocks)
            
-           ### 🏠 House Chores & Personal
-           (Include all home/life chores like treadmill maintenance, mowing the lawn, shopping, sanctuary visits, neck rest, exercises, etc.)
-           
-           ### ⚙️ Admin & Digital Chores
-           (Include all inbox reviews, sync fixes, cancellation tasks, dentist calls, checklist cleanups, digital maintenance, etc.)
+           ### ☁️ Floating Micro-Tasks (Untimed)
+           (Include all fast administrative items: asking for time off, quick emails, simple chores. Do NOT assign time blocks to these)
            
         5. Respect scheduled times and completion status:
            a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` or `- [X]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status (either `- [x]` or `- [X]`). Do NOT move, change, or remove completed tasks.
@@ -518,15 +511,14 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            e. **Postponed Tasks**: If an input task from the daily note contains the tag `#postpone` (e.g. added by the mobile widget), you MUST reschedule it to start after the current time {current_time} (or treat it as a pending task that needs to be scheduled for later in the day), and you MUST strip the `#postpone` tag from the final scheduled task name in your output.
         6. Formatting checklist status:
            a. Completed tasks MUST be formatted starting exactly with "- [x] ".
-           b. Pending tasks (including calendar events, work, house, admin) MUST be formatted starting exactly with "- [ ] ".
+           b. Pending tasks MUST be formatted starting exactly with "- [ ] ".
            c. Do NOT use "*" or any other bullet character.
-           d. You MUST format all scheduled times using 24-hour format (e.g. 08:30 - 09:00, 15:15 - 15:35). Do NOT use AM/PM.
+           d. For Calendar Events and Deep Work Sprints, format scheduled times using 24-hour format (e.g., 08:00 - 08:50). 
+           e. For Floating Micro-Tasks, do NOT include a time range.
         7. Timed buttons for pending tasks:
-           a. Only pending tasks (excluding calendar events) should have timer buttons. Do NOT add `BUTTON[...]` buttons to completed tasks (`- [x]`) or calendar events.
-           b. For all pending timed tasks, format them exactly like this example (with backticks ONLY around the BUTTON parts):
-              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-D]` [src](URL)
-              Ensure that backticks (`) are explicitly on both sides of the `BUTTON[...]` syntax, like `BUTTON[timer-30]` and. Do NOT wrap the rest of the task description, the time, or the links in backticks.
-              Every timed pending task MUST have a timer button. If a task from the input does not have a duration button (e.g., `BUTTON[timer-D]`) in its name, assign it a default duration of 20 minutes, calculate the end time accordingly, and add the corresponding buttons (e.g., `BUTTON[timer-20]` and) to the line. Use standard durations: 5, 10, 15, 20, 25, 30, 45, 60, 90, 120.
+           a. Only Deep Work Sprints should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
+           b. For Deep Work Sprints, default to `BUTTON[timer-50]`. Format them exactly like this:
+              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-50]` [src](URL)
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
