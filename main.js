@@ -920,7 +920,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                     .onChange(async (value) => {
                         this.plugin.settings.llmProvider = value;
                         if (value === 'gemini') {
-                            this.plugin.settings.llmModel = 'gemini-2.5-pro';
+                            this.plugin.settings.llmModel = 'gemini-2.5-flash';
                         } else {
                             this.plugin.settings.llmModel = 'qwen2.5:7b';
                         }
@@ -1061,7 +1061,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
     googleCredentialsId: '',
     googleCredentials: '',
     llmProvider: 'gemini',
-    llmModel: 'gemini-2.5-pro',
+    llmModel: 'gemini-2.5-flash',
     customModel: '',
     ollamaUrl: 'http://localhost:11434',
     enableServer: true,

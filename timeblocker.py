@@ -538,7 +538,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
     
     # Load LLM configurations from data.json
     llm_provider = 'gemini'
-    llm_model = 'gemini-2.5-pro'
+    llm_model = 'gemini-2.5-flash'
     ollama_url = 'http://localhost:11434'
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     
