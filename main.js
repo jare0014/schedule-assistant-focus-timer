@@ -140,8 +140,12 @@ class TaskTimerView extends obsidian.ItemView {
                 });
                 
                 const left = card.createDiv({ cls: 'task-card-left' });
-                const timeRangeStr = `${String(task.startHour).padStart(2, '0')}:${String(task.startMin).padStart(2, '0')} - ${String(task.endHour).padStart(2, '0')}:${String(task.endMin).padStart(2, '0')}`;
-                left.createDiv({ cls: 'task-card-time', text: timeRangeStr });
+                if (task.isUntimed) {
+                    left.createDiv({ cls: 'task-card-time', text: 'Untimed' });
+                } else {
+                    const timeRangeStr = `${String(task.startHour).padStart(2, '0')}:${String(task.startMin).padStart(2, '0')} - ${String(task.endHour).padStart(2, '0')}:${String(task.endMin).padStart(2, '0')}`;
+                    left.createDiv({ cls: 'task-card-time', text: timeRangeStr });
+                }
                 left.createDiv({ cls: 'task-card-name', text: task.description });
                 
                 const right = card.createDiv({ cls: 'task-card-controls' });
@@ -156,20 +160,34 @@ class TaskTimerView extends obsidian.ItemView {
                 };
 
                 if (task.status !== 'completed') {
-                    // Play Button
-                    const playBtn = right.createEl('button', { cls: 'task-card-play-btn', title: 'Start Timer' });
-                    playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-                    playBtn.onclick = () => {
-                        this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
-                    };
+                    if (task.isUntimed) {
+                        // Render quick timer buttons: 5m, 10m, 15m, 20m
+                        [5, 10, 15, 20].forEach(m => {
+                            const btn = right.createEl('button', { 
+                                cls: 'task-card-quick-timer-btn', 
+                                text: `${m}m`, 
+                                title: `Start ${m}m timer` 
+                            });
+                            btn.onclick = () => {
+                                this.startTimer(task, m);
+                            };
+                        });
+                    } else {
+                        // Play Button
+                        const playBtn = right.createEl('button', { cls: 'task-card-play-btn', title: 'Start Timer' });
+                        playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+                        playBtn.onclick = () => {
+                            this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+                        };
 
-                    // Postpone Button
-                    const postBtn = right.createEl('button', { cls: 'task-card-postpone-btn', title: 'Postpone' });
-                    postBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
-                    postBtn.onclick = async () => {
-                        await this.plugin.postponeTask(task);
-                        this.renderSchedule();
-                    };
+                        // Postpone Button
+                        const postBtn = right.createEl('button', { cls: 'task-card-postpone-btn', title: 'Postpone' });
+                        postBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+                        postBtn.onclick = async () => {
+                            await this.plugin.postponeTask(task);
+                            this.renderSchedule();
+                        };
+                    }
                 }
 
                 // Delete Button (Not Today)
@@ -1124,7 +1142,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         });
 
         // Register duration-specific timer commands
-        const durations = [5, 10, 15, 20, 25, 30, 45, 60, 90, 120];
+        const durations = [5, 10, 15, 20, 25, 30, 45, 50, 60, 90, 120];
         durations.forEach(m => {
             this.addCommand({
                 id: `start-${m}m`,
@@ -1581,8 +1599,39 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                         description: description,
                         isCalendar: isCalendar,
                         subheading: currentSubheading,
-                        rawDesc: rawDesc
+                        rawDesc: rawDesc,
+                        isUntimed: false
                     });
+                } else {
+                    const untimedRegex = /^\s*-\s+\[( |x|X)\]\s+(.*)$/;
+                    const untimedMatch = line.match(untimedRegex);
+                    if (untimedMatch && !line.includes("BUTTON[")) {
+                        const status = (untimedMatch[1] === 'x' || untimedMatch[1] === 'X') ? 'completed' : 'pending';
+                        const rawDesc = untimedMatch[2];
+                        
+                        let description = rawDesc.replace(/\[src\]\(.*?\)/g, '').trim();
+                        description = description.replace(/\s+src$/i, '').trim();
+                        description = description.replace(/#\w+/g, '').trim();
+                        description = description.replace(/\s+/g, ' ').trim();
+                        
+                        tasks.push({
+                            lineIndex: i,
+                            originalLine: line,
+                            status: status,
+                            startHour: null,
+                            startMin: null,
+                            endHour: null,
+                            endMin: null,
+                            startMinutes: null,
+                            endMinutes: null,
+                            duration: null,
+                            description: description,
+                            isCalendar: false,
+                            subheading: currentSubheading,
+                            rawDesc: rawDesc,
+                            isUntimed: true
+                        });
+                    }
                 }
             }
         }
@@ -1675,11 +1724,16 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             return;
         }
 
+        if (task.isUntimed) {
+            new obsidian.Notice("Untimed tasks cannot be postponed!");
+            return;
+        }
+
         const now = new Date();
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
         const busyIntervals = allTasks
-            .filter(t => t.status !== 'completed' && t.endMinutes > currentMinutes && t.lineIndex !== task.lineIndex)
+            .filter(t => t.status !== 'completed' && !t.isUntimed && t.endMinutes > currentMinutes && t.lineIndex !== task.lineIndex)
             .map(t => ({
                 start: t.startMinutes,
                 end: t.endMinutes
@@ -2859,12 +2913,17 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             return;
         }
 
+        if (currentTask.isUntimed) {
+            new obsidian.Notice("Untimed tasks cannot be postponed!");
+            return;
+        }
+
         const now = new Date();
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
         // Find all busy intervals after now (excluding the current task itself)
         const busyIntervals = allTasks
-            .filter(t => t.status !== 'completed' && t.endMinutes > currentMinutes && t.lineIndex !== currentTask.lineIndex)
+            .filter(t => t.status !== 'completed' && !t.isUntimed && t.endMinutes > currentMinutes && t.lineIndex !== currentTask.lineIndex)
             .map(t => ({
                 start: t.startMinutes,
                 end: t.endMinutes
