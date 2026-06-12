@@ -134,10 +134,41 @@ class TaskTimerView extends obsidian.ItemView {
             const cleanSubheading = subheading.replace(/^###\s+/, '');
             listContainer.createDiv({ cls: 'schedule-subheading', text: cleanSubheading });
             
+            const groupSection = listContainer.createDiv({ cls: 'schedule-group-section' });
+            groupSection.setAttribute('data-subheading', subheading);
+            
+            // Drag and drop event listeners on the groupSection
+            groupSection.ondragover = (e) => {
+                e.preventDefault();
+                groupSection.addClass('dragover');
+            };
+            groupSection.ondragleave = () => {
+                groupSection.removeClass('dragover');
+            };
+            groupSection.ondrop = async (e) => {
+                e.preventDefault();
+                groupSection.removeClass('dragover');
+                try {
+                    const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+                    await this.handleTaskDrop(data, subheading);
+                } catch (err) {
+                    console.error("Drop parsing failed:", err);
+                }
+            };
+            
             groupedTasks[subheading].forEach(task => {
-                const card = listContainer.createDiv({ 
+                const card = groupSection.createDiv({ 
                     cls: `task-card${task.status === 'completed' ? ' completed' : ''}` 
                 });
+                
+                card.setAttribute('draggable', 'true');
+                card.ondragstart = (e) => {
+                    e.dataTransfer.setData("text/plain", JSON.stringify({
+                        lineIndex: task.lineIndex,
+                        description: task.description,
+                        isUntimed: task.isUntimed
+                    }));
+                };
                 
                 const left = card.createDiv({ cls: 'task-card-left' });
                 if (task.isUntimed) {
@@ -208,12 +239,20 @@ class TaskTimerView extends obsidian.ItemView {
         try {
             const content = await this.app.vault.read(dailyFile);
             const lines = content.split(/\r?\n/);
-            const originalLine = lines[task.lineIndex];
+            let lineIndex = task.lineIndex;
+            if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].toLowerCase().includes(task.description.toLowerCase().trim())) {
+                lineIndex = lines.findIndex(l => l.toLowerCase().includes(task.description.toLowerCase().trim()) && (l.includes('- [ ]') || l.includes('- [x]') || l.includes('- [/]')));
+            }
+            if (lineIndex === -1) {
+                new obsidian.Notice("Could not find the task in daily note!");
+                return;
+            }
+            const originalLine = lines[lineIndex];
             
             if (complete) {
-                lines[task.lineIndex] = originalLine.replace('- [ ]', '- [x]');
+                lines[lineIndex] = originalLine.replace('- [ ]', '- [x]').replace('- [/]', '- [x]');
             } else {
-                lines[task.lineIndex] = originalLine.replace('- [x]', '- [ ]');
+                lines[lineIndex] = originalLine.replace('- [x]', '- [ ]');
             }
 
             // Sync API
@@ -224,6 +263,128 @@ class TaskTimerView extends obsidian.ItemView {
             this.renderSchedule();
         } catch(e) {
             console.error("Failed to toggle task completion:", e);
+        }
+    }
+
+    async handleTaskDrop(draggedTask, targetSubheading) {
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return;
+
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            const lines = content.split(/\r?\n/);
+            const allTasks = this.plugin.parseAllTasks(content);
+
+            // Find the task line index
+            let lineIndex = draggedTask.lineIndex;
+            if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].toLowerCase().includes(draggedTask.description.toLowerCase().trim())) {
+                lineIndex = lines.findIndex(l => l.toLowerCase().includes(draggedTask.description.toLowerCase().trim()) && (l.includes('- [ ]') || l.includes('- [x]') || l.includes('- [/]')));
+            }
+
+            if (lineIndex === -1) {
+                new obsidian.Notice("Could not find the task in daily note!");
+                return;
+            }
+
+            const targetIsUntimed = targetSubheading.includes("☁️") || targetSubheading.toLowerCase().includes("micro-task") || targetSubheading.toLowerCase().includes("untimed");
+            const sourceIsUntimed = draggedTask.isUntimed;
+
+            if (targetIsUntimed === sourceIsUntimed) {
+                // Dragged to the same type section, no-op
+                return;
+            }
+
+            let lineText = lines[lineIndex];
+            
+            // Remove the line from its current position
+            lines.splice(lineIndex, 1);
+
+            // Determine if we need to add or remove time range
+            const oldTimeRangeRegex = /\b\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\s*[\-–—~]\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\b/;
+
+            if (targetIsUntimed) {
+                // Moving from Timed -> Untimed: REMOVE time range and any `BUTTON[...]` timer buttons
+                lineText = lineText.replace(oldTimeRangeRegex, "").trim();
+                lineText = lineText.replace(/`?BUTTON\[timer-\d+\]`?/g, "").trim();
+                // Clean up any extra spacing
+                lineText = lineText.replace(/-\s+\[( |x|X)\]\s+/, "- [$1] ");
+            } else {
+                // Moving from Untimed -> Timed: ADD time range
+                // Calculate next available slot
+                const now = new Date();
+                let currentMinutes = now.getHours() * 60 + now.getMinutes();
+                if (now.getHours() < 5) {
+                    currentMinutes += 1440;
+                }
+
+                // Find busy intervals from timed tasks
+                const busyIntervals = allTasks
+                    .filter(t => t.status !== 'completed' && !t.isUntimed && t.endMinutes > currentMinutes && t.lineIndex !== lineIndex)
+                    .map(t => ({
+                        start: t.startMinutes,
+                        end: t.endMinutes
+                    }));
+                    
+                busyIntervals.sort((a, b) => a.start - b.start);
+
+                let newStart = currentMinutes;
+                const duration = 20; // Default duration for microtasks graduated to focus blocks
+
+                for (const interval of busyIntervals) {
+                    if (interval.start - newStart >= duration) {
+                        break;
+                    }
+                    newStart = Math.max(newStart, interval.end);
+                }
+
+                const newEnd = newStart + duration;
+                if (newEnd > 1740) {
+                    new obsidian.Notice("Cannot reschedule: task would go past tomorrow morning!");
+                    return;
+                }
+
+                const newStartH = String(Math.floor(newStart / 60) % 24).padStart(2, '0');
+                const newStartM = String(newStart % 60).padStart(2, '0');
+                const newEndH = String(Math.floor(newEnd / 60) % 24).padStart(2, '0');
+                const newEndM = String(newEnd % 60).padStart(2, '0');
+                const newTimeRange = `${newStartH}:${newStartM} - ${newEndH}:${newEndM}`;
+                
+                // Add the time range and a default timer button `BUTTON[timer-20]`
+                lineText = lineText.replace(/(-\s+\[(?: |x|X)\]\s+)(.*)/, `$1${newTimeRange} $2 \`BUTTON[timer-20]\``);
+            }
+
+            // Find where the target subheading is located
+            let targetSubheadingIndex = lines.findIndex(l => l.trim().includes(targetSubheading));
+            if (targetSubheadingIndex === -1) {
+                // Fallback: search case insensitively
+                targetSubheadingIndex = lines.findIndex(l => l.toLowerCase().includes(targetSubheading.toLowerCase().trim()));
+            }
+
+            if (targetSubheadingIndex === -1) {
+                // If not found at all, append to end of file
+                lines.push(lineText);
+                new obsidian.Notice(`Added task to end of note.`);
+            } else {
+                // Find insertion index: find next heading or rule or end of file
+                let insertIndex = targetSubheadingIndex + 1;
+                while (insertIndex < lines.length) {
+                    const l = lines[insertIndex];
+                    if (l.startsWith('##') || l.startsWith('---')) {
+                        break;
+                    }
+                    insertIndex++;
+                }
+                
+                // Insert the line
+                lines.splice(insertIndex, 0, lineText);
+            }
+
+            // Save the file
+            await this.app.vault.modify(dailyFile, lines.join('\n'));
+            this.renderSchedule();
+            new obsidian.Notice(`Moved task to ${targetIsUntimed ? 'Micro-Tasks' : 'Focus Blocks'}`);
+        } catch (e) {
+            console.error("Failed to drag and drop task:", e);
         }
     }
 
@@ -1581,8 +1742,13 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     description = description.replace(/\s+/g, ' ').trim();
                     
                     const isCalendar = rawDesc.includes('[Calendar]');
-                    const startMinutes = startH * 60 + startM;
-                    const endMinutes = endH * 60 + endM;
+                    let startMinutes = startH * 60 + startM;
+                    let endMinutes = endH * 60 + endM;
+                    if (startH < 5) startMinutes += 1440;
+                    if (endH < 5) endMinutes += 1440;
+                    if (endMinutes < startMinutes) {
+                        endMinutes += 1440;
+                    }
                     const duration = endMinutes - startMinutes;
                     
                     tasks.push({
@@ -1730,7 +1896,10 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
 
         const now = new Date();
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        let currentMinutes = now.getHours() * 60 + now.getMinutes();
+        if (now.getHours() < 5) {
+            currentMinutes += 1440;
+        }
 
         const busyIntervals = allTasks
             .filter(t => t.status !== 'completed' && !t.isUntimed && t.endMinutes > currentMinutes && t.lineIndex !== task.lineIndex)
@@ -1752,19 +1921,19 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
 
         const newEnd = newStart + duration;
-        if (newEnd > 1440) {
-            new obsidian.Notice("Cannot postpone: task would go past midnight!");
+        if (newEnd > 1740) {
+            new obsidian.Notice("Cannot postpone: task would go past tomorrow morning!");
             return;
         }
 
-        const newStartH = String(Math.floor(newStart / 60)).padStart(2, '0');
+        const newStartH = String(Math.floor(newStart / 60) % 24).padStart(2, '0');
         const newStartM = String(newStart % 60).padStart(2, '0');
-        const newEndH = String(Math.floor(newEnd / 60)).padStart(2, '0');
+        const newEndH = String(Math.floor(newEnd / 60) % 24).padStart(2, '0');
         const newEndM = String(newEnd % 60).padStart(2, '0');
         const newTimeRange = `${newStartH}:${newStartM} - ${newEndH}:${newEndM}`;
 
         const originalLine = lines[task.lineIndex];
-        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/;
+        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\s*[\-–—~]\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\b/;
         const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
         lines[task.lineIndex] = newLine;
 
@@ -1807,9 +1976,11 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     if (ampm === 'pm' && sh < 12) sh += 12;
                     if (ampm === 'am' && sh === 12) sh = 0;
                 }
+                let startMins = sh * 60 + sm;
+                if (sh < 5) startMins += 1440;
                 return {
                     line: line,
-                    startMinutes: sh * 60 + sm
+                    startMinutes: startMins
                 };
             });
 
@@ -2903,9 +3074,9 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
         // Find the task inside allTasks
         let currentTask = allTasks.find(t => t.lineIndex === task.lineIndex);
-        if (!currentTask) {
+        if (!currentTask || !lines[currentTask.lineIndex] || !lines[currentTask.lineIndex].toLowerCase().includes(task.description.toLowerCase().trim())) {
             // Find by description and pending status
-            currentTask = allTasks.find(t => t.description.toLowerCase() === task.description.toLowerCase() && t.status === 'pending');
+            currentTask = allTasks.find(t => t.description.toLowerCase().trim() === task.description.toLowerCase().trim() && t.status === 'pending');
         }
 
         if (!currentTask) {
@@ -2919,7 +3090,10 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
 
         const now = new Date();
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        let currentMinutes = now.getHours() * 60 + now.getMinutes();
+        if (now.getHours() < 5) {
+            currentMinutes += 1440;
+        }
 
         // Find all busy intervals after now (excluding the current task itself)
         const busyIntervals = allTasks
@@ -2942,19 +3116,19 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
 
         const newEnd = newStart + duration;
-        if (newEnd > 1440) {
-            new obsidian.Notice("Cannot reschedule: task would go past midnight!");
+        if (newEnd > 1740) {
+            new obsidian.Notice("Cannot reschedule: task would go past tomorrow morning!");
             return;
         }
 
-        const newStartH = String(Math.floor(newStart / 60)).padStart(2, '0');
+        const newStartH = String(Math.floor(newStart / 60) % 24).padStart(2, '0');
         const newStartM = String(newStart % 60).padStart(2, '0');
-        const newEndH = String(Math.floor(newEnd / 60)).padStart(2, '0');
+        const newEndH = String(Math.floor(newEnd / 60) % 24).padStart(2, '0');
         const newEndM = String(newEnd % 60).padStart(2, '0');
         const newTimeRange = `${newStartH}:${newStartM} - ${newEndH}:${newEndM}`;
 
         const originalLine = lines[currentTask.lineIndex];
-        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\b/;
+        const oldTimeRangeRegex = /\b\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\s*[\-–—~]\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\b/;
         const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
         lines[currentTask.lineIndex] = newLine;
 
@@ -2998,9 +3172,11 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     if (ampm === 'pm' && sh < 12) sh += 12;
                     if (ampm === 'am' && sh === 12) sh = 0;
                 }
+                let startMins = sh * 60 + sm;
+                if (sh < 5) startMins += 1440;
                 return {
                     line: line,
-                    startMinutes: sh * 60 + sm
+                    startMinutes: startMins
                 };
             });
 

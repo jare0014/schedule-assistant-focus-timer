@@ -324,14 +324,24 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
 
     # Preprocessing: Strip past times from pending tasks so the LLM is forced to reschedule them
     processed_daily_tasks = []
-    current_time_str = datetime.now(tz).strftime("%H:%M")
+    now = datetime.now(tz)
+    current_minutes = now.hour * 60 + now.minute
+    if now.hour < 5:
+        current_minutes += 1440
+        
     for task in daily_tasks:
         match = re.match(r'- \[ \]\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*(.*)', task)
         if match:
             start_time, end_time, details = match.groups()
-            padded_start = start_time if len(start_time.split(':')[0]) == 2 else f"0{start_time}"
-            if padded_start < current_time_str:
-                task = f"- [ ] {details}"
+            try:
+                start_h, start_m = map(int, start_time.split(':'))
+                start_minutes = start_h * 60 + start_m
+                if start_h < 5:
+                    start_minutes += 1440
+                if start_minutes < current_minutes:
+                    task = f"- [ ] {details}"
+            except Exception:
+                pass
         processed_daily_tasks.append(task)
     daily_tasks = processed_daily_tasks
 
@@ -438,11 +448,11 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            ### 📅 Calendar Events
            (Include Google Calendar events here. Format them as checklist items: `- [ ] HH:MM - HH:MM Event Name [Calendar]`)
            
-           ### ⏱️ Deep Work Sprints (50-Min Pomodoros)
-           (Include complex, high-effort tasks. Group them into sequential 50-minute blocks)
+           ### ⏱️ Focus Blocks
+           (Include complex, high-effort tasks, deep work, learning, and projects that take 20 minutes or longer. Schedule them in blocks matching the duration implied in the task description, e.g. 30, 45, or 60 minutes)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
-           (Include all fast administrative items: asking for time off, quick emails, simple chores. Do NOT assign time blocks to these)
+           (Include all fast administrative items, quick emails, simple chores, habits, and tasks taking under 20 minutes. Do NOT assign time ranges to these)
            
         5. Respect scheduled times and completion status:
            a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` or `- [X]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status (either `- [x]` or `- [X]`). Do NOT move, change, or remove completed tasks.
@@ -450,16 +460,17 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            c. **Overdue / Moved Tasks**: If an existing pending task in the daily note had a scheduled time range in the past (before {current_time}), you MUST reschedule it to start after {current_time}.
            d. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time if it is in the future. If it is in the past, reschedule it to start after {current_time}. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
            e. **Postponed Tasks**: If an input task from the daily note contains the tag `#postpone` (e.g. added by the mobile widget), you MUST reschedule it to start after the current time {current_time} (or treat it as a pending task that needs to be scheduled for later in the day), and you MUST strip the `#postpone` tag from the final scheduled task name in your output.
+           f. **Midnight Bedtime Constraint**: Under no circumstances should any task be scheduled past midnight (24:00) or wrap around into the early morning hours (e.g. 00:00 to 04:59). If there are more tasks than can fit in the day before 24:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
         6. Formatting checklist status:
            a. Completed tasks MUST be formatted starting exactly with "- [x] ".
            b. Pending tasks MUST be formatted starting exactly with "- [ ] ".
            c. Do NOT use "*" or any other bullet character.
-           d. For Calendar Events and Deep Work Sprints, format scheduled times using 24-hour format (e.g., 08:00 - 08:50). 
+           d. For Calendar Events and Focus Blocks, format scheduled times using 24-hour format (e.g., 08:00 - 08:30). 
            e. For Floating Micro-Tasks, do NOT include a time range.
         7. Timed buttons for pending tasks:
-           a. Only Deep Work Sprints should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
-           b. For Deep Work Sprints, default to `BUTTON[timer-50]`. Format them exactly like this:
-              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-50]` [src](URL)
+           a. Only Focus Blocks should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
+           b. For Focus Blocks, generate a timer button matching the block's scheduled duration (e.g., `BUTTON[timer-30]` for a 30-minute block, `BUTTON[timer-45]` for a 45-minute block). Format them exactly like this:
+              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-XX]` [src](URL)
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
@@ -497,11 +508,11 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            ### 📅 Calendar Events
            (Include Google Calendar events here. Format them as checklist items: `- [ ] HH:MM - HH:MM Event Name [Calendar]`)
            
-           ### ⏱️ Deep Work Sprints (50-Min Pomodoros)
-           (Include complex, high-effort tasks. Group them into sequential 50-minute blocks)
+           ### ⏱️ Focus Blocks
+           (Include complex, high-effort tasks, deep work, learning, and projects that take 20 minutes or longer. Schedule them in blocks matching the duration implied in the task description, e.g. 30, 45, or 60 minutes)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
-           (Include all fast administrative items: asking for time off, quick emails, simple chores. Do NOT assign time blocks to these)
+           (Include all fast administrative items, quick emails, simple chores, habits, and tasks taking under 20 minutes. Do NOT assign time ranges to these)
            
         5. Respect scheduled times and completion status:
            a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` or `- [X]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status (either `- [x]` or `- [X]`). Do NOT move, change, or remove completed tasks.
@@ -509,16 +520,17 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            c. **Overdue / Moved Tasks**: If an existing pending task in the daily note had a scheduled time range in the past (before {current_time}), you MUST reschedule it to start after {current_time}.
            d. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time if it is in the future. If it is in the past, reschedule it to start after {current_time}. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
            e. **Postponed Tasks**: If an input task from the daily note contains the tag `#postpone` (e.g. added by the mobile widget), you MUST reschedule it to start after the current time {current_time} (or treat it as a pending task that needs to be scheduled for later in the day), and you MUST strip the `#postpone` tag from the final scheduled task name in your output.
+           f. **Midnight Bedtime Constraint**: Under no circumstances should any task be scheduled past midnight (24:00) or wrap around into the early morning hours (e.g. 00:00 to 04:59). If there are more tasks than can fit in the day before 24:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
         6. Formatting checklist status:
            a. Completed tasks MUST be formatted starting exactly with "- [x] ".
            b. Pending tasks MUST be formatted starting exactly with "- [ ] ".
            c. Do NOT use "*" or any other bullet character.
-           d. For Calendar Events and Deep Work Sprints, format scheduled times using 24-hour format (e.g., 08:00 - 08:50). 
+           d. For Calendar Events and Focus Blocks, format scheduled times using 24-hour format (e.g., 08:00 - 08:30). 
            e. For Floating Micro-Tasks, do NOT include a time range.
         7. Timed buttons for pending tasks:
-           a. Only Deep Work Sprints should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
-           b. For Deep Work Sprints, default to `BUTTON[timer-50]`. Format them exactly like this:
-              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-50]` [src](URL)
+           a. Only Focus Blocks should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
+           b. For Focus Blocks, generate a timer button matching the block's scheduled duration (e.g., `BUTTON[timer-30]` for a 30-minute block, `BUTTON[timer-45]` for a 45-minute block). Format them exactly like this:
+              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-XX]` [src](URL)
         8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
         9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
         10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
