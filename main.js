@@ -156,79 +156,155 @@ class TaskTimerView extends obsidian.ItemView {
                 }
             };
             
-            groupedTasks[subheading].forEach(task => {
-                const card = groupSection.createDiv({ 
-                    cls: `task-card${task.status === 'completed' ? ' completed' : ''}` 
+            const isUntimedSubheading = subheading.includes("☁️") || subheading.toLowerCase().includes("micro-task") || subheading.toLowerCase().includes("untimed");
+            
+            if (isUntimedSubheading) {
+                // Group by project
+                const projectGroups = {};
+                groupedTasks[subheading].forEach(task => {
+                    const proj = task.project || "Other Tasks";
+                    if (!projectGroups[proj]) {
+                        projectGroups[proj] = [];
+                    }
+                    projectGroups[proj].push(task);
                 });
-                
-                card.setAttribute('draggable', 'true');
-                card.ondragstart = (e) => {
-                    e.dataTransfer.setData("text/plain", JSON.stringify({
-                        lineIndex: task.lineIndex,
-                        description: task.description,
-                        isUntimed: task.isUntimed
-                    }));
-                };
-                
-                const left = card.createDiv({ cls: 'task-card-left' });
-                if (task.isUntimed) {
-                    left.createDiv({ cls: 'task-card-time', text: 'Untimed' });
-                } else {
-                    const timeRangeStr = `${String(task.startHour).padStart(2, '0')}:${String(task.startMin).padStart(2, '0')} - ${String(task.endHour).padStart(2, '0')}:${String(task.endMin).padStart(2, '0')}`;
-                    left.createDiv({ cls: 'task-card-time', text: timeRangeStr });
-                }
-                left.createDiv({ cls: 'task-card-name', text: task.description });
-                
-                const right = card.createDiv({ cls: 'task-card-controls' });
 
-                // Checkbox
-                const cb = right.createEl('input', { type: 'checkbox' });
-                cb.checked = task.status === 'completed';
-                cb.onclick = async (e) => {
-                    e.stopPropagation();
-                    const complete = cb.checked;
-                    await this.toggleTaskCompletion(task, complete);
-                };
-
-                if (task.status !== 'completed') {
-                    if (task.isUntimed) {
-                        // Render quick timer buttons: 5m, 10m, 15m, 20m
-                        [5, 10, 15, 20].forEach(m => {
-                            const btn = right.createEl('button', { 
-                                cls: 'task-card-quick-timer-btn', 
-                                text: `${m}m`, 
-                                title: `Start ${m}m timer` 
-                            });
-                            btn.onclick = () => {
-                                this.startTimer(task, m);
-                            };
+                for (const proj in projectGroups) {
+                    const projectDetails = groupSection.createEl('details', { cls: 'sidebar-project-details' });
+                    projectDetails.setAttribute('open', '');
+                    
+                    const projectSummary = projectDetails.createEl('summary', { cls: 'sidebar-project-summary' });
+                    projectSummary.createEl('span', { cls: 'sidebar-project-title', text: proj });
+                    
+                    const projectContainer = projectDetails.createDiv({ cls: 'sidebar-project-container' });
+                    
+                    projectGroups[proj].forEach(task => {
+                        const card = projectContainer.createDiv({ 
+                            cls: `task-card${task.status === 'completed' ? ' completed' : ''}` 
                         });
-                    } else {
-                        // Play Button
-                        const playBtn = right.createEl('button', { cls: 'task-card-play-btn', title: 'Start Timer' });
-                        playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-                        playBtn.onclick = () => {
-                            this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+                        
+                        card.setAttribute('draggable', 'true');
+                        card.ondragstart = (e) => {
+                            e.dataTransfer.setData("text/plain", JSON.stringify({
+                                lineIndex: task.lineIndex,
+                                description: task.description,
+                                isUntimed: task.isUntimed
+                            }));
+                        };
+                        
+                        const left = card.createDiv({ cls: 'task-card-left' });
+                        left.createDiv({ cls: 'task-card-time', text: 'Untimed' });
+                        left.createDiv({ cls: 'task-card-name', text: task.description });
+                        
+                        const right = card.createDiv({ cls: 'task-card-controls' });
+
+                        // Checkbox
+                        const cb = right.createEl('input', { type: 'checkbox' });
+                        cb.checked = task.status === 'completed';
+                        cb.onclick = async (e) => {
+                            e.stopPropagation();
+                            const complete = cb.checked;
+                            await this.toggleTaskCompletion(task, complete);
                         };
 
-                        // Postpone Button
-                        const postBtn = right.createEl('button', { cls: 'task-card-postpone-btn', title: 'Postpone' });
-                        postBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
-                        postBtn.onclick = async () => {
-                            await this.plugin.postponeTask(task);
+                        if (task.status !== 'completed') {
+                            // Render quick timer buttons: 5m, 10m, 15m, 20m
+                            [5, 10, 15, 20].forEach(m => {
+                                const btn = right.createEl('button', { 
+                                    cls: 'task-card-quick-timer-btn', 
+                                    text: `${m}m`, 
+                                    title: `Start ${m}m timer` 
+                                });
+                                btn.onclick = () => {
+                                    this.startTimer(task, m);
+                                };
+                            });
+                        }
+
+                        // Delete Button (Not Today)
+                        const delBtn = right.createEl('button', { cls: 'task-card-delete-btn', title: 'Not Today' });
+                        delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+                        delBtn.onclick = async () => {
+                            await this.plugin.removeTask(task);
                             this.renderSchedule();
                         };
-                    }
+                    });
                 }
+            } else {
+                groupedTasks[subheading].forEach(task => {
+                    const card = groupSection.createDiv({ 
+                        cls: `task-card${task.status === 'completed' ? ' completed' : ''}` 
+                    });
+                    
+                    card.setAttribute('draggable', 'true');
+                    card.ondragstart = (e) => {
+                        e.dataTransfer.setData("text/plain", JSON.stringify({
+                            lineIndex: task.lineIndex,
+                            description: task.description,
+                            isUntimed: task.isUntimed
+                        }));
+                    };
+                    
+                    const left = card.createDiv({ cls: 'task-card-left' });
+                    if (task.isUntimed) {
+                        left.createDiv({ cls: 'task-card-time', text: 'Untimed' });
+                    } else {
+                        const timeRangeStr = `${String(task.startHour).padStart(2, '0')}:${String(task.startMin).padStart(2, '0')} - ${String(task.endHour).padStart(2, '0')}:${String(task.endMin).padStart(2, '0')}`;
+                        left.createDiv({ cls: 'task-card-time', text: timeRangeStr });
+                    }
+                    left.createDiv({ cls: 'task-card-name', text: task.description });
+                    
+                    const right = card.createDiv({ cls: 'task-card-controls' });
 
-                // Delete Button (Not Today)
-                const delBtn = right.createEl('button', { cls: 'task-card-delete-btn', title: 'Not Today' });
-                delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-                delBtn.onclick = async () => {
-                    await this.plugin.removeTask(task);
-                    this.renderSchedule();
-                };
-            });
+                    // Checkbox
+                    const cb = right.createEl('input', { type: 'checkbox' });
+                    cb.checked = task.status === 'completed';
+                    cb.onclick = async (e) => {
+                        e.stopPropagation();
+                        const complete = cb.checked;
+                        await this.toggleTaskCompletion(task, complete);
+                    };
+
+                    if (task.status !== 'completed') {
+                        if (task.isUntimed) {
+                            // Render quick timer buttons: 5m, 10m, 15m, 20m
+                            [5, 10, 15, 20].forEach(m => {
+                                const btn = right.createEl('button', { 
+                                    cls: 'task-card-quick-timer-btn', 
+                                    text: `${m}m`, 
+                                    title: `Start ${m}m timer` 
+                                });
+                                btn.onclick = () => {
+                                    this.startTimer(task, m);
+                                };
+                            });
+                        } else {
+                            // Play Button
+                            const playBtn = right.createEl('button', { cls: 'task-card-play-btn', title: 'Start Timer' });
+                            playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+                            playBtn.onclick = () => {
+                                this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+                            };
+
+                            // Postpone Button
+                            const postBtn = right.createEl('button', { cls: 'task-card-postpone-btn', title: 'Postpone' });
+                            postBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+                            postBtn.onclick = async () => {
+                                await this.plugin.postponeTask(task);
+                                this.renderSchedule();
+                            };
+                        }
+                    }
+
+                    // Delete Button (Not Today)
+                    const delBtn = right.createEl('button', { cls: 'task-card-delete-btn', title: 'Not Today' });
+                    delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+                    delBtn.onclick = async () => {
+                        await this.plugin.removeTask(task);
+                        this.renderSchedule();
+                    };
+                });
+            }
         }
     }
 
@@ -1698,6 +1774,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         let currentSubheading = "";
         let inPlanner = false;
+        let currentProject = "";
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -1711,8 +1788,22 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             if (inPlanner) {
                 if (line.startsWith('### ')) {
                     currentSubheading = line.trim();
+                    currentProject = "";
                     continue;
                 }
+                if (line.startsWith('##### ')) {
+                    currentProject = line.replace(/^#####\s+/, '').trim();
+                    continue;
+                }
+                
+                const summaryMatch = line.match(/<summary>(?:<b>)?(.*?)(?:<\/b>)?<\/summary>/i);
+                if (summaryMatch) {
+                    currentProject = summaryMatch[1].trim();
+                }
+                if (line.includes("</details>")) {
+                    currentProject = "";
+                }
+                
                 const match = line.match(taskRegex);
                 if (match) {
                     const status = (match[1] === 'x' || match[1] === 'X') ? 'completed' : 'pending';
@@ -1738,6 +1829,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     let description = rawDesc.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
                     description = description.replace(/\[src\]\(.*?\)/g, '').trim();
                     description = description.replace(/\s+src$/i, '').trim();
+                    description = description.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
                     description = description.replace(/#\w+/g, '').trim();
                     description = description.replace(/\s+/g, ' ').trim();
                     
@@ -1766,7 +1858,8 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                         isCalendar: isCalendar,
                         subheading: currentSubheading,
                         rawDesc: rawDesc,
-                        isUntimed: false
+                        isUntimed: false,
+                        project: currentProject
                     });
                 } else {
                     const untimedRegex = /^\s*-\s+\[( |x|X)\]\s+(.*)$/;
@@ -1777,6 +1870,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                         
                         let description = rawDesc.replace(/\[src\]\(.*?\)/g, '').trim();
                         description = description.replace(/\s+src$/i, '').trim();
+                        description = description.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
                         description = description.replace(/#\w+/g, '').trim();
                         description = description.replace(/\s+/g, ' ').trim();
                         
@@ -1795,7 +1889,8 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                             isCalendar: false,
                             subheading: currentSubheading,
                             rawDesc: rawDesc,
-                            isUntimed: true
+                            isUntimed: true,
+                            project: currentProject
                         });
                     }
                 }
@@ -1854,6 +1949,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         clickedDescription = clickedDescription.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
         clickedDescription = clickedDescription.replace(/\[src\]\(.*?\)/g, '').trim();
         clickedDescription = clickedDescription.replace(/\s+src$/i, '').trim();
+        clickedDescription = clickedDescription.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
         clickedDescription = clickedDescription.replace(/#\w+/g, '').trim();
         clickedDescription = clickedDescription.replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -2564,6 +2660,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 // Strip links and trailing rendered link text "src"
                 taskText = taskText.replace(/\[src\]\(.*?\)/g, '').trim();
                 taskText = taskText.replace(/\s+src$/i, '').trim();
+                taskText = taskText.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
                 
                 // Strip tags from the task name
                 taskText = taskText.replace(/#\w+/g, '').trim();
@@ -2619,6 +2716,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     clickedDescription = clickedDescription.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
                     clickedDescription = clickedDescription.replace(/\[src\]\(.*?\)/g, '').trim();
                     clickedDescription = clickedDescription.replace(/\s+src$/i, '').trim();
+                    clickedDescription = clickedDescription.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
                     clickedDescription = clickedDescription.replace(/#\w+/g, '').trim();
                     clickedDescription = clickedDescription.replace(/\s+/g, ' ').trim().toLowerCase();
                     

@@ -245,6 +245,21 @@ def get_todoist_tasks(tz):
                 
     return today_tasks
 
+def get_todoist_projects():
+    token = get_todoist_token()
+    url = "https://api.todoist.com/api/v1/projects"
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}"
+    })
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            projects = res_data.get("results", []) if isinstance(res_data, dict) else res_data
+            return {p['id']: p['name'] for p in projects if 'id' in p and 'name' in p}
+    except Exception as e:
+        print("Error fetching Todoist projects:", e)
+        return {}
+
 def extract_daily_note_tasks(note_path):
     if not os.path.exists(note_path):
         return []
@@ -367,12 +382,14 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         summary = ev.get('summary', 'No Title')
         events_str += f"- {summary} ({time_display})\n"
         
+    project_map = get_todoist_projects()
     tasks_str = ""
     for t in todoist_tasks:
         content = t.get('content', '')
         desc = t.get('description', '')
         desc_str = f" (Description: {desc})" if desc else ""
         project_id = t.get('project_id')
+        project_name = project_map.get(project_id, 'Inbox') if project_id else 'Inbox'
         if project_id:
             src_url = f"https://todoist.com/app/project/{project_id}/task/{t['id']}"
         else:
@@ -394,7 +411,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
                 except Exception as e:
                     print("Error parsing due date time:", e)
                     
-        tasks_str += f"- {content}{due_time_str} [src]({src_url}){desc_str}\n"
+        tasks_str += f"- {content}{due_time_str} [src]({src_url}){desc_str} (Project: {project_name})\n"
 
     google_tasks_str = ""
     for gt in google_tasks:
@@ -441,7 +458,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            If a Google Calendar event corresponds to an active Todoist or Google Task (e.g. they share the same or similar name/topic), you MUST merge them and append the task's `[src](URL)` link before `[Calendar]`, like:
            `- [ ] HH:MM - HH:MM Event Name [src](URL) [Calendar]`
            Note: Google Tasks (whose links start with `https://tasks.google.com/`) are NOT calendar events. Unless a Google Task is explicitly merged with a Google Calendar event of the same name/topic, do NOT place it under the '### 📅 Calendar Events' subheading and do NOT append '[Calendar]' to it.
-        2. Do NOT delete or omit any tasks from the original input list. All habits, work tasks, house chores, and admin tasks must be scheduled.
+        2. Do NOT delete or omit any tasks from the original input list. All habits, work tasks, house chores, and admin tasks must be included in the schedule (either timed or untimed).
         3. Do NOT invent new tasks (such as "Lunch", "Breakfast", "Break", "Dinner", "Sleep") that are not explicitly present in the input lists.
         4. Group the schedule items under the following subheadings based on their nature (with an empty line before each subheading):
            
@@ -449,24 +466,31 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            (Include Google Calendar events here. Format them as checklist items: `- [ ] HH:MM - HH:MM Event Name [Calendar]`)
            
            ### ⏱️ Focus Blocks
-           (Include complex, high-effort tasks, deep work, learning, and projects that take 20 minutes or longer. Schedule them in blocks matching the duration implied in the task description, e.g. 30, 45, or 60 minutes)
+           (Include complex, high-effort tasks, deep work, learning, and projects that take 20 minutes or longer. Schedule them in blocks matching the duration implied in the task description, e.g. 30, 45, or 60 minutes. Per user preferences, use the tasks from the "Habits" project to define the general timed blocks of your day.)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
-           (Include all fast administrative items, quick emails, simple chores, habits, and tasks taking under 20 minutes. Do NOT assign time ranges to these)
+           (Include all fast administrative items, quick emails, simple chores, habits, and tasks taking under 20 minutes. Do NOT assign time ranges to these. Per user preferences, ALL Google Tasks and ALL Todoist tasks belonging to the "Admin", "Curriculum", "House", or "Work" projects MUST be listed in this section as untimed floating micro-tasks. Do NOT assign times or create Focus Blocks for these tasks. You MUST group and sort the tasks in this section by project/source. For each project/source group (e.g. 'Admin', 'Curriculum', 'House', 'Work', 'Google Tasks'), list all checklist items under an H5 header showing the project name, formatted exactly as follows:
+           
+           ##### ProjectName
+           
+           - [ ] Task Name [src](URL)
+           - [ ] Another Task [src](URL)
+
+           Strip any trailing "(Project: ...)" context labels from the task names. Do NOT put bracketed project prefixes in the task names themselves.)
            
         5. Respect scheduled times and completion status:
            a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` or `- [X]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status (either `- [x]` or `- [X]`). Do NOT move, change, or remove completed tasks.
-           b. **Pending Tasks Scheduling**: All pending/uncompleted tasks (marked with `- [ ]` from the daily note, or tasks from Todoist/Google Tasks) MUST be scheduled to start chronologically after the current time of {current_time}. Under no circumstances should any pending task be scheduled at a time before {current_time}. (For example, if {current_time} is 14:33, do not schedule any tasks at 08:00, 09:00, etc.) If {current_time} is earlier than 06:00 AM, you may start scheduling from 06:00 AM. Otherwise, you MUST start scheduling after {current_time}.
+           b. **Pending Tasks Scheduling**: All pending/uncompleted tasks that require timing (marked with `- [ ]` from the daily note, or tasks from Todoist's "Habits" project) MUST be scheduled to start chronologically after the current time of {current_time}. Under no circumstances should any pending task be scheduled at a time before {current_time}. (For example, if {current_time} is 14:33, do not schedule any tasks at 08:00, 09:00, etc.) If {current_time} is earlier than 06:00 AM, you may start scheduling from 06:00 AM. Otherwise, you MUST start scheduling after {current_time}. Tasks from "Admin", "Curriculum", "House", or "Work" projects and Google Tasks MUST remain untimed in the Floating Micro-Tasks section.
            c. **Overdue / Moved Tasks**: If an existing pending task in the daily note had a scheduled time range in the past (before {current_time}), you MUST reschedule it to start after {current_time}.
            d. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time if it is in the future. If it is in the past, reschedule it to start after {current_time}. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
            e. **Postponed Tasks**: If an input task from the daily note contains the tag `#postpone` (e.g. added by the mobile widget), you MUST reschedule it to start after the current time {current_time} (or treat it as a pending task that needs to be scheduled for later in the day), and you MUST strip the `#postpone` tag from the final scheduled task name in your output.
-           f. **Midnight Bedtime Constraint**: Under no circumstances should any task be scheduled past midnight (24:00) or wrap around into the early morning hours (e.g. 00:00 to 04:59). If there are more tasks than can fit in the day before 24:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
+           f. **10 PM Bedtime Constraint**: Under no circumstances should any task be scheduled past 10 PM (22:00) or wrap around into the night/morning hours (e.g. 22:00 to 05:59). If there are more tasks than can fit in the day before 22:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
         6. Formatting checklist status:
            a. Completed tasks MUST be formatted starting exactly with "- [x] ".
            b. Pending tasks MUST be formatted starting exactly with "- [ ] ".
            c. Do NOT use "*" or any other bullet character.
            d. For Calendar Events and Focus Blocks, format scheduled times using 24-hour format (e.g., 08:00 - 08:30). 
-           e. For Floating Micro-Tasks, do NOT include a time range.
+           e. For Floating Micro-Tasks, do NOT include a time range. Group them under their respective H5 project headers.
         7. Timed buttons for pending tasks:
            a. Only Focus Blocks should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
            b. For Focus Blocks, generate a timer button matching the block's scheduled duration (e.g., `BUTTON[timer-30]` for a 30-minute block, `BUTTON[timer-45]` for a 45-minute block). Format them exactly like this:
@@ -501,7 +525,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            If a Google Calendar event corresponds to an active Todoist or Google Task (e.g. they share the same or similar name/topic), you MUST merge them and append the task's `[src](URL)` link before `[Calendar]`, like:
            `- [ ] HH:MM - HH:MM Event Name [src](URL) [Calendar]`
            Note: Google Tasks (whose links start with `https://tasks.google.com/`) are NOT calendar events. Unless a Google Task is explicitly merged with a Google Calendar event of the same name/topic, do NOT place it under the '### 📅 Calendar Events' subheading and do NOT append '[Calendar]' to it.
-        2. Do NOT delete or omit any tasks from the "Existing Tasks", "Active Todoist Tasks", or "Active Google Tasks" list. All habits, work tasks, house chores (e.g. treadmill maintenance), and admin tasks must be scheduled.
+        2. Do NOT delete or omit any tasks from the "Existing Tasks", "Active Todoist Tasks", or "Active Google Tasks" list. All habits, work tasks, house chores (e.g. treadmill maintenance), and admin tasks must be included in the schedule (either timed or untimed).
         3. Do NOT invent, hallucinate, or add any new tasks (such as "Lunch", "Breakfast", "Break", "Dinner", "Sleep") that are not explicitly present in the input lists.
         4. Group the schedule items under the following subheadings based on their nature (with an empty line before each subheading):
            
@@ -509,24 +533,31 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            (Include Google Calendar events here. Format them as checklist items: `- [ ] HH:MM - HH:MM Event Name [Calendar]`)
            
            ### ⏱️ Focus Blocks
-           (Include complex, high-effort tasks, deep work, learning, and projects that take 20 minutes or longer. Schedule them in blocks matching the duration implied in the task description, e.g. 30, 45, or 60 minutes)
+           (Include complex, high-effort tasks, deep work, learning, and projects that take 20 minutes or longer. Schedule them in blocks matching the duration implied in the task description, e.g. 30, 45, or 60 minutes. Per user preferences, use the tasks from the "Habits" project to define the general timed blocks of your day.)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
-           (Include all fast administrative items, quick emails, simple chores, habits, and tasks taking under 20 minutes. Do NOT assign time ranges to these)
+           (Include all fast administrative items, quick emails, simple chores, habits, and tasks taking under 20 minutes. Do NOT assign time ranges to these. Per user preferences, ALL Google Tasks and ALL Todoist tasks belonging to the "Admin", "Curriculum", "House", or "Work" projects MUST be listed in this section as untimed floating micro-tasks. Do NOT assign times or create Focus Blocks for these tasks. You MUST group and sort the tasks in this section by project/source. For each project/source group (e.g. 'Admin', 'Curriculum', 'House', 'Work', 'Google Tasks'), list all checklist items under an H5 header showing the project name, formatted exactly as follows:
+           
+           ##### ProjectName
+           
+           - [ ] Task Name [src](URL)
+           - [ ] Another Task [src](URL)
+
+           Strip any trailing "(Project: ...)" context labels from the task names. Do NOT put bracketed project prefixes in the task names themselves.)
            
         5. Respect scheduled times and completion status:
            a. **Completed Tasks**: Any task from "Existing Tasks from my Daily Note" that starts with `- [x]` or `- [X]` is a completed task. You MUST preserve it in the schedule at its exact time range, unchanged, and keep its status (either `- [x]` or `- [X]`). Do NOT move, change, or remove completed tasks.
-           b. **Pending Tasks Scheduling**: All pending/uncompleted tasks (marked with `- [ ]` from the daily note, or tasks from Todoist/Google Tasks) MUST be scheduled to start chronologically after the current time of {current_time}. Under no circumstances should any pending task be scheduled at a time before {current_time}. (For example, if {current_time} is 14:33, do not schedule any tasks at 08:00, 09:00, etc.) If {current_time} is earlier than 06:00 AM, you may start scheduling from 06:00 AM. Otherwise, you MUST start scheduling after {current_time}.
+           b. **Pending Tasks Scheduling**: All pending/uncompleted tasks that require timing (marked with `- [ ]` from the daily note, or tasks from Todoist's "Habits" project) MUST be scheduled to start chronologically after the current time of {current_time}. Under no circumstances should any pending task be scheduled at a time before {current_time}. (For example, if {current_time} is 14:33, do not schedule any tasks at 08:00, 09:00, etc.) If {current_time} is earlier than 06:00 AM, you may start scheduling from 06:00 AM. Otherwise, you MUST start scheduling after {current_time}. Tasks from "Admin", "Curriculum", "House", or "Work" projects and Google Tasks MUST remain untimed in the Floating Micro-Tasks section.
            c. **Overdue / Moved Tasks**: If an existing pending task in the daily note had a scheduled time range in the past (before {current_time}), you MUST reschedule it to start after {current_time}.
            d. If a Todoist task has an explicit due time (e.g. " (Due: 09:00 AM)"), you MUST schedule it at that time if it is in the future. If it is in the past, reschedule it to start after {current_time}. You can strip the " (Due: HH:MM AM/PM)" substring from the final scheduled task name.
            e. **Postponed Tasks**: If an input task from the daily note contains the tag `#postpone` (e.g. added by the mobile widget), you MUST reschedule it to start after the current time {current_time} (or treat it as a pending task that needs to be scheduled for later in the day), and you MUST strip the `#postpone` tag from the final scheduled task name in your output.
-           f. **Midnight Bedtime Constraint**: Under no circumstances should any task be scheduled past midnight (24:00) or wrap around into the early morning hours (e.g. 00:00 to 04:59). If there are more tasks than can fit in the day before 24:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
+           f. **10 PM Bedtime Constraint**: Under no circumstances should any task be scheduled past 10 PM (22:00) or wrap around into the night/morning hours (e.g. 22:00 to 05:59). If there are more tasks than can fit in the day before 22:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
         6. Formatting checklist status:
            a. Completed tasks MUST be formatted starting exactly with "- [x] ".
            b. Pending tasks MUST be formatted starting exactly with "- [ ] ".
            c. Do NOT use "*" or any other bullet character.
            d. For Calendar Events and Focus Blocks, format scheduled times using 24-hour format (e.g., 08:00 - 08:30). 
-           e. For Floating Micro-Tasks, do NOT include a time range.
+           e. For Floating Micro-Tasks, do NOT include a time range. Group them under their respective H5 project headers.
         7. Timed buttons for pending tasks:
            a. Only Focus Blocks should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
            b. For Focus Blocks, generate a timer button matching the block's scheduled duration (e.g., `BUTTON[timer-30]` for a 30-minute block, `BUTTON[timer-45]` for a 45-minute block). Format them exactly like this:
@@ -580,7 +611,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         
         # Build model list starting with configured model
         model_names = [llm_model]
-        for fallback in ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']:
+        for fallback in ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash']:
             if fallback not in model_names:
                 model_names.append(fallback)
                 

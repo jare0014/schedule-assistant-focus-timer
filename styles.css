@@ -456,4 +456,68 @@
   border-color: var(--interactive-accent);
 }
 
+/* Sidebar Collapsible Project Sections */
+.sidebar-project-details {
+  margin-bottom: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background-color: var(--background-secondary-alt);
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.sidebar-project-details:hover {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.sidebar-project-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-accent);
+  background-color: var(--background-secondary);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.sidebar-project-summary::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-project-summary::before {
+  content: '▶';
+  font-size: 0.65rem;
+  display: inline-block;
+  transition: transform 0.2s ease;
+  margin-right: 8px;
+  color: var(--text-muted);
+}
+
+.sidebar-project-details[open] .sidebar-project-summary::before {
+  transform: rotate(90deg);
+}
+
+.sidebar-project-details[open] .sidebar-project-summary {
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.sidebar-project-title {
+  flex: 1;
+}
+
+.sidebar-project-container {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: var(--background-primary);
+}
+
+
 
