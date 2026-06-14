@@ -2438,6 +2438,21 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     throw new Error("Task not found or view not available.");
                 }
 
+                if (req.method === 'POST' && pathname === '/api/task/drop') {
+                    const body = await readBody();
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    if (leaves.length > 0) {
+                        const view = leaves[0].view;
+                        await view.handleTaskDrop(body.draggedTask, body.targetSubheading);
+                        view.renderSchedule();
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true }));
+                        return;
+                    }
+                    throw new Error("View not available.");
+                }
+
                 if (req.method === 'POST' && pathname === '/api/task/nottoday') {
                     const body = await readBody();
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);

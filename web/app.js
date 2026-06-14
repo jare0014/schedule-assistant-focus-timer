@@ -185,95 +185,178 @@ function renderSchedule(tasks) {
         // Create subheading row
         const subEl = document.createElement('div');
         subEl.className = 'schedule-subheading';
-        subEl.textContent = subheading;
+        subEl.textContent = subheading.replace(/^###\s+/, '');
         scheduleList.appendChild(subEl);
 
-        // Create task item cards
-        grouped[subheading].forEach(task => {
-            const card = document.createElement('div');
-            card.className = `task-card${task.status === 'completed' ? ' completed' : ''}`;
-            
-            const left = document.createElement('div');
-            left.className = 'task-card-left';
-            
-            const timeStr = `${String(task.startHour).padStart(2, '0')}:${String(task.startMin).padStart(2, '0')} - ${String(task.endHour).padStart(2, '0')}:${String(task.endMin).padStart(2, '0')}`;
-            const timeEl = document.createElement('div');
-            timeEl.className = 'task-card-time';
-            timeEl.textContent = timeStr;
-            
-            const nameEl = document.createElement('div');
-            nameEl.className = 'task-card-name';
-            nameEl.textContent = task.description;
-            
-            left.appendChild(timeEl);
-            left.appendChild(nameEl);
-            
-            const right = document.createElement('div');
-            right.className = 'task-card-controls';
-            
-            // Checkbox completion toggle
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.checked = task.status === 'completed';
-            cb.onclick = async (e) => {
-                e.stopPropagation();
-                try {
-                    await fetch(`${API_BASE}/api/task/toggle`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ lineIndex: task.lineIndex, complete: cb.checked })
-                    });
-                    checkStatus();
-                } catch(err) {
-                    cb.checked = !cb.checked; // revert UI
-                }
-            };
-            
-            right.appendChild(cb);
+        const groupSection = document.createElement('div');
+        groupSection.className = 'schedule-group-section';
+        groupSection.setAttribute('data-subheading', subheading);
 
-            if (task.status !== 'completed') {
-                // Play/Start Button
-                const playBtn = document.createElement('button');
-                playBtn.className = 'task-card-btn task-card-play-btn';
-                playBtn.title = 'Start Focus Session';
-                playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-                playBtn.onclick = async () => {
+        // Drag and drop event listeners on the groupSection
+        groupSection.ondragover = (e) => {
+            e.preventDefault();
+            groupSection.classList.add('dragover');
+        };
+        groupSection.ondragleave = () => {
+            groupSection.classList.remove('dragover');
+        };
+        groupSection.ondrop = async (e) => {
+            e.preventDefault();
+            groupSection.classList.remove('dragover');
+            try {
+                const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+                await handleTaskDrop(data, subheading);
+            } catch (err) {
+                console.error("Drop parsing failed:", err);
+            }
+        };
+
+        const isUntimedSubheading = subheading.includes("☁️") || subheading.toLowerCase().includes("micro-task") || subheading.toLowerCase().includes("untimed");
+
+        if (isUntimedSubheading) {
+            // Group by project
+            const projectGroups = {};
+            grouped[subheading].forEach(task => {
+                const proj = task.project || "Other Tasks";
+                if (!projectGroups[proj]) {
+                    projectGroups[proj] = [];
+                }
+                projectGroups[proj].push(task);
+            });
+
+            for (const proj in projectGroups) {
+                const projectDetails = document.createElement('details');
+                projectDetails.className = 'sidebar-project-details';
+                projectDetails.setAttribute('open', '');
+
+                const projectSummary = document.createElement('summary');
+                projectSummary.className = 'sidebar-project-summary';
+
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'sidebar-project-title';
+                titleSpan.textContent = proj;
+                projectSummary.appendChild(titleSpan);
+                projectDetails.appendChild(projectSummary);
+
+                const projectContainer = document.createElement('div');
+                projectContainer.className = 'sidebar-project-container';
+
+                projectGroups[proj].forEach(task => {
+                    const card = createTaskCard(task);
+                    projectContainer.appendChild(card);
+                });
+
+                projectDetails.appendChild(projectContainer);
+                groupSection.appendChild(projectDetails);
+            }
+        } else {
+            grouped[subheading].forEach(task => {
+                const card = createTaskCard(task);
+                groupSection.appendChild(card);
+            });
+        }
+
+        scheduleList.appendChild(groupSection);
+    }
+}
+
+function createTaskCard(task) {
+    const card = document.createElement('div');
+    card.className = `task-card${task.status === 'completed' ? ' completed' : ''}`;
+    card.setAttribute('draggable', 'true');
+    card.ondragstart = (e) => {
+        e.dataTransfer.setData("text/plain", JSON.stringify({
+            lineIndex: task.lineIndex,
+            description: task.description,
+            isUntimed: task.isUntimed
+        }));
+    };
+
+    const left = document.createElement('div');
+    left.className = 'task-card-left';
+
+    const timeEl = document.createElement('div');
+    timeEl.className = 'task-card-time';
+    if (task.isUntimed) {
+        timeEl.textContent = 'Untimed';
+    } else {
+        const timeStr = `${String(task.startHour).padStart(2, '0')}:${String(task.startMin).padStart(2, '0')} - ${String(task.endHour).padStart(2, '0')}:${String(task.endMin).padStart(2, '0')}`;
+        timeEl.textContent = timeStr;
+    }
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'task-card-name';
+    nameEl.textContent = task.description;
+
+    left.appendChild(timeEl);
+    left.appendChild(nameEl);
+
+    const right = document.createElement('div');
+    right.className = 'task-card-controls';
+
+    // Checkbox completion toggle
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = task.status === 'completed';
+    cb.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+            await fetch(`${API_BASE}/api/task/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lineIndex: task.lineIndex, complete: cb.checked })
+            });
+            checkStatus();
+        } catch(err) {
+            cb.checked = !cb.checked; // revert UI
+        }
+    };
+    right.appendChild(cb);
+
+    if (task.status !== 'completed') {
+        if (task.isUntimed) {
+            // Render quick timer buttons: 5m, 10m, 15m, 20m
+            [5, 10, 15, 20].forEach(m => {
+                const btn = document.createElement('button');
+                btn.className = 'task-card-btn task-card-quick-timer-btn';
+                btn.textContent = `${m}m`;
+                btn.title = `Start ${m}m timer`;
+                btn.onclick = async (e) => {
+                    e.stopPropagation();
                     await fetch(`${API_BASE}/api/timer/start`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ lineIndex: task.lineIndex })
+                        body: JSON.stringify({ lineIndex: task.lineIndex, durationMinutes: m })
                     });
                     checkStatus();
                 };
+                right.appendChild(btn);
+            });
+        } else {
+            // Play/Start Button
+            const playBtn = document.createElement('button');
+            playBtn.className = 'task-card-btn task-card-play-btn';
+            playBtn.title = 'Start Focus Session';
+            playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+            playBtn.onclick = async (e) => {
+                e.stopPropagation();
+                await fetch(`${API_BASE}/api/timer/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lineIndex: task.lineIndex })
+                });
+                checkStatus();
+            };
 
-                // Postpone Button
-                const postBtn = document.createElement('button');
-                postBtn.className = 'task-card-btn task-card-postpone-btn';
-                postBtn.title = 'Postpone task';
-                postBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
-                postBtn.onclick = async () => {
-                    if (confirm(`Postpone "${task.description}" to the next open afternoon slot?`)) {
-                        await fetch(`${API_BASE}/api/task/postpone`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ lineIndex: task.lineIndex })
-                        });
-                        checkStatus();
-                    }
-                };
-
-                right.appendChild(playBtn);
-                right.appendChild(postBtn);
-            }
-
-            // Not Today / Skip Button
-            const delBtn = document.createElement('button');
-            delBtn.className = 'task-card-btn task-card-delete-btn';
-            delBtn.title = 'Not today';
-            delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-            delBtn.onclick = async () => {
-                if (confirm(`Skip "${task.description}" for today?`)) {
-                    await fetch(`${API_BASE}/api/task/nottoday`, {
+            // Postpone Button
+            const postBtn = document.createElement('button');
+            postBtn.className = 'task-card-btn task-card-postpone-btn';
+            postBtn.title = 'Postpone task';
+            postBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+            postBtn.onclick = async (e) => {
+                e.stopPropagation();
+                if (confirm(`Postpone "${task.description}" to the next open afternoon slot?`)) {
+                    await fetch(`${API_BASE}/api/task/postpone`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ lineIndex: task.lineIndex })
@@ -282,12 +365,45 @@ function renderSchedule(tasks) {
                 }
             };
 
-            right.appendChild(delBtn);
-            
-            card.appendChild(left);
-            card.appendChild(right);
-            scheduleList.appendChild(card);
+            right.appendChild(playBtn);
+            right.appendChild(postBtn);
+        }
+    }
+
+    // Not Today / Skip Button
+    const delBtn = document.createElement('button');
+    delBtn.className = 'task-card-btn task-card-delete-btn';
+    delBtn.title = 'Not today';
+    delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm(`Skip "${task.description}" for today?`)) {
+            await fetch(`${API_BASE}/api/task/nottoday`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lineIndex: task.lineIndex })
+            });
+            checkStatus();
+        }
+    };
+
+    right.appendChild(delBtn);
+
+    card.appendChild(left);
+    card.appendChild(right);
+    return card;
+}
+
+async function handleTaskDrop(draggedTask, targetSubheading) {
+    try {
+        await fetch(`${API_BASE}/api/task/drop`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ draggedTask, targetSubheading })
         });
+        checkStatus();
+    } catch (err) {
+        console.error("Failed to drop task:", err);
     }
 }
 

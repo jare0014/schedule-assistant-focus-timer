@@ -763,3 +763,100 @@ body {
     90% { transform: rotate(2deg); }
     100% { transform: rotate(0); }
 }
+
+/* Drag and Drop Dragover Feedback */
+.schedule-group-section {
+    min-height: 40px;
+    transition: var(--transition-smooth);
+    border: 2px dashed transparent;
+    border-radius: 12px;
+    padding: 6px;
+}
+
+.schedule-group-section.dragover {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: var(--accent-cyan);
+}
+
+/* Sidebar Collapsible Project Sections */
+.sidebar-project-details {
+    margin-top: 10px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.01);
+    overflow: hidden;
+    transition: var(--transition-smooth);
+}
+
+.sidebar-project-details:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-project-summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--accent-cyan);
+    background-color: rgba(255, 255, 255, 0.02);
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+    border-bottom: 1px solid transparent;
+    transition: var(--transition-smooth);
+}
+
+.sidebar-project-summary::-webkit-details-marker {
+    display: none;
+}
+
+.sidebar-project-summary::before {
+    content: '▶';
+    font-size: 0.65rem;
+    display: inline-block;
+    transition: var(--transition-smooth);
+    margin-right: 10px;
+    color: var(--text-muted);
+}
+
+.sidebar-project-details[open] .sidebar-project-summary::before {
+    transform: rotate(90deg);
+}
+
+.sidebar-project-details[open] .sidebar-project-summary {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-project-title {
+    flex: 1;
+}
+
+.sidebar-project-container {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background-color: transparent;
+}
+
+/* Quick Timer Buttons */
+.task-card-quick-timer-btn {
+    font-size: 0.72rem !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid rgba(255, 255, 255, 0.03) !important;
+    font-weight: 600 !important;
+    flex: none !important;
+}
+
+.task-card-quick-timer-btn:hover {
+    background-color: var(--accent-cyan) !important;
+    color: #000 !important;
+    border-color: var(--accent-cyan) !important;
+    box-shadow: 0 0 8px rgba(0, 255, 208, 0.25);
+}
