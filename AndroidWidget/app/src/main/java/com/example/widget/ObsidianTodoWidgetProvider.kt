@@ -24,6 +24,9 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
     companion object {
         const val ACTION_REFRESH = "com.example.widget.ACTION_REFRESH"
         const val ACTION_TOGGLE_TASK = "com.example.widget.ACTION_TOGGLE_TASK"
+        const val ACTION_PAUSE_TIMER = "com.example.widget.ACTION_PAUSE_TIMER"
+        const val ACTION_RESUME_TIMER = "com.example.widget.ACTION_RESUME_TIMER"
+        const val ACTION_CANCEL_TIMER = "com.example.widget.ACTION_CANCEL_TIMER"
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -38,6 +41,56 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
             // Apply colors programmatically to bypass RemoteViews XML limitations
             views.setInt(R.id.widget_header_icon, "setColorFilter", android.graphics.Color.parseColor("#A882DD"))
             views.setInt(R.id.widget_refresh_button, "setColorFilter", android.graphics.Color.parseColor("#A882DD"))
+
+            // Render active timer card if present
+            val activeTaskName = prefs.activeTimerTaskName
+            if (activeTaskName.isNotEmpty()) {
+                views.setViewVisibility(R.id.widget_timer_container, android.view.View.VISIBLE)
+                views.setTextViewText(R.id.widget_timer_task_name, activeTaskName)
+
+                val remainingSecs = prefs.activeTimerRemainingSeconds
+                val isPaused = prefs.activeTimerIsPaused
+
+                val mins = remainingSecs / 60
+                val secs = remainingSecs % 60
+                val timeStr = if (isPaused) {
+                    String.format("%02d:%02d (Paused)", mins, secs)
+                } else {
+                    String.format("%02d:%02d", mins, secs)
+                }
+                views.setTextViewText(R.id.widget_timer_time, timeStr)
+
+                // Play/Pause button state and color
+                val pauseIcon = if (isPaused) R.drawable.ic_play else R.drawable.ic_pause
+                views.setImageViewResource(R.id.widget_timer_pause_btn, pauseIcon)
+                views.setInt(R.id.widget_timer_pause_btn, "setColorFilter", android.graphics.Color.parseColor(if (isPaused) "#10B981" else "#E4E4E7")) // green vs white
+
+                // Set up click intents
+                val pauseIntent = Intent(context, ObsidianTodoWidgetProvider::class.java).apply {
+                    action = if (isPaused) ACTION_RESUME_TIMER else ACTION_PAUSE_TIMER
+                }
+                val pausePendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    3,
+                    pauseIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(R.id.widget_timer_pause_btn, pausePendingIntent)
+
+                val cancelIntent = Intent(context, ObsidianTodoWidgetProvider::class.java).apply {
+                    action = ACTION_CANCEL_TIMER
+                }
+                val cancelPendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    4,
+                    cancelIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(R.id.widget_timer_cancel_btn, cancelPendingIntent)
+                views.setInt(R.id.widget_timer_cancel_btn, "setColorFilter", android.graphics.Color.parseColor("#EF4444")) // red
+            } else {
+                views.setViewVisibility(R.id.widget_timer_container, android.view.View.GONE)
+            }
 
             // Dynamic visibility of list vs empty state
             val listEmpty = false // We let onDataSetChanged manage, but we can set up an empty view
@@ -106,6 +159,13 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    private fun refreshWidget(context: Context) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, ObsidianTodoWidgetProvider::class.java))
+        appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list_view)
+        onUpdate(context, appWidgetManager, ids)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         val action = intent.action ?: return
@@ -116,11 +176,7 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
                 try {
                     val repo = ObsidianSyncRepository(context)
                     repo.syncTasks()
-                    
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-                    val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, ObsidianTodoWidgetProvider::class.java))
-                    appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list_view)
-                    onUpdate(context, appWidgetManager, ids)
+                    refreshWidget(context)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 } finally {
@@ -151,11 +207,7 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
                         if (task != null) {
                             repo.toggleTask(task, completed)
                         }
-
-                        val appWidgetManager = AppWidgetManager.getInstance(context)
-                        val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, ObsidianTodoWidgetProvider::class.java))
-                        appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list_view)
-                        onUpdate(context, appWidgetManager, ids)
+                        refreshWidget(context)
                     } catch (e: Exception) {
                         e.printStackTrace()
                     } finally {
@@ -163,12 +215,48 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
                     }
                 }
             }
+        } else if (action == ACTION_PAUSE_TIMER) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val repo = ObsidianSyncRepository(context)
+                    repo.pauseTimer()
+                    refreshWidget(context)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    pendingResult.finish()
+                }
+            }
+        } else if (action == ACTION_RESUME_TIMER) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val repo = ObsidianSyncRepository(context)
+                    repo.resumeTimer()
+                    refreshWidget(context)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    pendingResult.finish()
+                }
+            }
+        } else if (action == ACTION_CANCEL_TIMER) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val repo = ObsidianSyncRepository(context)
+                    repo.cancelTimer()
+                    refreshWidget(context)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    pendingResult.finish()
+                }
+            }
         } else if (action == "android.appwidget.action.APPWIDGET_UPDATE") {
             // Trigger database update and refresh lists
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, ObsidianTodoWidgetProvider::class.java))
-            appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list_view)
-            onUpdate(context, appWidgetManager, ids)
+            refreshWidget(context)
         }
     }
 }
