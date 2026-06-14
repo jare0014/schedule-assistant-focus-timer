@@ -261,9 +261,7 @@ class ObsidianSyncRepository(private val context: Context) {
                 dateHeader = obj.optString("dateStr").ifEmpty { null }
                 
                 // Parse activeTimer directly if present in JSON mode status response
-                if (obj.has("activeTimer") || obj.has("isAlarming")) {
-                    parseAndSaveActiveTimerObj(obj)
-                }
+                parseAndSaveActiveTimerObj(obj)
                 
                 val possibleKeys = listOf("schedule", "tasks", "todos", "items", "data")
                 for (key in possibleKeys) {
@@ -575,9 +573,11 @@ class ObsidianSyncRepository(private val context: Context) {
                 clearActiveTimerPrefs()
             }
             prefs.isAlarming = obj.optBoolean("isAlarming", false)
+            com.example.widget.TimerService.checkAndSyncTimerService(context)
         } catch (e: Exception) {
             Log.e("SyncRepository", "Error parsing active timer: ${e.message}")
             clearActiveTimerPrefs()
+            com.example.widget.TimerService.checkAndSyncTimerService(context)
         }
     }
 
