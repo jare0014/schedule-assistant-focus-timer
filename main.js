@@ -2213,7 +2213,8 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                             endMin: t.endMin,
                             duration: t.duration,
                             description: t.description,
-                            subheading: t.subheading ? t.subheading.replace(/^###\s+/, '') : "Agenda"
+                            subheading: t.subheading ? t.subheading.replace(/^###\s+/, '') : "Agenda",
+                            project: t.project || null
                         }))
                     }));
                     return;
@@ -2410,14 +2411,14 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 if (req.method === 'POST' && pathname === '/api/task/postpone') {
                     const body = await readBody();
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    if (leaves.length > 0) {
-                        const view = leaves[0].view;
-                        const dailyFile = this.getDailyNoteFile();
-                        if (dailyFile) {
-                            const content = await this.app.vault.read(dailyFile);
-                            const tasks = this.parseAllTasks(content);
-                            const task = tasks.find(t => t.lineIndex === body.lineIndex);
-                            if (task) {
+                    const view = leaves.length > 0 ? leaves[0].view : null;
+                    const dailyFile = this.getDailyNoteFile();
+                    if (dailyFile) {
+                        const content = await this.app.vault.read(dailyFile);
+                        const tasks = this.parseAllTasks(content);
+                        const task = tasks.find(t => t.lineIndex === body.lineIndex);
+                        if (task) {
+                            if (view) {
                                 if (view.currentTimer && view.currentTimer.task.lineIndex === task.lineIndex) {
                                     view.clearTimer();
                                     view.currentTimer = null;
@@ -2426,44 +2427,58 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                                 if (view.isAlarming) {
                                     view.stopAlarm();
                                 }
-                                await this.postponeTask(task);
-                                view.renderSchedule();
-                                setCorsHeaders();
-                                res.writeHead(200, { 'Content-Type': 'application/json' });
-                                res.end(JSON.stringify({ success: true }));
-                                return;
                             }
+                            await this.postponeTask(task);
+                            if (view) {
+                                view.renderSchedule();
+                            }
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true }));
+                            return;
                         }
                     }
-                    throw new Error("Task not found or view not available.");
+                    setCorsHeaders();
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: "Task not found or daily note not available." }));
+                    return;
                 }
 
                 if (req.method === 'POST' && pathname === '/api/task/drop') {
                     const body = await readBody();
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    if (leaves.length > 0) {
-                        const view = leaves[0].view;
+                    const view = leaves.length > 0 ? leaves[0].view : null;
+                    if (view) {
                         await view.handleTaskDrop(body.draggedTask, body.targetSubheading);
                         view.renderSchedule();
-                        setCorsHeaders();
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: true }));
-                        return;
+                    } else {
+                        const mockView = {
+                            app: this.app,
+                            plugin: this,
+                            getDailyNoteFile: () => this.getDailyNoteFile(),
+                            postponeTask: (t) => this.postponeTask(t),
+                            removeTask: (t) => this.removeTask(t),
+                            renderSchedule: () => {}
+                        };
+                        await TaskTimerView.prototype.handleTaskDrop.call(mockView, body.draggedTask, body.targetSubheading);
                     }
-                    throw new Error("View not available.");
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true }));
+                    return;
                 }
 
                 if (req.method === 'POST' && pathname === '/api/task/nottoday') {
                     const body = await readBody();
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    if (leaves.length > 0) {
-                        const view = leaves[0].view;
-                        const dailyFile = this.getDailyNoteFile();
-                        if (dailyFile) {
-                            const content = await this.app.vault.read(dailyFile);
-                            const tasks = this.parseAllTasks(content);
-                            const task = tasks.find(t => t.lineIndex === body.lineIndex);
-                            if (task) {
+                    const view = leaves.length > 0 ? leaves[0].view : null;
+                    const dailyFile = this.getDailyNoteFile();
+                    if (dailyFile) {
+                        const content = await this.app.vault.read(dailyFile);
+                        const tasks = this.parseAllTasks(content);
+                        const task = tasks.find(t => t.lineIndex === body.lineIndex);
+                        if (task) {
+                            if (view) {
                                 if (view.currentTimer && view.currentTimer.task.lineIndex === task.lineIndex) {
                                     view.clearTimer();
                                     view.currentTimer = null;
@@ -2472,16 +2487,21 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                                 if (view.isAlarming) {
                                     view.stopAlarm();
                                 }
-                                await this.removeTask(task);
-                                view.renderSchedule();
-                                setCorsHeaders();
-                                res.writeHead(200, { 'Content-Type': 'application/json' });
-                                res.end(JSON.stringify({ success: true }));
-                                return;
                             }
+                            await this.removeTask(task);
+                            if (view) {
+                                view.renderSchedule();
+                            }
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true }));
+                            return;
                         }
                     }
-                    throw new Error("Task not found or view not available.");
+                    setCorsHeaders();
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: "Task not found or daily note not available." }));
+                    return;
                 }
 
                 setCorsHeaders();
