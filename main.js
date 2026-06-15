@@ -2416,13 +2416,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     if (dailyFile) {
                         const content = await this.app.vault.read(dailyFile);
                         const tasks = this.parseAllTasks(content);
-                        let task = tasks.find(t => t.lineIndex === body.lineIndex && body.description && t.description.toLowerCase().trim() === body.description.toLowerCase().trim());
-                        if (!task && body.description) {
-                            task = tasks.find(t => t.description.toLowerCase().trim() === body.description.toLowerCase().trim());
-                        }
-                        if (!task) {
-                            task = tasks.find(t => t.lineIndex === body.lineIndex);
-                        }
+                        const task = tasks.find(t => t.lineIndex === body.lineIndex);
                         if (task) {
                             if (view) {
                                 if (view.currentTimer && view.currentTimer.task.lineIndex === task.lineIndex) {
@@ -2482,13 +2476,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     if (dailyFile) {
                         const content = await this.app.vault.read(dailyFile);
                         const tasks = this.parseAllTasks(content);
-                        let task = tasks.find(t => t.lineIndex === body.lineIndex && body.description && t.description.toLowerCase().trim() === body.description.toLowerCase().trim());
-                        if (!task && body.description) {
-                            task = tasks.find(t => t.description.toLowerCase().trim() === body.description.toLowerCase().trim());
-                        }
-                        if (!task) {
-                            task = tasks.find(t => t.lineIndex === body.lineIndex);
-                        }
+                        const task = tasks.find(t => t.lineIndex === body.lineIndex);
                         if (task) {
                             if (view) {
                                 if (view.currentTimer && view.currentTimer.task.lineIndex === task.lineIndex) {
