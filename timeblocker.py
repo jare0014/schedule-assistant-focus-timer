@@ -689,6 +689,22 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         
     return '\n'.join(filtered_lines)
 
+def normalize_time_range_spaces(line):
+    if not line:
+        return line
+    regex = r"^((\s*-\s+\[[ xX/]\]\s+)?\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*)(.*)$"
+    match = re.match(regex, line, re.IGNORECASE)
+    if match:
+        time_prefix = match.group(1)
+        task_desc = match.group(3)
+        trimmed_prefix = time_prefix.strip()
+        trimmed_desc = task_desc.strip()
+        if trimmed_desc:
+            return f"{trimmed_prefix} {trimmed_desc}"
+        else:
+            return trimmed_prefix
+    return line
+
 def write_to_daily_note(note_path, new_schedule_items, headers):
     if not os.path.exists(note_path):
         print(f"Daily note not found at {note_path}.")
@@ -724,7 +740,7 @@ def write_to_daily_note(note_path, new_schedule_items, headers):
             end_idx = len(lines)
             
     # Combine headers (preserving taskloader and meditation links) and the schedule items
-    new_schedule_lines = headers + [item for item in new_schedule_items.strip().split('\n') if item.strip()]
+    new_schedule_lines = headers + [normalize_time_range_spaces(item) for item in new_schedule_items.strip().split('\n') if item.strip()]
     updated_lines = lines[:start_idx] + new_schedule_lines + lines[end_idx:]
     
     with open(note_path, 'w', encoding='utf-8') as f:

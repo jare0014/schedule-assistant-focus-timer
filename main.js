@@ -2,6 +2,24 @@ const obsidian = require('obsidian');
 
 const VIEW_TYPE_TASK_TIMER = 'task-timer-view';
 
+function normalizeTimeRangeSpaces(line) {
+    if (!line) return line;
+    const regex = /^((\s*-\s+\[[ xX/]\]\s+)?\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*)(.*)$/i;
+    const match = line.match(regex);
+    if (match) {
+        const timePrefix = match[1];
+        const taskDesc = match[3];
+        const trimmedPrefix = timePrefix.trim();
+        const trimmedDesc = taskDesc.trim();
+        if (trimmedDesc) {
+            return `${trimmedPrefix} ${trimmedDesc}`;
+        } else {
+            return trimmedPrefix;
+        }
+    }
+    return line;
+}
+
 class TaskTimerView extends obsidian.ItemView {
     constructor(leaf, plugin) {
         super(leaf);
@@ -429,6 +447,8 @@ class TaskTimerView extends obsidian.ItemView {
                 lineText = lineText.replace(/(-\s+\[(?: |x|X)\]\s+)(.*)/, `$1${newTimeRange} $2 \`BUTTON[timer-20]\``);
             }
 
+            lineText = normalizeTimeRangeSpaces(lineText);
+
             // Find where the target subheading is located
             let targetSubheadingIndex = lines.findIndex(l => l.trim().includes(targetSubheading));
             if (targetSubheadingIndex === -1) {
@@ -659,7 +679,7 @@ class TaskTimerView extends obsidian.ItemView {
                             const newDuration = Math.max(0, currentDuration + minutes);
                             newLine = newLine.replace(buttonRegex, `BUTTON[timer-${newDuration}]`);
                         }
-
+                        newLine = normalizeTimeRangeSpaces(newLine);
                         lines[lineIndex] = newLine;
                         await this.app.vault.modify(dailyFile, lines.join('\n'));
 
@@ -2031,7 +2051,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const originalLine = lines[task.lineIndex];
         const oldTimeRangeRegex = /\b\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\s*[\-–—~]\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\b/;
         const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
-        lines[task.lineIndex] = newLine;
+        lines[task.lineIndex] = normalizeTimeRangeSpaces(newLine);
 
         let inPlanner = false;
         let currentSubheading = "";
@@ -3263,7 +3283,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const originalLine = lines[currentTask.lineIndex];
         const oldTimeRangeRegex = /\b\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\s*[\-–—~]\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\b/;
         const newLine = originalLine.replace(oldTimeRangeRegex, newTimeRange);
-        lines[currentTask.lineIndex] = newLine;
+        lines[currentTask.lineIndex] = normalizeTimeRangeSpaces(newLine);
 
         // Re-sort within the subheading (e.g. Work, House, Admin)
         let inPlanner = false;
