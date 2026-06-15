@@ -1,0 +1,1520 @@
+package com.example
+
+import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.ObsidianSyncRepository
+import com.example.data.SyncPreferences
+import com.example.data.Task
+import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.ObsidianAccentGreen
+import com.example.ui.theme.ObsidianBg
+import com.example.ui.theme.ObsidianBorder
+import com.example.ui.theme.ObsidianPurple
+import com.example.ui.theme.ObsidianSurface
+import com.example.ui.theme.ObsidianTextDark
+import com.example.ui.theme.ObsidianTextMuted
+import com.example.ui.theme.ObsidianTextPrimary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.IntSize
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
+        com.example.widget.TimerService.checkAndSyncTimerService(this)
+
+        setContent {
+            MyApplicationTheme {
+                Scaffold(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("main_scaffold"),
+                    containerColor = ObsidianBg
+                ) { innerPadding ->
+                    ObsidianTodoScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = innerPadding
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ObsidianTodoScreen(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues()
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
+    val repository = remember { ObsidianSyncRepository(context) }
+    val prefs = remember { SyncPreferences(context) }
+    
+    // Live database flows
+    val tasks by repository.getAllTasksFlow().collectAsStateWithLifecycle(initialValue = emptyList())
+    
+    val dragDropState = remember { DragDropState() }
+    var focusBlocksRect by remember { mutableStateOf<Rect?>(null) }
+    var floatingTasksRect by remember { mutableStateOf<Rect?>(null) }
+    
+    // Configuration states initialized from Preferences
+    var serverIp by remember { mutableStateOf(prefs.serverIp) }
+    var serverPort by remember { mutableStateOf(prefs.serverPort) }
+    var syncMode by remember { mutableStateOf(prefs.syncMode) }
+    var pathOrEndpoint by remember { mutableStateOf(prefs.pathOrEndpoint) }
+    var apiToken by remember { mutableStateOf(prefs.apiToken) }
+    
+    // UI reactive states
+    var isSyncing by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var lastSyncDateHeader by remember { mutableStateOf(prefs.lastSyncDateHeader) }
+    var lastSyncTime by remember { mutableStateOf(prefs.lastSyncTime) }
+    var logsList by remember { mutableStateOf(prefs.getLogs()) }
+    
+    // Active Timer and Alarm states
+    var activeTimerTaskName by remember { mutableStateOf(prefs.activeTimerTaskName) }
+    var activeTimerRemainingSeconds by remember { mutableStateOf(prefs.activeTimerRemainingSeconds) }
+    var activeTimerTotalSeconds by remember { mutableStateOf(prefs.activeTimerTotalSeconds) }
+    var activeTimerIsPaused by remember { mutableStateOf(prefs.activeTimerIsPaused) }
+    var activeTimerLineIndex by remember { mutableStateOf(prefs.activeTimerLineIndex) }
+    var isAlarming by remember { mutableStateOf(prefs.isAlarming) }
+    
+    // Sub-category expand / collapse mapping (defaults to expanding all of them)
+    val expandedSubCategories = remember { mutableStateMapOf<String, Boolean>() }
+    
+    // Background ticking clock for local convenience
+    var currentTimeString by remember { mutableStateOf("") }
+    // Dynamic state listener to sync visual preferences immediately
+    val refreshPreferencesState = {
+        lastSyncDateHeader = prefs.lastSyncDateHeader
+        lastSyncTime = prefs.lastSyncTime
+        logsList = prefs.getLogs()
+        activeTimerTaskName = prefs.activeTimerTaskName
+        activeTimerRemainingSeconds = prefs.activeTimerRemainingSeconds
+        activeTimerTotalSeconds = prefs.activeTimerTotalSeconds
+        activeTimerIsPaused = prefs.activeTimerIsPaused
+        activeTimerLineIndex = prefs.activeTimerLineIndex
+        isAlarming = prefs.isAlarming
+    }
+    val makeDragModifier = @Composable { task: Task ->
+        var itemPositionInRoot by remember(task) { mutableStateOf(Offset.Zero) }
+        Modifier
+            .onGloballyPositioned { coordinates ->
+                itemPositionInRoot = coordinates.positionInRoot()
+            }
+            .pointerInput(task) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        dragDropState.draggedTask = task
+                        dragDropState.dragPosition = itemPositionInRoot + offset
+                        dragDropState.isDragging = true
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        dragDropState.dragPosition += dragAmount
+                    },
+                    onDragEnd = {
+                        val finalPos = dragDropState.dragPosition
+                        if (task.category == "FOCUS BLOCKS") {
+                            if (floatingTasksRect?.contains(finalPos) == true) {
+                                scope.launch(Dispatchers.IO) {
+                                    repository.dropTask(task, "### ☁️ Floating Micro-Tasks (Untimed)")
+                                    scope.launch(Dispatchers.Main) {
+                                        refreshPreferencesState()
+                                    }
+                                }
+                            }
+                        } else {
+                            if (focusBlocksRect?.contains(finalPos) == true) {
+                                scope.launch(Dispatchers.IO) {
+                                    repository.dropTask(task, "### ⏱️ Focus Blocks")
+                                    scope.launch(Dispatchers.Main) {
+                                        refreshPreferencesState()
+                                    }
+                                }
+                            }
+                        }
+                        dragDropState.draggedTask = null
+                        dragDropState.isDragging = false
+                    },
+                    onDragCancel = {
+                        dragDropState.draggedTask = null
+                        dragDropState.isDragging = false
+                    }
+                )
+            }
+    }
+    
+
+
+    LaunchedEffect(Unit) {
+        var pollCounter = 0
+        while (true) {
+            currentTimeString = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            
+            // Local countdown tick
+            if (activeTimerRemainingSeconds > 0 && !activeTimerIsPaused) {
+                activeTimerRemainingSeconds--
+                prefs.activeTimerRemainingSeconds = activeTimerRemainingSeconds
+            }
+            
+            pollCounter++
+            if (pollCounter >= 2) { // Poll status every 2 seconds
+                pollCounter = 0
+                scope.launch(Dispatchers.IO) {
+                    repository.syncActiveTimer()
+                    scope.launch(Dispatchers.Main) {
+                        refreshPreferencesState()
+                    }
+                }
+            }
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+
+    // Alarm Alert Dialog Overlay
+    if (isAlarming) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, contentDescription = null, tint = ObsidianPurple)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Focus Block Finished!", color = ObsidianTextPrimary, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column {
+                    Text("What would you like to do with:", color = ObsidianTextMuted, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(activeTimerTaskName, color = ObsidianTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = ObsidianSurface,
+            confirmButton = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Postpone
+                    TextButton(
+                        onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                val line = activeTimerLineIndex
+                                if (line > 0) {
+                                    val dummyTask = Task(id = "", text = activeTimerTaskName, isCompleted = false, lineNumber = line)
+                                    repository.postponeTask(dummyTask)
+                                }
+                                repository.cancelTimer() // dismiss alarm
+                                repository.syncTasks()
+                                scope.launch(Dispatchers.Main) {
+                                    refreshPreferencesState()
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Postpone", color = ObsidianPurple)
+                    }
+                    
+                    // Complete
+                    Button(
+                        onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                repository.completeTimer()
+                                scope.launch(Dispatchers.Main) {
+                                    refreshPreferencesState()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ObsidianPurple)
+                    ) {
+                        Text("Complete", color = ObsidianBg, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch(Dispatchers.IO) {
+                            repository.cancelTimer() // dismiss alarm
+                            scope.launch(Dispatchers.Main) {
+                                refreshPreferencesState()
+                            }
+                        }
+                    }
+                ) {
+                    Text("Dismiss", color = ObsidianTextMuted)
+                }
+            }
+        )
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(ObsidianBg)
+                .padding(contentPadding)
+                .padding(16.dp)
+        ) {
+        // App header containing: Date Indicator, Manual Sync, Settings Switcher
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = lastSyncDateHeader,
+                    color = ObsidianTextPrimary,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.SansSerif,
+                    modifier = Modifier.testTag("app_date_title")
+                )
+                Text(
+                    text = if (lastSyncTime > 0) {
+                        val formattedTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(lastSyncTime))
+                        "Last sync: $formattedTime"
+                    } else "Never Synced",
+                    color = ObsidianTextMuted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Settings Toggle
+                IconButton(
+                    onClick = { showSettings = !showSettings },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (showSettings) ObsidianPurple.copy(alpha = 0.2f) else ObsidianSurface)
+                        .border(1.dp, ObsidianBorder, RoundedCornerShape(8.dp))
+                        .size(40.dp)
+                        .testTag("settings_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Sync Config Settings",
+                        tint = if (showSettings) ObsidianPurple else ObsidianTextPrimary
+                    )
+                }
+
+                // Sync Trigger Button
+                Button(
+                    onClick = {
+                        isSyncing = true
+                        prefs.addLog("Triggered manual sync...")
+                        scope.launch(Dispatchers.IO) {
+                            val success = repository.syncTasks()
+                            scope.launch(Dispatchers.Main) {
+                                isSyncing = false
+                                refreshPreferencesState()
+                                if (success) {
+                                    Toast.makeText(context, "Obsidian Sync Complete!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Sync Failed. Check IP and Port in Config.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ObsidianSurface,
+                        contentColor = ObsidianPurple
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, ObsidianBorder),
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    modifier = Modifier
+                        .height(40.dp)
+                        .testTag("sync_trigger_button")
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            color = ObsidianPurple,
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Sync",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Sync",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Generate Schedule Button
+                var isGenerating by remember { mutableStateOf(false) }
+                Button(
+                    onClick = {
+                        isGenerating = true
+                        prefs.addLog("Requesting schedule generation...")
+                        scope.launch(Dispatchers.IO) {
+                            val success = repository.generateSchedule()
+                            if (success) {
+                                // Pause briefly for the background generation to complete, then auto sync
+                                kotlinx.coroutines.delay(2000)
+                                repository.syncTasks()
+                            }
+                            scope.launch(Dispatchers.Main) {
+                                isGenerating = false
+                                refreshPreferencesState()
+                                if (success) {
+                                    Toast.makeText(context, "Schedule Generated!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Generation Failed. Check PC Server.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ObsidianSurface,
+                        contentColor = ObsidianAccentGreen
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, ObsidianBorder),
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    modifier = Modifier
+                        .height(40.dp)
+                        .testTag("generate_trigger_button")
+                ) {
+                    if (isGenerating) {
+                        CircularProgressIndicator(
+                            color = ObsidianAccentGreen,
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Generate",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Generate",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Animated Expanding Config Form Accordion
+        AnimatedVisibility(visible = showSettings) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .border(1.dp, ObsidianBorder, RoundedCornerShape(12.dp))
+                    .testTag("settings_panel"),
+                colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "Obsidian Server Configuration",
+                        color = ObsidianPurple,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    // IP Field
+                    OutlinedTextField(
+                        value = serverIp,
+                        onValueChange = {
+                            serverIp = it
+                            prefs.serverIp = it
+                        },
+                        label = { Text("Server PC IP (e.g. 10.0.0.75)", color = ObsidianTextMuted) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .testTag("input_server_ip"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ObsidianTextPrimary,
+                            unfocusedTextColor = ObsidianTextPrimary,
+                            focusedBorderColor = ObsidianPurple,
+                            unfocusedBorderColor = ObsidianBorder
+                        ),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                    )
+
+                    // Port Field
+                    OutlinedTextField(
+                        value = serverPort,
+                        onValueChange = {
+                            serverPort = it
+                            prefs.serverPort = it
+                        },
+                        label = { Text("Server Port (default 8089)", color = ObsidianTextMuted) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .testTag("input_server_port"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ObsidianTextPrimary,
+                            unfocusedTextColor = ObsidianTextPrimary,
+                            focusedBorderColor = ObsidianPurple,
+                            unfocusedBorderColor = ObsidianBorder
+                        ),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    // File Path / Endpoint
+                    OutlinedTextField(
+                        value = pathOrEndpoint,
+                        onValueChange = {
+                            pathOrEndpoint = it
+                            prefs.pathOrEndpoint = it
+                        },
+                        label = { Text("Markdown File Path (or REST API path)", color = ObsidianTextMuted) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .testTag("input_note_path"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ObsidianTextPrimary,
+                            unfocusedTextColor = ObsidianTextPrimary,
+                            focusedBorderColor = ObsidianPurple,
+                            unfocusedBorderColor = ObsidianBorder
+                        ),
+                        singleLine = true
+                    )
+
+                    // API Token (Optional)
+                    OutlinedTextField(
+                        value = apiToken,
+                        onValueChange = {
+                            apiToken = it
+                            prefs.apiToken = it
+                        },
+                        label = { Text("Authorization API Token (Optional)", color = ObsidianTextMuted) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ObsidianTextPrimary,
+                            unfocusedTextColor = ObsidianTextPrimary,
+                            focusedBorderColor = ObsidianPurple,
+                            unfocusedBorderColor = ObsidianBorder
+                        ),
+                        singleLine = true
+                    )
+
+                    // Format mode selector: Markdown vs JSON
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Format Mode: ", color = ObsidianTextPrimary, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .clickable {
+                                    syncMode = "MARKDOWN"
+                                    prefs.syncMode = "MARKDOWN"
+                                }
+                                .padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = (syncMode == "MARKDOWN"),
+                                onClick = {
+                                    syncMode = "MARKDOWN"
+                                    prefs.syncMode = "MARKDOWN"
+                                },
+                                colors = RadioButtonDefaults.colors(selectedColor = ObsidianPurple)
+                            )
+                            Text("Markdown", color = ObsidianTextPrimary, fontSize = 12.sp)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Row(
+                            modifier = Modifier
+                                .clickable {
+                                    syncMode = "JSON"
+                                    prefs.syncMode = "JSON"
+                                }
+                                .padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = (syncMode == "JSON"),
+                                onClick = {
+                                    syncMode = "JSON"
+                                    prefs.syncMode = "JSON"
+                                },
+                                colors = RadioButtonDefaults.colors(selectedColor = ObsidianPurple)
+                            )
+                            Text("JSON API", color = ObsidianTextPrimary, fontSize = 12.sp)
+                        }
+                    }
+
+                    // Connection troubleshooting hint
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Hint: Ensure your computer is running Obsidian-Local-REST-API or a simple Markdown host (on HTTP port 8089) and that both your PC and phone are on the same local Wi-Fi network. You can use dynamic date placeholders like {YYYY-MM-DD} or {date} in the file path to automatically target the current day's daily journal note.",
+                        color = ObsidianAccentGreen,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.SansSerif,
+                        lineHeight = 15.sp
+                    )
+                }
+            }
+        }
+
+        // Active Timer Card UI
+        AnimatedVisibility(visible = activeTimerTaskName.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .border(1.dp, ObsidianBorder, RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    ObsidianSurface,
+                                    ObsidianPurple.copy(alpha = 0.15f)
+                                )
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Active Timer Icon",
+                                tint = ObsidianPurple,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "ACTIVE FOCUS SESSION",
+                                color = ObsidianPurple,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        
+                        // Remaining formatted time
+                        Text(
+                            text = String.format(
+                                "%02d:%02d",
+                                activeTimerRemainingSeconds / 60,
+                                activeTimerRemainingSeconds % 60
+                            ),
+                            color = ObsidianTextPrimary,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Task Description
+                    Text(
+                        text = activeTimerTaskName,
+                        color = ObsidianTextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // Progress bar
+                    val elapsedFraction = if (activeTimerTotalSeconds > 0) {
+                        (activeTimerTotalSeconds - activeTimerRemainingSeconds).toFloat() / activeTimerTotalSeconds
+                    } else 0f
+                    
+                    LinearProgressIndicator(
+                        progress = { elapsedFraction },
+                        color = ObsidianPurple,
+                        trackColor = ObsidianBorder,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Controls Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Cancel Session
+                        Button(
+                            onClick = {
+                                scope.launch(Dispatchers.IO) {
+                                    repository.cancelTimer()
+                                    scope.launch(Dispatchers.Main) {
+                                        refreshPreferencesState()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF3F3F46),
+                                contentColor = ObsidianTextPrimary
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Pause / Resume
+                            Button(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        if (activeTimerIsPaused) {
+                                            repository.resumeTimer()
+                                        } else {
+                                            repository.pauseTimer()
+                                        }
+                                        scope.launch(Dispatchers.Main) {
+                                            refreshPreferencesState()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ObsidianSurface,
+                                    contentColor = if (activeTimerIsPaused) ObsidianAccentGreen else ObsidianTextPrimary
+                                ),
+                                border = BorderStroke(1.dp, ObsidianBorder),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Text(
+                                    text = if (activeTimerIsPaused) "Resume" else "Pause",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            // Complete
+                            Button(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        repository.completeTimer()
+                                        scope.launch(Dispatchers.Main) {
+                                            refreshPreferencesState()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ObsidianPurple,
+                                    contentColor = ObsidianBg
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Text("Complete", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Divider
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(ObsidianBorder)
+                .padding(bottom = 12.dp)
+        )
+
+        // Split lists by Focus Blocks and Untimed general tasks
+        val focusBlocks = remember(tasks) { tasks.filter { it.category == "FOCUS BLOCKS" } }
+        val floatingTasks = remember(tasks) { tasks.filter { it.category != "FOCUS BLOCKS" } }
+
+        if (tasks.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Sync pending",
+                        tint = ObsidianBorder,
+                        modifier = Modifier.size(52.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "No checklist items found",
+                        color = ObsidianTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Connect to http://$serverIp:$serverPort$pathOrEndpoint\nand tap Sync at the top.",
+                        color = ObsidianTextMuted,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            val isDraggingTimed = dragDropState.isDragging && dragDropState.draggedTask?.category == "FOCUS BLOCKS"
+            val isDraggingUntimed = dragDropState.isDragging && dragDropState.draggedTask?.category != "FOCUS BLOCKS"
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .testTag("task_list_view"),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Focus Blocks Header
+                if (focusBlocks.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned { coordinates ->
+                                    focusBlocksRect = coordinates.boundsInRoot()
+                                }
+                                .then(
+                                    if (isDraggingUntimed) {
+                                        Modifier
+                                            .border(2.dp, ObsidianPurple.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                            .background(ObsidianPurple.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                                            .padding(8.dp)
+                                    } else Modifier
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Focus",
+                                    tint = ObsidianPurple,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "FOCUS BLOCKS",
+                                    color = ObsidianPurple,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontFamily = FontFamily.SansSerif,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            
+                            focusBlocks.forEach { task ->
+                                FocusBlockItemCard(
+                                    task = task,
+                                    isActiveTimer = (activeTimerLineIndex == task.lineNumber),
+                                    modifier = makeDragModifier(task),
+                                    onToggle = { isChecked ->
+                                        scope.launch(Dispatchers.IO) {
+                                            repository.toggleTask(task, isChecked)
+                                            scope.launch(Dispatchers.Main) {
+                                                refreshPreferencesState()
+                                            }
+                                        }
+                                    },
+                                    onPlayClick = {
+                                        scope.launch(Dispatchers.IO) {
+                                            if (activeTimerLineIndex == task.lineNumber) {
+                                                repository.cancelTimer()
+                                            } else {
+                                                repository.startTimer(task)
+                                            }
+                                            scope.launch(Dispatchers.Main) {
+                                                refreshPreferencesState()
+                                            }
+                                        }
+                                    },
+                                    onPostponeClick = {
+                                        scope.launch(Dispatchers.IO) {
+                                            repository.postponeTask(task)
+                                            scope.launch(Dispatchers.Main) {
+                                                refreshPreferencesState()
+                                            }
+                                        }
+                                    },
+                                    onMoveClick = {
+                                        scope.launch(Dispatchers.IO) {
+                                            repository.dropTask(task, "### ☁️ Floating Micro-Tasks (Untimed)")
+                                            scope.launch(Dispatchers.Main) {
+                                                refreshPreferencesState()
+                                            }
+                                        }
+                                    },
+                                    onSkipClick = {
+                                        scope.launch(Dispatchers.IO) {
+                                            repository.skipTask(task)
+                                            scope.launch(Dispatchers.Main) {
+                                                refreshPreferencesState()
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Floating Micro-Tasks section
+                if (floatingTasks.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned { coordinates ->
+                                    floatingTasksRect = coordinates.boundsInRoot()
+                                }
+                                .then(
+                                    if (isDraggingTimed) {
+                                        Modifier
+                                            .border(2.dp, ObsidianPurple.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                            .background(ObsidianPurple.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                                            .padding(8.dp)
+                                    } else Modifier
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Floating",
+                                    tint = ObsidianPurple,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "FLOATING MICRO-TASKS (UNTIMED)",
+                                    color = ObsidianPurple,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontFamily = FontFamily.SansSerif,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+
+                            // Group floating tasks by sub-categories (like "Admin", "Work", or "Untimed")
+                            val grouped = floatingTasks.groupBy { it.subCategory ?: "General tasks" }
+
+                            grouped.forEach { (subCat, itemsList) ->
+                                val isExpanded = expandedSubCategories[subCat] ?: true
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(ObsidianSurface)
+                                        .border(1.dp, ObsidianBorder, RoundedCornerShape(8.dp))
+                                ) {
+                                    // Accordion collapsible header item
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { expandedSubCategories[subCat] = !isExpanded }
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            val angle by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f)
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDropDown,
+                                                contentDescription = "Expand Category dropdown",
+                                                tint = ObsidianPurple,
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .rotate(angle)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = subCat,
+                                                color = ObsidianTextPrimary,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        // Count display indicator
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(ObsidianBorder)
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "${itemsList.filter { !it.isCompleted }.size}/${itemsList.size}",
+                                                color = ObsidianTextMuted,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+
+                                    AnimatedVisibility(visible = isExpanded) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            val projectGroups = itemsList.groupBy { it.project ?: "General Tasks" }
+
+                                            projectGroups.forEach { (project, projectTasks) ->
+                                                Column(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = project.uppercase(),
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = ObsidianPurple,
+                                                        letterSpacing = 0.5.sp,
+                                                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                                    )
+
+                                                    projectTasks.forEach { task ->
+                                                        FloatingTaskItemRow(
+                                                            task = task,
+                                                            modifier = makeDragModifier(task),
+                                                            onToggle = { isChecked ->
+                                                                scope.launch(Dispatchers.IO) {
+                                                                    repository.toggleTask(task, isChecked)
+                                                                    scope.launch(Dispatchers.Main) {
+                                                                        refreshPreferencesState()
+                                                                    }
+                                                                }
+                                                            },
+                                                            onPlayClick = {
+                                                                scope.launch(Dispatchers.IO) {
+                                                                    repository.startTimer(task, 15)
+                                                                    scope.launch(Dispatchers.Main) {
+                                                                        refreshPreferencesState()
+                                                                    }
+                                                                }
+                                                            },
+                                                            onMoveClick = {
+                                                                scope.launch(Dispatchers.IO) {
+                                                                    repository.dropTask(task, "### ⏱️ Focus Blocks")
+                                                                    scope.launch(Dispatchers.Main) {
+                                                                        refreshPreferencesState()
+                                                                    }
+                                                                }
+                                                            },
+                                                            onSkipClick = {
+                                                                scope.launch(Dispatchers.IO) {
+                                                                    repository.skipTask(task)
+                                                                    scope.launch(Dispatchers.Main) {
+                                                                        refreshPreferencesState()
+                                                                    }
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Live Debug Logs Window (Accordion)
+        var showLogs by remember { mutableStateOf(false) }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+                .border(1.dp, ObsidianBorder, RoundedCornerShape(8.dp)),
+            colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showLogs = !showLogs }
+                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Logs Info Icon",
+                            tint = ObsidianTextMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Connection Log & Troubleshooter",
+                            color = ObsidianTextPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Icon(
+                        imageVector = if (showLogs) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Toggle logs",
+                        tint = ObsidianTextMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                AnimatedVisibility(visible = showLogs) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Realtime Sync Stack (Newest first):", color = ObsidianPurple, fontSize = 10.sp)
+                            Text(
+                                "Clear", 
+                                color = ObsidianTextMuted, 
+                                fontSize = 10.sp,
+                                modifier = Modifier
+                                    .clickable {
+                                        prefs.clearLogs()
+                                        refreshPreferencesState()
+                                    }
+                                    .padding(horizontal = 4.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1.0f)
+                                .background(Color.Black.copy(alpha = 0.3f))
+                                .padding(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            items(logsList) { log ->
+                                Text(
+                                    text = log,
+                                    color = if (log.contains("Error") || log.contains("failed") || log.contains("Failed")) Color(0xFFEF4444) else if (log.contains("Parsed") || log.contains("Success")) ObsidianAccentGreen else ObsidianTextPrimary,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Drag ghost overlay
+        if (dragDropState.isDragging && dragDropState.draggedTask != null) {
+            val draggingTask = dragDropState.draggedTask!!
+            Box(
+                modifier = Modifier
+                    .offset {
+                        val xOffset = 150.dp.roundToPx()
+                        val yOffset = 40.dp.roundToPx()
+                        IntOffset(
+                            (dragDropState.dragPosition.x.toInt() - xOffset),
+                            (dragDropState.dragPosition.y.toInt() - yOffset)
+                        )
+                    }
+                    .shadow(12.dp, RoundedCornerShape(12.dp))
+                    .alpha(0.85f)
+                    .width(300.dp)
+                    .background(ObsidianSurface, RoundedCornerShape(12.dp))
+                    .border(1.dp, ObsidianBorder, RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Column {
+                    Text(
+                        text = draggingTask.displayTitle,
+                        color = ObsidianTextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (draggingTask.timeRange != null) {
+                        Text(
+                            text = draggingTask.timeRange,
+                            color = ObsidianPurple,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+}
+
+@Composable
+fun FocusBlockItemCard(
+    task: Task,
+    isActiveTimer: Boolean,
+    modifier: Modifier = Modifier,
+    onToggle: (Boolean) -> Unit,
+    onPlayClick: () -> Unit,
+    onPostponeClick: () -> Unit,
+    onMoveClick: () -> Unit,
+    onSkipClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, ObsidianBorder, RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                // Time Range
+                Text(
+                    text = task.timeRange ?: "18:00 - 18:30",
+                    color = ObsidianPurple,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                // Title
+                Text(
+                    text = task.displayTitle,
+                    color = if (task.isCompleted) ObsidianTextMuted else ObsidianTextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                )
+            }
+
+            // Right Actions Block (matches Obsidian web dashboard layout exactly)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Checkbox
+                Checkbox(
+                    checked = task.isCompleted,
+                    onCheckedChange = { onToggle(it) },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = ObsidianPurple,
+                        uncheckedColor = ObsidianTextMuted,
+                        checkmarkColor = ObsidianBg
+                    ),
+                    modifier = Modifier.size(24.dp)
+                )
+
+                // Circle 1: Play/Cancel Timer
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(ObsidianBg)
+                        .border(1.dp, ObsidianBorder, CircleShape)
+                        .clickable { onPlayClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isActiveTimer) Icons.Default.Close else Icons.Default.PlayArrow,
+                        contentDescription = if (isActiveTimer) "Cancel Timer Button" else "Start Timer Button",
+                        tint = if (isActiveTimer) ObsidianPurple else ObsidianTextDark,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+
+                // Circle 2: Postpone
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(ObsidianBg)
+                        .border(1.dp, ObsidianBorder, CircleShape)
+                        .clickable { onPostponeClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Postpone Task Button",
+                        tint = ObsidianTextDark,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+
+                // Circle 3: Move to Floating
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(ObsidianBg)
+                        .border(1.dp, ObsidianBorder, CircleShape)
+                        .clickable { onMoveClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Move to Floating Tasks",
+                        tint = ObsidianTextDark,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+
+                // Circle 4: Not Today (Skip)
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(ObsidianBg)
+                        .border(1.dp, ObsidianBorder, CircleShape)
+                        .clickable { onSkipClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Skip Task Button",
+                        tint = ObsidianTextDark,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FloatingTaskItemRow(
+    task: Task,
+    modifier: Modifier = Modifier,
+    onToggle: (Boolean) -> Unit,
+    onPlayClick: () -> Unit,
+    onMoveClick: () -> Unit,
+    onSkipClick: () -> Unit
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = task.isCompleted,
+                onCheckedChange = { onToggle(it) },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = ObsidianPurple,
+                    uncheckedColor = ObsidianTextMuted,
+                    checkmarkColor = ObsidianBg
+                ),
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = task.text,
+                color = if (task.isCompleted) ObsidianTextMuted else ObsidianTextPrimary,
+                fontSize = 13.sp,
+                textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+            )
+        }
+
+        if (!task.isCompleted) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Circle 1: Play/Start (Quick start default 15m session)
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(ObsidianBg)
+                        .border(1.dp, ObsidianBorder, CircleShape)
+                        .clickable { onPlayClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Quick Start Timer",
+                        tint = ObsidianTextDark,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+
+                // Circle 2: Move to Timed (Focus Blocks)
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(ObsidianBg)
+                        .border(1.dp, ObsidianBorder, CircleShape)
+                        .clickable { onMoveClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Move to Focus Blocks",
+                        tint = ObsidianTextDark,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+
+                // Circle 3: Skip / Not Today
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(ObsidianBg)
+                        .border(1.dp, ObsidianBorder, CircleShape)
+                        .clickable { onSkipClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Skip Task",
+                        tint = ObsidianTextDark,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+class DragDropState {
+    var draggedTask by mutableStateOf<Task?>(null)
+    var dragPosition by mutableStateOf(Offset.Zero)
+    var isDragging by mutableStateOf(false)
+}
+
