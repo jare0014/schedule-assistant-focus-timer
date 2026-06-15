@@ -26,7 +26,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:text="Obsidian Tasks"
+            android:text="Focus Timer"
             android:textColor="#E4E4E7"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -38,106 +38,71 @@
             android:padding="6dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_refresh"
-            android:contentDescription="Refresh tasks" />
+            android:contentDescription="Refresh status" />
     </LinearLayout>
 
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#2E2E33"
-        android:layout_marginBottom="8dp" />
-
-    <!-- Active Timer Card (Hidden by default) -->
+    <!-- Active Timer Card (Always visible now) -->
     <LinearLayout
         android:id="@+id/widget_timer_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:orientation="vertical"
         android:background="@drawable/widget_timer_background"
-        android:padding="8dp"
-        android:layout_marginBottom="8dp"
-        android:visibility="gone">
+        android:padding="12dp"
+        android:gravity="center">
+
+        <TextView
+            android:id="@+id/widget_timer_task_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No task selected"
+            android:textColor="#E4E4E7"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/widget_timer_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="--:--"
+            android:textColor="#A882DD"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="8dp" />
 
         <LinearLayout
+            android:id="@+id/widget_timer_controls"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/widget_timer_task_name"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Active Timer Task"
-                android:textColor="#E4E4E7"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end" />
-
-            <TextView
-                android:id="@+id/widget_timer_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="25:00"
-                android:textColor="#A882DD"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginStart="8dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="end"
-            android:layout_marginTop="4dp">
+            android:gravity="center"
+            android:layout_marginTop="8dp">
 
             <ImageView
                 android:id="@+id/widget_timer_pause_btn"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:padding="6dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_pause"
                 android:contentDescription="Pause/Resume timer" />
 
             <ImageView
                 android:id="@+id/widget_timer_cancel_btn"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:padding="6dp"
-                android:layout_marginStart="8dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="8dp"
+                android:layout_marginStart="16dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_cancel"
                 android:contentDescription="Cancel timer" />
         </LinearLayout>
     </LinearLayout>
-
-    <!-- Content Area -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
-
-        <ListView
-            android:id="@+id/widget_list_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:divider="#2E2E33"
-            android:dividerHeight="1dp" />
-
-        <TextView
-            android:id="@+id/widget_empty_text"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="No checklists found\nor offline."
-            android:textColor="#71717A"
-            android:textSize="12sp"
-            android:visibility="gone" />
-    </FrameLayout>
 
     <!-- Footer Timestamp -->
     <TextView

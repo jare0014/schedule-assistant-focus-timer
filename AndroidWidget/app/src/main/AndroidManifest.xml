@@ -57,6 +57,18 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Focus Pomodoro timer countdown and alarm notification service." />
         </service>
+
+        <!-- Wear OS Sync Service -->
+        <service
+            android:name=".widget.PhoneWearSyncService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/pause" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/resume" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/cancel" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

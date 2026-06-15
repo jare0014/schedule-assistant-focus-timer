@@ -42,7 +42,7 @@ class ObsidianWidgetFactory(private val context: Context) : RemoteViewsService.R
         val views = RemoteViews(context.packageName, R.layout.widget_todo_item)
 
         val itemDisplayText = if (task.timeRange != null) {
-            "${task.timeRange} - ${task.displayTitle}"
+            "${task.timeRange} ${task.displayTitle}"
         } else {
             task.text
         }

@@ -83,6 +83,7 @@ class TimerService : Service() {
                 createNotificationChannel()
                 startForeground(NOTIFICATION_ID, buildNotification())
                 startCountdown()
+                syncTimerStateToWatch()
             }
             "STOP" -> {
                 stopTimerState()
@@ -90,10 +91,20 @@ class TimerService : Service() {
             "PAUSE" -> {
                 prefs.activeTimerIsPaused = true
                 updateNotificationAndWidget()
+                syncTimerStateToWatch()
+                serviceScope.launch(Dispatchers.IO) {
+                    val repo = ObsidianSyncRepository(applicationContext)
+                    repo.pauseTimer()
+                }
             }
             "RESUME" -> {
                 prefs.activeTimerIsPaused = false
                 updateNotificationAndWidget()
+                syncTimerStateToWatch()
+                serviceScope.launch(Dispatchers.IO) {
+                    val repo = ObsidianSyncRepository(applicationContext)
+                    repo.resumeTimer()
+                }
             }
             "CANCEL" -> {
                 serviceScope.launch(Dispatchers.IO) {
@@ -124,12 +135,11 @@ class TimerService : Service() {
                         remaining--
                         prefs.activeTimerRemainingSeconds = remaining
                         
-                        // Update widget every minute, or when remaining seconds is 0
-                        if (remaining % 60 == 0 || remaining == 0) {
-                            updateWidget(applicationContext)
-                        }
+                        // Update widget every second (screen interactivity checked inside updateWidget)
+                        updateWidget(applicationContext)
                         
                         updateNotificationOnly()
+                        syncTimerStateToWatch()
                     } else {
                         // Timer expired! Trigger Alarm!
                         triggerAlarm()
@@ -142,6 +152,7 @@ class TimerService : Service() {
     private fun triggerAlarm() {
         prefs.isAlarming = true
         updateNotificationAndWidget()
+        syncTimerStateToWatch()
         
         // Start playing alarm ringtone
         try {
@@ -198,13 +209,14 @@ class TimerService : Service() {
         stopForeground(true)
         stopSelf()
         
-        updateWidget(applicationContext)
+        updateWidget(applicationContext, force = true)
+        syncTimerStateToWatch()
     }
 
     private fun updateNotificationAndWidget() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, buildNotification())
-        updateWidget(applicationContext)
+        updateWidget(applicationContext, force = true)
     }
 
     private fun updateNotificationOnly() {
@@ -212,10 +224,15 @@ class TimerService : Service() {
         manager.notify(NOTIFICATION_ID, buildNotification())
     }
 
-    private fun updateWidget(context: Context) {
+    private fun updateWidget(context: Context, force: Boolean = false) {
+        if (!force) {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            if (!pm.isInteractive) {
+                return
+            }
+        }
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, ObsidianTodoWidgetProvider::class.java))
-        appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list_view)
         val provider = ObsidianTodoWidgetProvider()
         provider.onUpdate(context, appWidgetManager, ids)
     }
@@ -318,5 +335,35 @@ class TimerService : Service() {
             stopTimerState()
         }
         super.onDestroy()
+    }
+
+    private fun syncTimerStateToWatch() {
+        try {
+            val taskName = prefs.activeTimerTaskName
+            val remaining = prefs.activeTimerRemainingSeconds
+            val total = prefs.activeTimerTotalSeconds
+            val isPaused = prefs.activeTimerIsPaused
+            val alarming = prefs.isAlarming
+
+            val request = com.google.android.gms.wearable.PutDataMapRequest.create("/timer_state").apply {
+                dataMap.putString("taskName", taskName)
+                dataMap.putInt("remainingSeconds", remaining)
+                dataMap.putInt("totalSeconds", total)
+                dataMap.putBoolean("isPaused", isPaused)
+                dataMap.putBoolean("isAlarming", alarming)
+                dataMap.putLong("timestamp", System.currentTimeMillis())
+            }.asPutDataRequest().setUrgent()
+
+            com.google.android.gms.wearable.Wearable.getDataClient(applicationContext)
+                .putDataItem(request)
+                .addOnSuccessListener {
+                    Log.d("TimerService", "Timer state successfully synced to watch")
+                }
+                .addOnFailureListener { e ->
+                    Log.e("TimerService", "Failed to sync timer state to watch: ${e.message}")
+                }
+        } catch (e: Exception) {
+            Log.e("TimerService", "Error syncing timer state to watch: ${e.message}")
+        }
     }
 }

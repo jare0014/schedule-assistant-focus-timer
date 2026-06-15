@@ -574,10 +574,12 @@ class ObsidianSyncRepository(private val context: Context) {
             }
             prefs.isAlarming = obj.optBoolean("isAlarming", false)
             com.example.widget.TimerService.checkAndSyncTimerService(context)
+            triggerWidgetUpdate()
         } catch (e: Exception) {
             Log.e("SyncRepository", "Error parsing active timer: ${e.message}")
             clearActiveTimerPrefs()
             com.example.widget.TimerService.checkAndSyncTimerService(context)
+            triggerWidgetUpdate()
         }
     }
 

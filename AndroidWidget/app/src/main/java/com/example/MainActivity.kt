@@ -823,11 +823,11 @@ fun ObsidianTodoScreen(
                 .padding(bottom = 12.dp)
         )
 
-        // Split lists by Focus Blocks and Untimed general tasks
-        val focusBlocks = remember(tasks) { tasks.filter { it.category == "FOCUS BLOCKS" } }
-        val floatingTasks = remember(tasks) { tasks.filter { it.category != "FOCUS BLOCKS" } }
+        // Split lists by Focus Blocks and Untimed general tasks (filtering out completed tasks)
+        val focusBlocks = remember(tasks) { tasks.filter { it.category == "FOCUS BLOCKS" && !it.isCompleted } }
+        val floatingTasks = remember(tasks) { tasks.filter { it.category != "FOCUS BLOCKS" && !it.isCompleted } }
 
-        if (tasks.isEmpty()) {
+        if (focusBlocks.isEmpty() && floatingTasks.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
