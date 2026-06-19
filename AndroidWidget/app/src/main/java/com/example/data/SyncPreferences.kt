@@ -12,7 +12,7 @@ class SyncPreferences(private val context: Context) {
         set(value) = prefs.edit().putString("server_ip", value).apply()
 
     var serverPort: String
-        get() = prefs.getString("server_port", "8089") ?: "8089"
+        get() = prefs.getString("server_port", "8090") ?: "8090"
         set(value) = prefs.edit().putString("server_port", value).apply()
 
     var syncMode: String

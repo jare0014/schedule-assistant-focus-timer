@@ -12,6 +12,10 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
@@ -38,6 +42,9 @@ class TimerService : Service() {
 
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
+
+    private var connectivityManager: ConnectivityManager? = null
+    private var wifiCallback: ConnectivityManager.NetworkCallback? = null
 
     companion object {
         private const val CHANNEL_ID = "focus_timer_channel"
@@ -72,6 +79,31 @@ class TimerService : Service() {
             @Suppress("DEPRECATION")
             getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
+
+        // Register Wi-Fi callback to auto-cancel timer on disconnection
+        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        registerWifiCallback()
+    }
+
+    private fun registerWifiCallback() {
+        try {
+            val networkRequest = NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build()
+
+            wifiCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onLost(network: Network) {
+                    super.onLost(network)
+                    Log.d("TimerService", "Wi-Fi connection lost. Stopping active timer.")
+                    serviceScope.launch(Dispatchers.Main) {
+                        stopTimerState()
+                    }
+                }
+            }
+            connectivityManager?.registerNetworkCallback(networkRequest, wifiCallback!!)
+        } catch (e: Exception) {
+            Log.e("TimerService", "Failed to register Wi-Fi network callback: ${e.message}")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -93,8 +125,12 @@ class TimerService : Service() {
                 updateNotificationAndWidget()
                 syncTimerStateToWatch()
                 serviceScope.launch(Dispatchers.IO) {
-                    val repo = ObsidianSyncRepository(applicationContext)
-                    repo.pauseTimer()
+                    try {
+                        val repo = ObsidianSyncRepository(applicationContext)
+                        repo.pauseTimer()
+                    } catch (e: Exception) {
+                        Log.e("TimerService", "Failed to pause timer: ${e.message}")
+                    }
                 }
             }
             "RESUME" -> {
@@ -102,16 +138,25 @@ class TimerService : Service() {
                 updateNotificationAndWidget()
                 syncTimerStateToWatch()
                 serviceScope.launch(Dispatchers.IO) {
-                    val repo = ObsidianSyncRepository(applicationContext)
-                    repo.resumeTimer()
+                    try {
+                        val repo = ObsidianSyncRepository(applicationContext)
+                        repo.resumeTimer()
+                    } catch (e: Exception) {
+                        Log.e("TimerService", "Failed to resume timer: ${e.message}")
+                    }
                 }
             }
             "CANCEL" -> {
                 serviceScope.launch(Dispatchers.IO) {
-                    val repo = ObsidianSyncRepository(applicationContext)
-                    repo.cancelTimer()
-                    launch(Dispatchers.Main) {
-                        stopTimerState()
+                    try {
+                        val repo = ObsidianSyncRepository(applicationContext)
+                        repo.cancelTimer()
+                    } catch (e: Exception) {
+                        Log.e("TimerService", "Failed to cancel timer: ${e.message}")
+                    } finally {
+                        launch(Dispatchers.Main) {
+                            stopTimerState()
+                        }
                     }
                 }
             }
@@ -205,7 +250,14 @@ class TimerService : Service() {
             e.printStackTrace()
         }
         
+        // Clear active timer preferences locally to prevent stale UI state when offline / disconnected
+        prefs.activeTimerTaskName = ""
+        prefs.activeTimerRemainingSeconds = 0
+        prefs.activeTimerTotalSeconds = 0
+        prefs.activeTimerIsPaused = false
+        prefs.activeTimerLineIndex = -1
         prefs.isAlarming = false
+        
         stopForeground(true)
         stopSelf()
         
@@ -331,6 +383,13 @@ class TimerService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        try {
+            wifiCallback?.let {
+                connectivityManager?.unregisterNetworkCallback(it)
+            }
+        } catch (e: Exception) {
+            Log.e("TimerService", "Failed to unregister network callback: ${e.message}")
+        }
         serviceScope.launch(Dispatchers.Main) {
             stopTimerState()
         }

@@ -523,7 +523,7 @@ fun ObsidianTodoScreen(
                             serverPort = it
                             prefs.serverPort = it
                         },
-                        label = { Text("Server Port (default 8089)", color = ObsidianTextMuted) },
+                        label = { Text("Server Port (default 8090)", color = ObsidianTextMuted) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)
@@ -632,7 +632,7 @@ fun ObsidianTodoScreen(
                     // Connection troubleshooting hint
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Hint: Ensure your computer is running Obsidian-Local-REST-API or a simple Markdown host (on HTTP port 8089) and that both your PC and phone are on the same local Wi-Fi network. You can use dynamic date placeholders like {YYYY-MM-DD} or {date} in the file path to automatically target the current day's daily journal note.",
+                        text = "Hint: Ensure your computer is running Obsidian-Local-REST-API or a simple Markdown host (on HTTP port 8090) and that both your PC and phone are on the same local Wi-Fi network. You can use dynamic date placeholders like {YYYY-MM-DD} or {date} in the file path to automatically target the current day's daily journal note.",
                         color = ObsidianAccentGreen,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.SansSerif,
