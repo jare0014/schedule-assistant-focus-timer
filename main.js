@@ -250,6 +250,11 @@ class TaskTimerView extends obsidian.ItemView {
                 }
             } else {
                 groupedTasks[subheading].forEach(task => {
+                    // Skip nested subtasks in the top-level rendering loop
+                    if (task.parentLineIndex !== undefined) {
+                        return;
+                    }
+
                     const card = groupSection.createDiv({ 
                         cls: `task-card${task.status === 'completed' ? ' completed' : ''}` 
                     });
@@ -263,7 +268,8 @@ class TaskTimerView extends obsidian.ItemView {
                         }));
                     };
                     
-                    const left = card.createDiv({ cls: 'task-card-left' });
+                    const mainRow = card.createDiv({ cls: 'task-card-main' });
+                    const left = mainRow.createDiv({ cls: 'task-card-left' });
                     if (task.isUntimed) {
                         left.createDiv({ cls: 'task-card-time', text: 'Untimed' });
                     } else {
@@ -272,7 +278,7 @@ class TaskTimerView extends obsidian.ItemView {
                     }
                     left.createDiv({ cls: 'task-card-name', text: task.description });
                     
-                    const right = card.createDiv({ cls: 'task-card-controls' });
+                    const right = mainRow.createDiv({ cls: 'task-card-controls' });
 
                     // Checkbox
                     const cb = right.createEl('input', { type: 'checkbox' });
@@ -321,6 +327,43 @@ class TaskTimerView extends obsidian.ItemView {
                         await this.plugin.removeTask(task);
                         this.renderSchedule();
                     };
+
+                    // Render nested subtasks if any exist
+                    const subtasks = groupedTasks[subheading].filter(t => t.parentLineIndex === task.lineIndex);
+                    if (subtasks.length > 0) {
+                        const subtasksContainer = card.createDiv({ cls: 'task-card-subtasks' });
+                        subtasks.forEach(subtask => {
+                            const subtaskEl = subtasksContainer.createDiv({ 
+                                cls: `task-subtask-item${subtask.status === 'completed' ? ' completed' : ''}` 
+                            });
+                            
+                            const subLeft = subtaskEl.createDiv({ cls: 'task-subtask-left' });
+                            
+                            // Checkbox
+                            const subCb = subLeft.createEl('input', { type: 'checkbox' });
+                            subCb.checked = subtask.status === 'completed';
+                            subCb.onclick = async (e) => {
+                                e.stopPropagation();
+                                const complete = subCb.checked;
+                                await this.toggleTaskCompletion(subtask, complete);
+                            };
+                            
+                            subLeft.createDiv({ cls: 'task-subtask-name', text: subtask.description });
+                            
+                            const subRight = subtaskEl.createDiv({ cls: 'task-subtask-controls' });
+                            
+                            if (subtask.status !== 'completed') {
+                                const playBtn = subRight.createEl('button', { 
+                                    cls: 'task-subtask-play-btn', 
+                                    title: 'Start Timer' 
+                                });
+                                playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+                                playBtn.onclick = () => {
+                                    this.startTimer(subtask, subtask.duration || parseInt(this.plugin.settings.defaultDuration));
+                                };
+                            }
+                        });
+                    }
                 });
             }
         }
@@ -1795,9 +1838,12 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         let currentSubheading = "";
         let inPlanner = false;
         let currentProject = "";
+        let lastParentTask = null;
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
+            const isIndented = /^\s+/.test(line);
+
             if (line.includes("## 📅Day Planner")) {
                 inPlanner = true;
                 continue;
@@ -1809,10 +1855,12 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 if (line.startsWith('### ')) {
                     currentSubheading = line.trim();
                     currentProject = "";
+                    lastParentTask = null;
                     continue;
                 }
                 if (line.startsWith('##### ')) {
                     currentProject = line.replace(/^#####\s+/, '').trim();
+                    lastParentTask = null;
                     continue;
                 }
                 
@@ -1863,7 +1911,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     }
                     const duration = endMinutes - startMinutes;
                     
-                    tasks.push({
+                    const taskObj = {
                         lineIndex: i,
                         originalLine: line,
                         status: status,
@@ -1880,21 +1928,33 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                         rawDesc: rawDesc,
                         isUntimed: false,
                         project: currentProject
-                    });
+                    };
+
+                    tasks.push(taskObj);
+                    if (!isIndented) {
+                        lastParentTask = taskObj;
+                    }
                 } else {
                     const untimedRegex = /^\s*-\s+\[( |x|X)\]\s+(.*)$/;
                     const untimedMatch = line.match(untimedRegex);
-                    if (untimedMatch && !line.includes("BUTTON[")) {
+                    if (untimedMatch && (!line.includes("BUTTON[") || line.includes("BUTTON[timer-"))) {
                         const status = (untimedMatch[1] === 'x' || untimedMatch[1] === 'X') ? 'completed' : 'pending';
                         const rawDesc = untimedMatch[2];
                         
-                        let description = rawDesc.replace(/\[src\]\(.*?\)/g, '').trim();
+                        let duration = null;
+                        const durationMatch = rawDesc.match(/`?BUTTON\[timer-(\d+)\]`?/);
+                        if (durationMatch) {
+                            duration = parseInt(durationMatch[1]);
+                        }
+                        
+                        let description = rawDesc.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
+                        description = description.replace(/\[src\]\(.*?\)/g, '').trim();
                         description = description.replace(/\s+src$/i, '').trim();
                         description = description.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
                         description = description.replace(/#\w+/g, '').trim();
                         description = description.replace(/\s+/g, ' ').trim();
                         
-                        tasks.push({
+                        const taskObj = {
                             lineIndex: i,
                             originalLine: line,
                             status: status,
@@ -1904,14 +1964,20 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                             endMin: null,
                             startMinutes: null,
                             endMinutes: null,
-                            duration: null,
+                            duration: duration,
                             description: description,
                             isCalendar: false,
                             subheading: currentSubheading,
                             rawDesc: rawDesc,
                             isUntimed: true,
                             project: currentProject
-                        });
+                        };
+
+                        if (isIndented && lastParentTask) {
+                            taskObj.parentLineIndex = lastParentTask.lineIndex;
+                        }
+
+                        tasks.push(taskObj);
                     }
                 }
             }
