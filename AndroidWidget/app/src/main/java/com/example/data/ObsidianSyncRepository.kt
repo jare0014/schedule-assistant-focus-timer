@@ -318,7 +318,8 @@ class ObsidianSyncRepository(private val context: Context) {
                         null
                     }
 
-                    val project = taskObj.optString("project", "").ifEmpty { null }
+                    val projectVal = if (taskObj.isNull("project")) "" else taskObj.optString("project", "")
+                    val project = if (projectVal.isEmpty() || projectVal == "null") null else projectVal
                     tasks.add(
                         Task(
                             id = id,

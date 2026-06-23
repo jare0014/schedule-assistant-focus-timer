@@ -573,7 +573,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
     
     # Load LLM configurations from data.json
     llm_provider = 'gemini'
-    llm_model = 'gemini-2.5-flash'
+    llm_model = 'gemini-3.5-flash'
     ollama_url = 'http://localhost:11434'
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     
@@ -611,7 +611,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         
         # Build model list starting with configured model
         model_names = [llm_model]
-        for fallback in ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash']:
+        for fallback in ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest']:
             if fallback not in model_names:
                 model_names.append(fallback)
                 
@@ -630,11 +630,31 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
                 except Exception as e:
                     err_msg = str(e)
                     last_err = e
-                    if "503" in err_msg or "unavailable" in err_msg.lower() or "demand" in err_msg.lower() or "limit" in err_msg.lower():
+                    is_transient = ("503" in err_msg or 
+                                    "unavailable" in err_msg.lower() or 
+                                    "demand" in err_msg.lower() or 
+                                    "429" in err_msg or 
+                                    "rate limit" in err_msg.lower() or 
+                                    "retry in" in err_msg.lower())
+                    is_daily_limit = ("perday" in err_msg.lower() or 
+                                      "per-day" in err_msg.lower() or 
+                                      "per_day" in err_msg.lower() or
+                                      "per day" in err_msg.lower() or
+                                      "daily" in err_msg.lower() or
+                                      "limit: 0" in err_msg.lower())
+                    if is_transient and not is_daily_limit:
                         backoff = 2 ** attempt
-                        print(f"Gemini model {model_name} call failed (transient). Retrying in {backoff} seconds...")
+                        if "retry in" in err_msg.lower():
+                            try:
+                                delay_match = re.search(r"retry in ([\d\.]+)", err_msg.lower())
+                                if delay_match:
+                                    backoff = int(float(delay_match.group(1))) + 1
+                            except Exception:
+                                backoff = 20
+                        print(f"Gemini model {model_name} call failed (transient/rate-limit) with error: {err_msg}. Retrying in {backoff} seconds...")
                         time.sleep(backoff)
                     else:
+                        print(f"Gemini model {model_name} call failed (permanent/daily-quota) with error: {err_msg}")
                         break
             if response_text:
                 break

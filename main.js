@@ -1238,7 +1238,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                     .onChange(async (value) => {
                         this.plugin.settings.llmProvider = value;
                         if (value === 'gemini') {
-                            this.plugin.settings.llmModel = 'gemini-2.5-flash';
+                            this.plugin.settings.llmModel = 'gemini-3.5-flash';
                         } else {
                             this.plugin.settings.llmModel = 'qwen2.5:7b';
                         }
@@ -1248,7 +1248,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
 
             // LLM Model (Dropdown with Custom option)
             const provider = this.plugin.settings.llmProvider;
-            const geminiOptions = ['gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+            const geminiOptions = ['gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
             const ollamaOptions = ['qwen2.5:7b', 'gemma3:4b', 'llama3', 'mistral'];
             
             let modelDropdownValue = this.plugin.settings.llmModel;
@@ -1264,6 +1264,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                 .addDropdown(dropdown => {
                     if (provider === 'gemini') {
                         dropdown
+                            .addOption('gemini-3.5-flash', 'Gemini 3.5 Flash')
                             .addOption('gemini-2.5-pro', 'Gemini 2.5 Pro')
                             .addOption('gemini-1.5-pro', 'Gemini 1.5 Pro')
                             .addOption('gemini-2.5-flash', 'Gemini 2.5 Flash')
@@ -1379,7 +1380,7 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
     googleCredentialsId: '',
     googleCredentials: '',
     llmProvider: 'gemini',
-    llmModel: 'gemini-2.5-flash',
+    llmModel: 'gemini-3.5-flash',
     customModel: '',
     ollamaUrl: 'http://localhost:11434',
     enableServer: true,

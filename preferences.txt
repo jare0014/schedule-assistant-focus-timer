@@ -2,10 +2,13 @@
 - Under no circumstances should any task be scheduled past 10 PM (22:00) or wrap around into the night/morning hours (e.g. 22:00 to 05:59). If there are more tasks than can fit in the day before 22:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
 
 # Project-Specific Scheduling Rules
-- **Habits**: Use tasks from the "Habits" project to define the general timed blocks of your day under "### ⏱️ Focus Blocks".
-- **Admin, Curriculum, House, and Work**: 
-  - ALL Google Tasks and ALL Todoist tasks belonging to the "Admin", "Curriculum", "House", or "Work" projects MUST be listed in the "### ☁️ Floating Micro-Tasks (Untimed)" section as untimed floating micro-tasks. Do NOT assign times or create Focus Blocks for these tasks.
-  - You MUST group and sort the tasks in this section by project/source. For each project/source group (e.g. 'Admin', 'Curriculum', 'House', 'Work', 'Google Tasks'), list all checklist items under an H5 header showing the project name, formatted exactly as follows:
+- **Focus Blocks Generation**: 
+  - Use the project names from Todoist (e.g. "Work", "Curriculum", "House", "Admin", "Habits") to define and name the timed blocks under "### ⏱️ Focus Blocks".
+  - For each active project, create a dedicated timed focus block (e.g., `09:00 - 11:00 Work`, `11:15 - 12:30 Curriculum`, `14:00 - 15:30 House`) and schedule the corresponding tasks inside that block.
+  - Group tasks inside these timed focus blocks by their respective projects.
+- **Floating Micro-Tasks**:
+  - Tasks that cannot fit into the day before the 22:00 bedtime constraint, or are very small/quick, must be placed in the "### ☁️ Floating Micro-Tasks (Untimed)" section.
+  - In the "### ☁️ Floating Micro-Tasks (Untimed)" section, you MUST group and sort all tasks by project/source. For each project/source group (e.g. 'Admin', 'Curriculum', 'House', 'Work', 'Google Tasks'), list the items under an H5 header showing the project name formatted exactly as:
     ##### ProjectName
     - [ ] Task Name [src](URL)
     - [ ] Another Task [src](URL)

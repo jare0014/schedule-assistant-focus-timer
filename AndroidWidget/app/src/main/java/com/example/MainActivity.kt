@@ -144,6 +144,8 @@ fun ObsidianTodoScreen(
     
     // Sub-category expand / collapse mapping (defaults to expanding all of them)
     val expandedSubCategories = remember { mutableStateMapOf<String, Boolean>() }
+    val expandedProjects = remember { mutableStateMapOf<String, Boolean>() }
+    val showAllTasksPerProject = remember { mutableStateMapOf<String, Boolean>() }
     
     // Background ticking clock for local convenience
     var currentTimeString by remember { mutableStateOf("") }
@@ -911,56 +913,139 @@ fun ObsidianTodoScreen(
                                 )
                             }
                             
-                            focusBlocks.forEach { task ->
-                                FocusBlockItemCard(
-                                    task = task,
-                                    isActiveTimer = (activeTimerLineIndex == task.lineNumber),
-                                    modifier = makeDragModifier(task),
-                                    onToggle = { isChecked ->
-                                        scope.launch(Dispatchers.IO) {
-                                            repository.toggleTask(task, isChecked)
-                                            scope.launch(Dispatchers.Main) {
-                                                refreshPreferencesState()
-                                            }
+                            // Group focus blocks by project and display expandable sections with item limits
+                            val projectGroups = focusBlocks.groupBy { 
+                                val p = it.project
+                                if (p.isNullOrEmpty() || p == "null") "General Tasks" else p
+                            }
+
+                            projectGroups.forEach { (project, projectTasks) ->
+                                val isExpanded = expandedProjects[project] ?: true
+                                val showAll = showAllTasksPerProject[project] ?: false
+                                val maxItems = 20
+
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Project Header with collapse/expand arrow
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { expandedProjects[project] = !isExpanded }
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            val angle by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f)
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDropDown,
+                                                contentDescription = "Expand Project dropdown",
+                                                tint = ObsidianPurple,
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .rotate(angle)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = project,
+                                                color = ObsidianTextPrimary,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
-                                    },
-                                    onPlayClick = {
-                                        scope.launch(Dispatchers.IO) {
-                                            if (activeTimerLineIndex == task.lineNumber) {
-                                                repository.cancelTimer()
-                                            } else {
-                                                repository.startTimer(task)
-                                            }
-                                            scope.launch(Dispatchers.Main) {
-                                                refreshPreferencesState()
-                                            }
+                                        
+                                        // Count display indicator
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(ObsidianBorder)
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "${projectTasks.size}",
+                                                color = ObsidianTextMuted,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
-                                    },
-                                    onPostponeClick = {
-                                        scope.launch(Dispatchers.IO) {
-                                            repository.postponeTask(task)
-                                            scope.launch(Dispatchers.Main) {
-                                                refreshPreferencesState()
+                                    }
+
+                                    AnimatedVisibility(visible = isExpanded) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(start = 12.dp, end = 12.dp, bottom = 4.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            val displayedTasks = if (showAll) projectTasks else projectTasks.take(maxItems)
+                                            
+                                            displayedTasks.forEach { task ->
+                                                FocusBlockItemCard(
+                                                    task = task,
+                                                    isActiveTimer = (activeTimerLineIndex == task.lineNumber),
+                                                    modifier = makeDragModifier(task),
+                                                    onToggle = { isChecked ->
+                                                        scope.launch(Dispatchers.IO) {
+                                                            repository.toggleTask(task, isChecked)
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    },
+                                                    onPlayClick = {
+                                                        scope.launch(Dispatchers.IO) {
+                                                            if (activeTimerLineIndex == task.lineNumber) {
+                                                                repository.cancelTimer()
+                                                            } else {
+                                                                repository.startTimer(task)
+                                                            }
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    },
+                                                    onPostponeClick = {
+                                                        scope.launch(Dispatchers.IO) {
+                                                            repository.postponeTask(task)
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    },
+                                                    onMoveClick = {
+                                                        scope.launch(Dispatchers.IO) {
+                                                            repository.dropTask(task, "### ☁️ Floating Micro-Tasks (Untimed)")
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    },
+                                                    onSkipClick = {
+                                                        scope.launch(Dispatchers.IO) {
+                                                            repository.skipTask(task)
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    }
+                                                )
                                             }
-                                        }
-                                    },
-                                    onMoveClick = {
-                                        scope.launch(Dispatchers.IO) {
-                                            repository.dropTask(task, "### ☁️ Floating Micro-Tasks (Untimed)")
-                                            scope.launch(Dispatchers.Main) {
-                                                refreshPreferencesState()
-                                            }
-                                        }
-                                    },
-                                    onSkipClick = {
-                                        scope.launch(Dispatchers.IO) {
-                                            repository.skipTask(task)
-                                            scope.launch(Dispatchers.Main) {
-                                                refreshPreferencesState()
+
+                                            if (projectTasks.size > maxItems) {
+                                                Text(
+                                                    text = if (showAll) "Show less" else "Show ${projectTasks.size - maxItems} more...",
+                                                    color = ObsidianPurple,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier
+                                                        .clickable { showAllTasksPerProject[project] = !showAll }
+                                                        .padding(vertical = 4.dp)
+                                                )
                                             }
                                         }
                                     }
-                                )
+                                }
                             }
                         }
                     }
@@ -1072,7 +1157,10 @@ fun ObsidianTodoScreen(
                                                 .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
                                             verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            val projectGroups = itemsList.groupBy { it.project ?: "General Tasks" }
+                                            val projectGroups = itemsList.groupBy { 
+                                                val p = it.project
+                                                if (p.isNullOrEmpty() || p == "null") "General Tasks" else p
+                                            }
 
                                             projectGroups.forEach { (project, projectTasks) ->
                                                 Column(
