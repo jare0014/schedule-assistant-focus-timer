@@ -1412,8 +1412,53 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         await this.saveSettings();
     }
 
+    async ensureVenv() {
+        const fs = require('fs');
+        const path = require('path');
+        const os = require('os');
+        const vaultPath = this.app.vault.adapter.getBasePath();
+        const pluginDir = path.join(vaultPath, '.obsidian', 'plugins', 'schedule-assistant-focus-timer');
+        const venvDir = path.join(pluginDir, '.venv');
+        
+        if (fs.existsSync(venvDir)) {
+            return;
+        }
+        
+        new obsidian.Notice("Schedule Assistant: Setting up Python virtual environment (this may take a minute)...");
+        
+        const { exec } = require('child_process');
+        const checkPython = (cmd, cb) => {
+            exec(`${cmd} --version`, (err) => cb(!err));
+        };
+        
+        checkPython('python', (hasPython) => {
+            const pyCmd = hasPython ? 'python' : 'python3';
+            exec(`${pyCmd} -m venv .venv`, { cwd: pluginDir }, (err) => {
+                if (err) {
+                    console.error("Failed to create venv:", err);
+                    new obsidian.Notice("Failed to create Python virtual environment. Please install python.");
+                    return;
+                }
+                const isWin = os.platform() === 'win32';
+                const pipCmd = isWin
+                    ? `"${path.join(venvDir, 'Scripts', 'pip.exe')}" install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client google-genai requests`
+                    : `"${path.join(venvDir, 'bin', 'pip')}" install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client google-genai requests`;
+                    
+                exec(pipCmd, (pipErr) => {
+                    if (pipErr) {
+                        console.error("Failed to install dependencies:", pipErr);
+                        new obsidian.Notice("Failed to install python dependencies.");
+                    } else {
+                        new obsidian.Notice("Schedule Assistant: Python environment ready!");
+                    }
+                });
+            });
+        });
+    }
+
     async onload() {
         await this.loadSettings();
+        this.ensureVenv();
         await this.swallowGoogleCredentials();
         this.activeLog = null;
         this.lastClickedEl = null;
@@ -1595,13 +1640,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         
         const scopes = [
             "https://www.googleapis.com/auth/tasks",
-            "https://www.googleapis.com/auth/calendar.readonly",
-            "https://www.googleapis.com/auth/fitness.sleep.read",
-            "https://www.googleapis.com/auth/fitness.activity.read",
-            "https://www.googleapis.com/auth/fitness.sleep.read",
-            "https://www.googleapis.com/auth/fitness.activity.read",
-            "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
-            "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly"
+            "https://www.googleapis.com/auth/calendar.readonly"
         ].join(" ");
         
         const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -1754,7 +1793,13 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             args.push('--yes');
         }
         
-        const child = spawn('python', args, { 
+        const os = require('os');
+        const venvPython = os.platform() === 'win32'
+            ? path.join(pluginDir, '.venv', 'Scripts', 'python.exe')
+            : path.join(pluginDir, '.venv', 'bin', 'python');
+        const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python';
+        
+        const child = spawn(pythonCmd, args, { 
             cwd: pluginDir,
             env: env
         });

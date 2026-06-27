@@ -1,5 +1,20 @@
 import os
 import sys
+
+if sys.platform == 'win32':
+    py_dir = os.path.dirname(sys.executable)
+    dlls_dir = os.path.join(py_dir, 'DLLs')
+    if os.path.exists(dlls_dir):
+        try:
+            os.add_dll_directory(dlls_dir)
+        except Exception:
+            pass
+    try:
+        os.add_dll_directory(py_dir)
+    except Exception:
+        pass
+    os.environ['PATH'] = dlls_dir + os.path.pathsep + py_dir + os.path.pathsep + os.environ.get('PATH', '')
+
 import datetime
 import urllib.request
 import json
@@ -28,9 +43,7 @@ except ImportError:
 # Scopes required for Google Calendar, Google Tasks, and Google Fit / Health API
 SCOPES = [
     'https://www.googleapis.com/auth/calendar.readonly',
-    'https://www.googleapis.com/auth/tasks',
-    'https://www.googleapis.com/auth/fitness.sleep.read',
-    'https://www.googleapis.com/auth/fitness.activity.read'
+    'https://www.googleapis.com/auth/tasks'
 ]
 
 def get_timezone_offset():
