@@ -16,4 +16,6 @@ data.json
 build/
 local.properties
 .env
+.venv/
+venv/
 
