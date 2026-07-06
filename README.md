@@ -27,5 +27,16 @@ The system includes native Android and Wear OS companion apps located in the `/A
 * **Wearable Data Layer API:** Integrates Play Services `PutDataMapRequest` to push timer ticks and state changes from the phone to the watch instantly.
 
 ### 3. Watch Face Tile
-* **At-a-Glance Progress:** A native Wear OS watch face Tile built with `androidx.wear.protolayout` displaying your active task and remaining Pomodoro duration.
-* **Frictionless Activity Launcher:** Supports a native launch action to jump directly from the watch face Tile into the watch app.
+* At-a-Glance Progress: A native Wear OS watch face Tile built with `androidx.wear.protolayout` displaying your active task and remaining Pomodoro duration.
+* Frictionless Activity Launcher: Supports a native launch action to jump directly from the watch face Tile into the watch app.
+
+---
+
+## ⚙️ Customizing the Scheduler (Persistent Instructions)
+
+You can customize the daily scheduling rules and LLM behavior by editing **`preferences.txt`** in the plugin directory. 
+
+Supported constraints and preferences include:
+* **Bedtime Constraint:** Limit tasks from being scheduled past a certain hour (e.g., `22:00` bedtime) and demote overflow tasks to untimed/floating lists.
+* **Focus Blocks Generation:** Define how to generate timed focus blocks based on project/source names (e.g. Habits, Admin, Work, Curriculum, House) and how to group checklist subtasks.
+* **Floating Micro-Tasks:** Configure grouping, sorting, and header formatting rules for untimed administrative, chore, or minor tasks.
