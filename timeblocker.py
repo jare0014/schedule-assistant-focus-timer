@@ -504,14 +504,10 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            c. Do NOT use "*" or any other bullet character.
            d. For Calendar Events and Focus Blocks, format scheduled times using 24-hour format (e.g., 08:00 - 08:30). 
            e. For Floating Micro-Tasks, do NOT include a time range. Group them under their respective H5 project headers.
-        7. Timed buttons for pending tasks:
-           a. Only Focus Blocks should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
-           b. For Focus Blocks, generate a timer button matching the block's scheduled duration (e.g., `BUTTON[timer-30]` for a 30-minute block, `BUTTON[timer-45]` for a 45-minute block). Format them exactly like this:
-              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-XX]` [src](URL)
-        8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
-        9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
-        10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
-        11. Return ONLY the formatted subheadings and checklist lines. Do not include any main headers or markdown code block fences.
+        7. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
+        8. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
+        9. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
+        10. Return ONLY the formatted subheadings and checklist lines. Do not include any main headers or markdown code block fences.
         
         Custom User Preferences to Respect:
         {user_preferences if user_preferences else "(No custom preferences specified)"}
@@ -571,14 +567,10 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            c. Do NOT use "*" or any other bullet character.
            d. For Calendar Events and Focus Blocks, format scheduled times using 24-hour format (e.g., 08:00 - 08:30). 
            e. For Floating Micro-Tasks, do NOT include a time range. Group them under their respective H5 project headers.
-        7. Timed buttons for pending tasks:
-           a. Only Focus Blocks should have timer buttons. Do NOT add `BUTTON[...]` to Floating Micro-Tasks, completed tasks, or calendar events.
-           b. For Focus Blocks, generate a timer button matching the block's scheduled duration (e.g., `BUTTON[timer-30]` for a 30-minute block, `BUTTON[timer-45]` for a 45-minute block). Format them exactly like this:
-              - [ ] HH:MM - HH:MM Task Name `BUTTON[timer-XX]` [src](URL)
-        8. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
-        9. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
-        10. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
-        11. Return ONLY the formatted subheadings and checklist lines. Do not include any main headers or markdown code block fences.
+        7. Clean up task names by removing any existing `BUTTON[...]` or `BUTTON[...]` button strings before formatting.
+        8. Preserve any `[src](URL)` links in the tasks exactly as they are. Do not modify, remove, or rewrite these URL links. If you merge a task with a calendar event, place the `[src](URL)` link immediately before `[Calendar]`.
+        9. Preserve all tags (e.g. #work) in the task content exactly as they are. Do not modify, remove, or strip any tags.
+        10. Return ONLY the formatted subheadings and checklist lines. Do not include any main headers or markdown code block fences.
         
         Custom User Preferences to Respect:
         {user_preferences if user_preferences else "(No custom preferences specified)"}
