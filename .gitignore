@@ -18,4 +18,4 @@ local.properties
 .env
 .venv/
 venv/
-
+*Dev Log.md
