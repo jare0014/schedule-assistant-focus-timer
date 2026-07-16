@@ -68,6 +68,7 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/pause" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/resume" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/cancel" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/quicklog" />
             </intent-filter>
         </service>
     </application>
