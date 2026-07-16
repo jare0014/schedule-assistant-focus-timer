@@ -4,6 +4,9 @@ import android.content.Intent
 import android.util.Log
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class PhoneWearSyncService : WearableListenerService() {
 
@@ -25,6 +28,15 @@ class PhoneWearSyncService : WearableListenerService() {
             "/cancel" -> {
                 intent.action = "CANCEL"
                 startServiceOrForeground(intent)
+            }
+            else -> {
+                if (path.startsWith("/quicklog/")) {
+                    val foodId = path.substring("/quicklog/".length)
+                    val repository = com.example.data.ObsidianSyncRepository(applicationContext)
+                    CoroutineScope(Dispatchers.IO).launch {
+                        repository.quickLog(foodId)
+                    }
+                }
             }
         }
     }

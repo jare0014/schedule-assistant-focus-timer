@@ -619,6 +619,35 @@ class TaskTimerView extends obsidian.ItemView {
         
         this.renderSchedule();
         new obsidian.Notice(`Cancelled session for "${taskName}".`, 3000);
+    }    async getNextScheduledTask() {
+        if (!this.currentTimer) return null;
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return null;
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            const allTasks = this.plugin.parseAllTasks(content).filter(t => t.status !== 'completed');
+            const currentTask = this.currentTimer.task;
+            if (!currentTask) return null;
+            
+            let referenceMinutes = currentTask.startMinutes;
+            if (referenceMinutes === undefined) {
+                const now = new Date();
+                referenceMinutes = now.getHours() * 60 + now.getMinutes();
+            }
+            
+            // Sort by start minutes
+            allTasks.sort((a, b) => a.startMinutes - b.startMinutes);
+            
+            // Find the task that starts after the reference time
+            for (const task of allTasks) {
+                if (task.startMinutes > referenceMinutes && task.lineIndex !== currentTask.lineIndex) {
+                    return task;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to parse next scheduled task:", e);
+        }
+        return null;
     }
 
     renderTimer() {
@@ -652,8 +681,25 @@ class TaskTimerView extends obsidian.ItemView {
 
         const cancelBtn = controls.createEl('button', { cls: 'timer-btn warning', text: 'Cancel' });
         cancelBtn.onclick = () => this.cancelTimer();
-    }
 
+        // Render Next Scheduled Task Display
+        const nextTaskEl = timerContainer.createDiv({ 
+            cls: 'timer-next-task-container', 
+            style: 'margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 15px; font-size: 13px; color: var(--text-muted); text-align: center;' 
+        });
+        nextTaskEl.textContent = "Loading next task...";
+
+        this.getNextScheduledTask().then(nextTask => {
+            if (nextTask) {
+                const startH12 = nextTask.startHour % 12 === 0 ? 12 : nextTask.startHour % 12;
+                const startMStr = String(nextTask.startMin).padStart(2, '0');
+                const startAmpm = nextTask.startHour >= 12 ? 'PM' : 'AM';
+                nextTaskEl.innerHTML = `⏭️ <strong>Next:</strong> ${nextTask.description} <span style="color: var(--text-accent); font-family: monospace;">(${startH12}:${startMStr} ${startAmpm})</span>`;
+            } else {
+                nextTaskEl.innerHTML = `⏭️ <strong>Next:</strong> None scheduled`;
+            }
+        });
+    }
     async adjustActiveTimer(minutes) {
         if (!this.currentTimer) return;
 
@@ -2652,6 +2698,62 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     setCorsHeaders();
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: "Task not found or daily note not available." }));
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/quicklog') {
+                    const body = await readBody();
+                    const { spawn } = require('child_process');
+                    const foodId = body.foodId;
+                    const amount = body.amount || 1;
+                    if (!foodId) {
+                        setCorsHeaders();
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: "Missing foodId parameter." }));
+                        return;
+                    }
+                    const scriptPath = path.join(vaultPath, '.obsidian', 'plugins', 'omni-logger', 'post_nutrition.py');
+                    const registryPath = path.join(vaultPath, '99_System', 'Omni_Templates', 'health_go_to_items.json');
+                    const proc = spawn('python', [scriptPath, '--id', foodId, '--amount', String(amount), '--registry', registryPath]);
+                    let stdout = '', stderr = '';
+                    proc.stdout.on('data', d => stdout += d);
+                    proc.stderr.on('data', d => stderr += d);
+                    proc.on('close', (code) => {
+                        setCorsHeaders();
+                        res.writeHead(code === 0 ? 200 : 500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: code === 0, stdout: stdout.trim(), stderr: stderr.trim() }));
+                    });
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/braindump') {
+                    const body = await readBody();
+                    const text = (body.text || '').trim();
+                    if (!text) {
+                        setCorsHeaders();
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: "Empty brain dump text." }));
+                        return;
+                    }
+                    // Write directly to Imports folder as a timestamped note
+                    const now = new Date();
+                    const ts = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                    const fileName = `00_Imports/BrainDump ${ts}.md`;
+                    const noteContent = `---\nsource: brain-dump\ncreated: ${now.toISOString()}\nstatus: unprocessed\n---\n\n${text}\n`;
+                    try {
+                        const existingFile = this.app.vault.getAbstractFileByPath(fileName);
+                        if (!existingFile) {
+                            await this.app.vault.create(fileName, noteContent);
+                        }
+                        new obsidian.Notice(`Brain dump saved: ${fileName}`);
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, file: fileName }));
+                    } catch (e) {
+                        setCorsHeaders();
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: e.message }));
+                    }
                     return;
                 }
 

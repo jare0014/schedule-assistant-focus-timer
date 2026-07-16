@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -809,6 +810,94 @@ fun ObsidianTodoScreen(
                                 modifier = Modifier.height(36.dp)
                             ) {
                                 Text("Complete", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Quick Log Nutrition Panel
+        var isLoggingFood by remember { mutableStateOf<String?>(null) }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                .border(1.dp, ObsidianBorder, RoundedCornerShape(12.dp)),
+            colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = "QUICK LOG NUTRITION",
+                    color = ObsidianPurple,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val foods = listOf(
+                        Triple("water", "🥤", "Water"),
+                        Triple("espresso", "☕", "Espress"),
+                        Triple("protein_waffles", "🧇", "Waffle"),
+                        Triple("protein_shake", "🥤", "Shake"),
+                        Triple("mixed_nuts", "🥜", "Nuts")
+                    )
+                    
+                    foods.forEach { (foodId, emoji, name) ->
+                        val isCurrentLogging = isLoggingFood == foodId
+                        Button(
+                            onClick = {
+                                if (isLoggingFood == null) {
+                                    isLoggingFood = foodId
+                                    scope.launch(Dispatchers.IO) {
+                                        val success = repository.quickLog(foodId)
+                                        scope.launch(Dispatchers.Main) {
+                                            isLoggingFood = null
+                                            if (success) {
+                                                Toast.makeText(context, "$emoji $name logged!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Failed to log $name.", Toast.LENGTH_SHORT).show()
+                                            }
+                                            refreshPreferencesState()
+                                        }
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isCurrentLogging) ObsidianPurple.copy(alpha = 0.2f) else ObsidianBg,
+                                contentColor = ObsidianTextPrimary
+                            ),
+                            border = BorderStroke(1.dp, ObsidianBorder),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                        ) {
+                            if (isCurrentLogging) {
+                                CircularProgressIndicator(
+                                    color = ObsidianPurple,
+                                    modifier = Modifier.size(12.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(text = emoji, fontSize = 11.sp)
+                                    Text(
+                                        text = name,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }

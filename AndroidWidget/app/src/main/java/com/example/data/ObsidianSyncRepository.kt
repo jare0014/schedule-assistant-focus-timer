@@ -30,8 +30,8 @@ class ObsidianSyncRepository(private val context: Context) {
     suspend fun getLocalTasks() = taskDao.getAllTasksDirect()
 
     private fun getBaseUrl(): String {
-        var ip = prefs.serverIp.trim()
-        val port = prefs.serverPort.trim()
+        var ip = prefs.serverIp.trim().replace(" ", "")
+        val port = prefs.serverPort.trim().replace(" ", "")
         if (!ip.startsWith("http://") && !ip.startsWith("https://")) {
             ip = "http://$ip"
         }
@@ -68,21 +68,21 @@ class ObsidianSyncRepository(private val context: Context) {
     }
 
     suspend fun syncTasks(): Boolean {
-        prefs.addLog("Starting synchronization in ${prefs.syncMode} mode...")
-        val url = getFullUrl()
-        prefs.addLog("Syncing URL: $url")
-
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .get()
-
-        if (prefs.apiToken.isNotEmpty()) {
-            requestBuilder.addHeader("Authorization", "Bearer ${prefs.apiToken}")
-            // Some Obsidian plugins use 'X-API-Key' or 'Authorization'
-            requestBuilder.addHeader("X-API-Key", prefs.apiToken)
-        }
-
         try {
+            prefs.addLog("Starting synchronization in ${prefs.syncMode} mode...")
+            val url = getFullUrl()
+            prefs.addLog("Syncing URL: $url")
+
+            val requestBuilder = Request.Builder()
+                .url(url)
+                .get()
+
+            if (prefs.apiToken.isNotEmpty()) {
+                requestBuilder.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+                // Some Obsidian plugins use 'X-API-Key' or 'Authorization'
+                requestBuilder.addHeader("X-API-Key", prefs.apiToken)
+            }
+
             val response = client.newCall(requestBuilder.build()).execute()
             if (!response.isSuccessful) {
                 val errMsg = "HTTP Failure: ${response.code} ${response.message}"
@@ -613,14 +613,14 @@ class ObsidianSyncRepository(private val context: Context) {
     }
 
     suspend fun syncActiveTimer(): Boolean {
-        val base = getBaseUrl()
-        val url = "$base/api/status"
-        val requestBuilder = Request.Builder().url(url).get()
-        if (prefs.apiToken.isNotEmpty()) {
-            requestBuilder.addHeader("Authorization", "Bearer ${prefs.apiToken}")
-            requestBuilder.addHeader("X-API-Key", prefs.apiToken)
-        }
         try {
+            val base = getBaseUrl()
+            val url = "$base/api/status"
+            val requestBuilder = Request.Builder().url(url).get()
+            if (prefs.apiToken.isNotEmpty()) {
+                requestBuilder.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+                requestBuilder.addHeader("X-API-Key", prefs.apiToken)
+            }
             val response = client.newCall(requestBuilder.build()).execute()
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
@@ -854,6 +854,35 @@ class ObsidianSyncRepository(private val context: Context) {
             }
         } catch (e: Exception) {
             prefs.addLog("Network error moving task: ${e.message}")
+        }
+        return false
+    }
+
+    suspend fun quickLog(foodId: String): Boolean {
+        prefs.addLog("Quick-logging food item: $foodId")
+        val base = getBaseUrl()
+        val url = "$base/api/quicklog"
+        val payload = JSONObject().apply {
+            put("foodId", foodId)
+            put("amount", 1)
+        }
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val body = payload.toString().toRequestBody(mediaType)
+        val request = Request.Builder().url(url).post(body)
+        if (prefs.apiToken.isNotEmpty()) {
+            request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+            request.addHeader("X-API-Key", prefs.apiToken)
+        }
+        try {
+            val response = client.newCall(request.build()).execute()
+            if (response.isSuccessful) {
+                prefs.addLog("Quick-logged $foodId successfully.")
+                return true
+            } else {
+                prefs.addLog("Failed to quick-log food: HTTP ${response.code}")
+            }
+        } catch (e: Exception) {
+            prefs.addLog("Network error quick-logging: ${e.message}")
         }
         return false
     }

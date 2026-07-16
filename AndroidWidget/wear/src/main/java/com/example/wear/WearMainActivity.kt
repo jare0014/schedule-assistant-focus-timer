@@ -47,7 +47,8 @@ class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
                     isPaused = isPaused,
                     isAlarming = isAlarming,
                     onPauseResumeClick = { sendControlMessage(if (isPaused) "/resume" else "/pause") },
-                    onCancelClick = { sendControlMessage("/cancel") }
+                    onCancelClick = { sendControlMessage("/cancel") },
+                    onQuickLogClick = { foodId -> sendControlMessage("/quicklog/$foodId") }
                 )
             }
         }
@@ -155,7 +156,8 @@ fun WearTimerScreen(
     isPaused: Boolean,
     isAlarming: Boolean,
     onPauseResumeClick: () -> Unit,
-    onCancelClick: () -> Unit
+    onCancelClick: () -> Unit,
+    onQuickLogClick: (String) -> Unit
 ) {
     val mins = remainingSeconds / 60
     val secs = remainingSeconds % 60
@@ -169,95 +171,141 @@ fun WearTimerScreen(
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(8.dp)
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Task Name
-            Text(
-                text = if (active) {
-                    if (isAlarming) "Time's Up!" else taskName
-                } else "No Active Task",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isAlarming) Color.Red else Color.LightGray,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Time Display
-            Text(
-                text = if (active) timeStr else "--:--",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isPaused) Color.Gray else Color(0xFFA882DD),
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Controls
-            if (active) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+            // Active Timer View
+            item {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(bottom = 8.dp, top = 20.dp)
                 ) {
-                    // Play/Pause circular button
-                    Button(
-                        onClick = onPauseResumeClick,
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (isPaused) Color(0xFF10B981) else Color(0xFF27272A)
-                        ),
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        if (isPaused) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Resume",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        } else {
-                            Row(
-                                modifier = Modifier.size(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                    // Task Name
+                    Text(
+                        text = if (active) {
+                            if (isAlarming) "Time's Up!" else taskName
+                        } else "No Active Task",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isAlarming) Color.Red else Color.LightGray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Time Display
+                    Text(
+                        text = if (active) timeStr else "--:--",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isPaused) Color.Gray else Color(0xFFA882DD),
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Controls
+                    if (active) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Play/Pause circular button
+                            Button(
+                                onClick = onPauseResumeClick,
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = if (isPaused) Color(0xFF10B981) else Color(0xFF27272A)
+                                ),
+                                modifier = Modifier.size(32.dp)
                             ) {
-                                Box(modifier = Modifier.width(3.dp).fillMaxHeight().background(Color.White))
-                                Box(modifier = Modifier.width(3.dp).fillMaxHeight().background(Color.White))
+                                if (isPaused) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Resume",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.size(10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(modifier = Modifier.width(2.5.dp).fillMaxHeight().background(Color.White))
+                                        Box(modifier = Modifier.width(2.5.dp).fillMaxHeight().background(Color.White))
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            // Cancel circular button
+                            Button(
+                                onClick = onCancelClick,
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFEF4444)),
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cancel",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
                             }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    // Cancel circular button
-                    Button(
-                        onClick = onCancelClick,
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFEF4444)),
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Cancel",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                    } else {
+                        Text(
+                            text = "Select a task on phone",
+                            fontSize = 9.sp,
+                            color = Color.DarkGray,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
-            } else {
+            }
+
+            // Quick Log Header
+            item {
                 Text(
-                    text = "Select a task on your phone to start",
-                    fontSize = 10.sp,
-                    color = Color.DarkGray,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 12.dp)
+                    text = "QUICK LOG",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFA882DD),
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
                 )
+            }
+
+            // Quick Log Buttons
+            val quickLogFoods = listOf(
+                Pair("water", "🥤 Water"),
+                Pair("espresso", "☕ Espresso"),
+                Pair("protein_waffles", "🧇 Waffle"),
+                Pair("protein_shake", "🥤 Shake"),
+                Pair("mixed_nuts", "🥜 Nuts")
+            )
+
+            items(quickLogFoods) { (foodId, label) ->
+                Chip(
+                    onClick = { onQuickLogClick(foodId) },
+                    label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                    colors = ChipDefaults.primaryChipColors(
+                        backgroundColor = Color(0xFF1C1C1E),
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 2.dp)
+                )
+            }
+            
+            // Padding item to ensure circular scrolling doesn't cut off the last chip
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
     }
