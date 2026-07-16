@@ -151,6 +151,8 @@ class ObsidianSyncRepository(private val context: Context) {
         // Regex to match a 12-hour or 24-hour time range (e.g., "18:30 - 19:00" or "6:30 PM - 7:00 PM")
         val timeRangeRegex = Regex("(\\d{1,2}:\\d{2}\\s*(?:[aApP][mM])?\\s*-\\s*\\d{1,2}:\\d{2}\\s*(?:[aApP][mM])?)")
 
+        var lastParentTask: Task? = null
+
         for ((index, line) in lines.withIndex()) {
             val trimmedLine = line.trim()
             if (trimmedLine.startsWith("#")) {
@@ -197,6 +199,7 @@ class ObsidianSyncRepository(private val context: Context) {
                 val text = matchResult.groupValues[3].trim()
                 
                 val isCompleted = statusChar.lowercase() == "x"
+                val isIndented = indent.isNotEmpty()
 
                 // Check for a time range signature (e.g. "18:30 - 19:00")
                 val timeRangeMatch = timeRangeRegex.find(text)
@@ -208,26 +211,42 @@ class ObsidianSyncRepository(private val context: Context) {
                     Pair(null, text)
                 }
 
-                // Auto-democratize as FOCUS BLOCK if a time range is present
-                val resolvedCategory = if (timeRange != null) "FOCUS BLOCKS" else currentCategory
+                // Determine category and project
+                val resolvedCategory: String
+                var projectVal = currentProject ?: ""
+                
+                if (timeRange != null) {
+                    resolvedCategory = "FOCUS BLOCKS"
+                    if (projectVal.isEmpty() || projectVal == "null") {
+                        projectVal = displayTitle
+                    }
+                } else if (isIndented && lastParentTask != null && lastParentTask.category == "FOCUS BLOCKS") {
+                    resolvedCategory = "FOCUS BLOCKS"
+                    projectVal = lastParentTask.project ?: lastParentTask.displayTitle
+                } else {
+                    resolvedCategory = currentCategory
+                }
 
                 val stableId = "md_${getResolvedPathOrEndpoint().hashCode()}_${index}_${text.hashCode()}"
 
-                parsedTasks.add(
-                    Task(
-                        id = stableId,
-                        text = text,
-                        isCompleted = isCompleted,
-                        notePath = getResolvedPathOrEndpoint(),
-                        lineNumber = index + 1, // 1-based index
-                        rawMarkdownLine = line,
-                        timeRange = timeRange,
-                        displayTitle = displayTitle,
-                        category = resolvedCategory,
-                        subCategory = currentSubCategory,
-                        project = currentProject
-                    )
+                val newTask = Task(
+                    id = stableId,
+                    text = text,
+                    isCompleted = isCompleted,
+                    notePath = getResolvedPathOrEndpoint(),
+                    lineNumber = index + 1, // 1-based index
+                    rawMarkdownLine = line,
+                    timeRange = timeRange,
+                    displayTitle = displayTitle,
+                    category = resolvedCategory,
+                    subCategory = currentSubCategory,
+                    project = if (projectVal.isEmpty() || projectVal == "null") null else projectVal
                 )
+                parsedTasks.add(newTask)
+
+                if (!isIndented) {
+                    lastParentTask = newTask
+                }
             }
         }
 

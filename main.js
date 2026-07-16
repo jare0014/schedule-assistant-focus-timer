@@ -1973,7 +1973,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                         subheading: currentSubheading,
                         rawDesc: rawDesc,
                         isUntimed: false,
-                        project: currentProject
+                        project: currentProject || (description ? description : null)
                     };
 
                     tasks.push(taskObj);
@@ -2021,6 +2021,9 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
                         if (isIndented && lastParentTask) {
                             taskObj.parentLineIndex = lastParentTask.lineIndex;
+                            if (!taskObj.project) {
+                                taskObj.project = lastParentTask.project || lastParentTask.description;
+                            }
                         }
 
                         tasks.push(taskObj);
@@ -2292,6 +2295,22 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                         setCorsHeaders();
                         res.writeHead(404, { 'Content-Type': 'text/plain' });
                         res.end(`File ${file} not found in ${webDir}`);
+                        return;
+                    }
+                }
+
+                // Serve files from the Obsidian vault (e.g., Markdown files queried by the mobile app in Markdown sync mode)
+                const relativePath = decodeURIComponent(pathname);
+                if (!relativePath.includes('..')) {
+                    const fullVaultFilePath = path.join(vaultPath, relativePath);
+                    if (req.method === 'GET' && fs.existsSync(fullVaultFilePath) && fs.statSync(fullVaultFilePath).isFile()) {
+                        let contentType = 'text/plain; charset=utf-8';
+                        if (relativePath.endsWith('.md')) {
+                            contentType = 'text/markdown; charset=utf-8';
+                        }
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': contentType });
+                        res.end(fs.readFileSync(fullVaultFilePath));
                         return;
                     }
                 }
