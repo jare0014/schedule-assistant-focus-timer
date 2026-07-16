@@ -18,17 +18,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
 import androidx.wear.compose.material.*
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
+import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
+class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener, MessageClient.OnMessageReceivedListener {
 
     private var taskName by mutableStateOf("No task selected")
     private var remainingSeconds by mutableIntStateOf(0)
@@ -48,7 +51,19 @@ class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
                     isAlarming = isAlarming,
                     onPauseResumeClick = { sendControlMessage(if (isPaused) "/resume" else "/pause") },
                     onCancelClick = { sendControlMessage("/cancel") },
-                    onQuickLogClick = { foodId -> sendControlMessage("/quicklog/$foodId") }
+                    onQuickLogClick = { foodId ->
+                        val foodName = when (foodId) {
+                            "water" -> "Water"
+                            "espresso" -> "Espresso"
+                            "protein_waffles" -> "Waffle"
+                            "protein_shake" -> "Shake"
+                            "mixed_nuts" -> "Nuts"
+                            else -> foodId
+                        }
+                        triggerVibration()
+                        Toast.makeText(this@WearMainActivity, "Logging $foodName...", Toast.LENGTH_SHORT).show()
+                        sendControlMessage("/quicklog/$foodId")
+                    }
                 )
             }
         }
@@ -57,12 +72,14 @@ class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
     override fun onResume() {
         super.onResume()
         Wearable.getDataClient(this).addListener(this)
+        Wearable.getMessageClient(this).addListener(this)
         queryCurrentTimerState()
     }
 
     override fun onPause() {
         super.onPause()
         Wearable.getDataClient(this).removeListener(this)
+        Wearable.getMessageClient(this).removeListener(this)
     }
 
     override fun onDataChanged(dataEvents: DataEventBuffer) {
@@ -145,6 +162,49 @@ class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
             } catch (e: Exception) {
                 Log.e("WearMainActivity", "Failed to send control message $path: ${e.message}")
             }
+        }
+    }
+
+    override fun onMessageReceived(messageEvent: MessageEvent) {
+        val path = messageEvent.path
+        Log.d("WearMainActivity", "Message received from phone: $path")
+        if (path.startsWith("/quicklog_success/")) {
+            val foodId = path.substring("/quicklog_success/".length)
+            val foodLabel = getFoodLabel(foodId)
+            triggerVibration()
+            runOnUiThread {
+                Toast.makeText(this, "$foodLabel logged successfully!", Toast.LENGTH_SHORT).show()
+            }
+        } else if (path.startsWith("/quicklog_fail/")) {
+            val foodId = path.substring("/quicklog_fail/".length)
+            val foodLabel = getFoodLabel(foodId)
+            runOnUiThread {
+                Toast.makeText(this, "Failed to log $foodLabel", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun getFoodLabel(foodId: String): String {
+        return when (foodId) {
+            "water" -> "🥤 Water"
+            "espresso" -> "☕ Espresso"
+            "protein_waffles" -> "🧇 Waffle"
+            "protein_shake" -> "🥤 Shake"
+            "mixed_nuts" -> "🥜 Nuts"
+            else -> foodId
+        }
+    }
+
+    private fun triggerVibration() {
+        try {
+            val vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(android.os.VibrationEffect.createOneShot(80, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                vibrator.vibrate(80)
+            }
+        } catch (e: Exception) {
+            Log.e("WearMainActivity", "Vibration error: ${e.message}")
         }
     }
 }

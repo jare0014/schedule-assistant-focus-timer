@@ -34,7 +34,15 @@ class PhoneWearSyncService : WearableListenerService() {
                     val foodId = path.substring("/quicklog/".length)
                     val repository = com.example.data.ObsidianSyncRepository(applicationContext)
                     CoroutineScope(Dispatchers.IO).launch {
-                        repository.quickLog(foodId)
+                        val success = repository.quickLog(foodId)
+                        try {
+                            val sourceNodeId = messageEvent.sourceNodeId
+                            val responsePath = if (success) "/quicklog_success/$foodId" else "/quicklog_fail/$foodId"
+                            com.google.android.gms.wearable.Wearable.getMessageClient(applicationContext)
+                                .sendMessage(sourceNodeId, responsePath, ByteArray(0))
+                        } catch (e: Exception) {
+                            Log.e("PhoneWearSyncService", "Failed to send response back to watch: ${e.message}")
+                        }
                     }
                 }
             }
