@@ -1020,6 +1020,16 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                         await this.plugin.saveSettings();
                     }));
 
+            new obsidian.Setting(containerEl)
+                .setName('Auto-Run Schedule Assistant at 5:00 AM')
+                .setDesc('Automatically fetch tasks from Todoist, Google Calendar, & Google Tasks at 5:00 AM upon waking and auto-apply the schedule directly to today\'s daily note.')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.autoRun5AM !== false)
+                    .onChange(async (value) => {
+                        this.plugin.settings.autoRun5AM = value;
+                        await this.plugin.saveSettings();
+                    }));
+
             containerEl.createEl('h3', { text: 'Remote Server Settings' });
 
             new obsidian.Setting(containerEl)
@@ -1416,9 +1426,11 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
             containerEl.createEl('p', { text: 'Failed to display settings: ' + err.message, cls: 'theme-warning' });
         }
     }
-}const DEFAULT_SETTINGS = {
+const DEFAULT_SETTINGS = {
     defaultDuration: '20',
     autoApply: false,
+    autoRun5AM: true,
+    lastAutoRun5AMDate: '',
     todoistToken: '',
     geminiApiKey: '',
     geminiApiKeyId: '',
@@ -1547,6 +1559,14 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
         // Add settings tab
         this.addSettingTab(new TaskTimerSettingTab(this.app, this));
+
+        // Register 5:00 AM auto-run schedule check
+        this.app.workspace.onLayoutReady(() => {
+            this.check5AMAutoRun();
+        });
+        this.registerInterval(window.setInterval(() => {
+            this.check5AMAutoRun();
+        }, 5 * 60 * 1000)); // Check every 5 minutes
 
         // Add generate schedule command
         this.addCommand({
@@ -1919,6 +1939,24 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 new obsidian.Notice("Success: Swallowed Google OAuth Client Credentials into secure keychain!");
             } catch (e) {
                 console.error("Failed to swallow Google credentials:", e);
+            }
+        }
+    }
+
+    async check5AMAutoRun() {
+        if (!this.settings.autoRun5AM) return;
+        const now = new Date();
+        const hour = now.getHours();
+        if (hour >= 5) {
+            const dateStr = now.toISOString().split('T')[0];
+            if (this.settings.lastAutoRun5AMDate !== dateStr) {
+                this.settings.lastAutoRun5AMDate = dateStr;
+                await this.saveSettings();
+                console.log(`[Schedule Assistant] Auto-triggering 5:00 AM daily schedule for ${dateStr} in auto-apply mode...`);
+                new obsidian.Notice(`[Schedule Assistant] Auto-generating 5:00 AM daily schedule for ${dateStr}...`);
+                this.runTaskLoader(true).catch(e => {
+                    console.error("[Schedule Assistant] 5:00 AM auto-run failed:", e);
+                });
             }
         }
     }

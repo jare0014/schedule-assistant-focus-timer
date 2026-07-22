@@ -479,10 +479,11 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            (Include Google Calendar events here. Format them as checklist items: `- [ ] HH:MM - HH:MM Event Name [Calendar]`)
            
            ### ⏱️ Focus Blocks
-           (Include complex, high-effort tasks, deep work, learning, and projects that take 20 minutes or longer. Schedule them in blocks matching the duration implied in the task description, e.g. 30, 45, or 60 minutes.)
+           (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
+           IMPORTANT: Any Habit or Routine blocks (e.g. Morning Routine, Midday Routine, Evening Routine) MUST be scheduled as timed Focus Blocks! Schedule Morning Routine early in the morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM), Midday Routine around noon (12:00 - 12:30 PM), and Evening Routine in the evening (20:00 - 21:00 / 8:00 - 9:00 PM). Do NOT demote routine or habit blocks to untimed micro-tasks.)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
-           (Include all fast administrative items, quick emails, simple chores, habits, and tasks taking under 20 minutes. Do NOT assign time ranges to these.
+           (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.
            You MUST group and sort the tasks in this section by project/source. For each project/source group, list all checklist items under an H5 header showing the project name, formatted exactly as follows:
            
            ##### ProjectName
@@ -542,10 +543,11 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            (Include Google Calendar events here. Format them as checklist items: `- [ ] HH:MM - HH:MM Event Name [Calendar]`)
            
            ### ⏱️ Focus Blocks
-           (Include complex, high-effort tasks, deep work, learning, and projects that take 20 minutes or longer. Schedule them in blocks matching the duration implied in the task description, e.g. 30, 45, or 60 minutes.)
+           (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
+           IMPORTANT: Any Habit or Routine blocks (e.g. Morning Routine, Midday Routine, Evening Routine) MUST be scheduled as timed Focus Blocks! Schedule Morning Routine early in the morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM), Midday Routine around noon (12:00 - 12:30 PM), and Evening Routine in the evening (20:00 - 21:00 / 8:00 - 9:00 PM). Do NOT demote routine or habit blocks to untimed micro-tasks.)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
-           (Include all fast administrative items, quick emails, simple chores, habits, and tasks taking under 20 minutes. Do NOT assign time ranges to these.
+           (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.
            You MUST group and sort the tasks in this section by project/source. For each project/source group, list all checklist items under an H5 header showing the project name, formatted exactly as follows:
            
            ##### ProjectName
@@ -696,7 +698,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
     
     schedule_lines = response_text.strip().splitlines()
     filtered_lines = []
-    prohibited_terms = {'lunch', 'breakfast', 'dinner', 'break', 'sleep', 'leisure time', 'morning routine', 'evening routine', 'rest'}
+    prohibited_terms = {'lunch', 'breakfast', 'dinner', 'break', 'sleep', 'leisure time', 'rest'}
     for line in schedule_lines:
         lower_line = line.lower()
         should_keep = True
@@ -1103,7 +1105,7 @@ def main():
         
     # Filter daily note tasks to remove any generic hallucinated tasks from prior runs
     filtered_daily_tasks = []
-    prohibited_terms = {'lunch', 'breakfast', 'dinner', 'break', 'sleep', 'leisure time', 'morning routine', 'evening routine', 'rest'}
+    prohibited_terms = {'lunch', 'breakfast', 'dinner', 'break', 'sleep', 'leisure time', 'rest'}
     for dt in daily_tasks:
         dt_lower = dt.lower()
         has_prohibited = any(term in dt_lower for term in prohibited_terms)
