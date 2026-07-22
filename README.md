@@ -1,6 +1,31 @@
-# Schedule Assistant & Focus Timer Plugin
+An interactive dashboard that aggregates schedules and tasks from Google Calendar, Google Tasks, and Todoist, providing automated 5:00 AM daily focus block scheduling, health alarms, and cross-platform companion access.
 
-An interactive dashboard that aggregates schedules and tasks from Google Calendar, Google Tasks, and Todoist, providing focused study block timers, health alarms, and cross-platform access.
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    Calendar["📅 Google Calendar"] --> Pipeline["task_loader.py & timeblocker.py Engine"]
+    Todoist["📋 Todoist Tasks"] --> Pipeline
+    GTasks["☑️ Google Tasks"] --> Pipeline
+    DailyNote["📝 Daily Note Tasks"] --> Pipeline
+    
+    Prefs["⚙️ Persistent Preferences (preferences.txt)"] --> Pipeline
+    LLM["🤖 Gemini 3.5 Flash / Flash-Lite / Ollama"] --> Pipeline
+    
+    Pipeline --> Schedule["📅 Daily Note Focus Blocks & Floating Micro-Tasks"]
+    
+    subgraph Automation ["⏰ 5:00 AM Auto-Run Engine"]
+        AutoEngine["5:00 AM Trigger"] -->|Auto-Apply| Schedule
+    end
+    
+    subgraph Mobile ["📱 Cross-Platform Ecosystem"]
+        Schedule --> Server["Embedded HTTP Web Server (:8089)"]
+        Server --> Android["📱 Android App & Home Screen Widget"]
+        Server --> WearOS["⌚ Wear OS Watch App & Tile"]
+    end
+```
 
 ---
 
