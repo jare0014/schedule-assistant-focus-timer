@@ -1304,8 +1304,8 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
 
             // LLM Model (Dropdown with Custom option)
             const provider = this.plugin.settings.llmProvider;
-            const geminiOptions = ['gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-            const ollamaOptions = ['qwen2.5:7b', 'gemma3:4b', 'llama3', 'mistral'];
+            const geminiOptions = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.0-flash'];
+            const ollamaOptions = ['qwen2.5-coder:7b', 'qwen2.5:7b', 'gemma3:4b', 'llama3', 'mistral'];
             
             let modelDropdownValue = this.plugin.settings.llmModel;
             const currentOptions = provider === 'gemini' ? geminiOptions : ollamaOptions;
@@ -1321,13 +1321,15 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                     if (provider === 'gemini') {
                         dropdown
                             .addOption('gemini-3.5-flash', 'Gemini 3.5 Flash')
+                            .addOption('gemini-3.1-flash-lite', 'Gemini 3.1 Flash-Lite')
+                            .addOption('gemini-2.5-flash', 'Gemini 2.5 Flash')
                             .addOption('gemini-2.5-pro', 'Gemini 2.5 Pro')
                             .addOption('gemini-1.5-pro', 'Gemini 1.5 Pro')
-                            .addOption('gemini-2.5-flash', 'Gemini 2.5 Flash')
                             .addOption('gemini-2.0-flash', 'Gemini 2.0 Flash')
                             .addOption('custom', 'Custom...');
                     } else {
                         dropdown
+                            .addOption('qwen2.5-coder:7b', 'Qwen 2.5 Coder 7B')
                             .addOption('qwen2.5:7b', 'Qwen 2.5 7B')
                             .addOption('gemma3:4b', 'Gemma 3 4B')
                             .addOption('llama3', 'Llama 3')
