@@ -480,7 +480,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            
            ### ⏱️ Focus Blocks
            (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
-           IMPORTANT: Any Habit or Routine blocks (e.g. Morning Routine, Midday Routine, Evening Routine) MUST be scheduled as timed Focus Blocks! Schedule Morning Routine early in the morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM), Midday Routine around noon (12:00 - 12:30 PM), and Evening Routine in the evening (20:00 - 21:00 / 8:00 - 9:00 PM). Do NOT demote routine or habit blocks to untimed micro-tasks.)
+           IMPORTANT: Any Habit or Routine blocks (e.g. Morning Routine, Midday Routine, Evening Routine) MUST be scheduled as timed Focus Blocks! Schedule Morning Routine early in the morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM), Midday Routine around noon (12:00 - 12:30 PM), and Evening Routine in the early evening around 18:00 / 6:00 PM (e.g. 18:00 - 19:00). Do NOT demote routine or habit blocks to untimed micro-tasks.)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
            (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.
@@ -544,7 +544,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            
            ### ⏱️ Focus Blocks
            (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
-           IMPORTANT: Any Habit or Routine blocks (e.g. Morning Routine, Midday Routine, Evening Routine) MUST be scheduled as timed Focus Blocks! Schedule Morning Routine early in the morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM), Midday Routine around noon (12:00 - 12:30 PM), and Evening Routine in the evening (20:00 - 21:00 / 8:00 - 9:00 PM). Do NOT demote routine or habit blocks to untimed micro-tasks.)
+           IMPORTANT: Any Habit or Routine blocks (e.g. Morning Routine, Midday Routine, Evening Routine) MUST be scheduled as timed Focus Blocks! Schedule Morning Routine early in the morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM), Midday Routine around noon (12:00 - 12:30 PM), and Evening Routine in the early evening around 18:00 / 6:00 PM (e.g. 18:00 - 19:00). Do NOT demote routine or habit blocks to untimed micro-tasks.)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
            (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.
