@@ -3621,6 +3621,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         if (folderContainer) return; // Already organized
         
         const targetPluginIds = [
+            'always-on-memory-agent',
             'schedule-assistant-focus-timer',
             'omni-logger',
             'google-keep-sync',
