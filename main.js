@@ -1428,6 +1428,8 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
             containerEl.createEl('p', { text: 'Failed to display settings: ' + err.message, cls: 'theme-warning' });
         }
     }
+}
+
 const DEFAULT_SETTINGS = {
     defaultDuration: '20',
     autoApply: false,

@@ -1,6 +1,14 @@
 # Bedtime Constraint
 - Under no circumstances should any task be scheduled past 10 PM (22:00) or wrap around into the night/morning hours (e.g. 22:00 to 05:59). If there are more tasks than can fit in the day before 22:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
 
+# Personal Routine & Habit Block Scheduling
+- **Routine Focus Blocks**:
+  - Morning Routine, Midday Routine, and Evening Routine MUST be scheduled as timed Focus Blocks under "### ⏱️ Focus Blocks".
+  - **Morning Routine**: Schedule early morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM).
+  - **Midday Routine**: Schedule around noon (12:00 - 12:30 PM).
+  - **Evening Routine**: Schedule in early evening around 18:00 (6:00 PM) (e.g. 18:00 - 19:00).
+  - Do NOT demote Morning, Midday, or Evening routine blocks to untimed micro-tasks.
+
 # Project-Specific Scheduling Rules
 - **Focus Blocks Generation**: 
   - Use the project names from Todoist (e.g. "Work", "Curriculum", "House", "Admin", "Habits") to define and name the timed blocks under "### ⏱️ Focus Blocks".
