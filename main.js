@@ -1819,7 +1819,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         new obsidian.Notice("Opening browser to authorize Google Account...");
     }
 
-    async runTaskLoader(autoApply = false) {
+    async runTaskLoader(autoApply = false, dateToMarkOnSuccess = null) {
         const fs = require('fs');
         const path = require('path');
         const { spawn } = require('child_process');
@@ -1905,12 +1905,16 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             } catch (e) {}
         });
         
-        child.on('close', (code) => {
+        child.on('close', async (code) => {
             progressModal.setCompleted();
             try {
                 fs.appendFileSync(runLogPath, `=== Process Exited with Code ${code} ===\n`, 'utf8');
             } catch (e) {}
             if (code === 0) {
+                if (dateToMarkOnSuccess) {
+                    this.settings.lastAutoRun5AMDate = dateToMarkOnSuccess;
+                    await this.saveSettings();
+                }
                 new obsidian.Notice("Schedule generated and applied successfully!");
                 console.log("Scheduler output:\n", stdout);
             } else {
@@ -1954,11 +1958,9 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         if (hour >= 5) {
             const dateStr = now.toISOString().split('T')[0];
             if (this.settings.lastAutoRun5AMDate !== dateStr) {
-                this.settings.lastAutoRun5AMDate = dateStr;
-                await this.saveSettings();
                 console.log(`[Schedule Assistant] Auto-triggering 5:00 AM daily schedule for ${dateStr} in auto-apply mode...`);
                 new obsidian.Notice(`[Schedule Assistant] Auto-generating 5:00 AM daily schedule for ${dateStr}...`);
-                this.runTaskLoader(true).catch(e => {
+                this.runTaskLoader(true, dateStr).catch(e => {
                     console.error("[Schedule Assistant] 5:00 AM auto-run failed:", e);
                 });
             }

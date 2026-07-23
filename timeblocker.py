@@ -611,60 +611,102 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
                         gemini_api_key = cfg["gemini_api_key"]
                 except Exception:
                     pass
-        if not gemini_api_key:
-            gemini_api_key = ""
-            
-        client = genai.Client(api_key=gemini_api_key)
-        
-        # Build model list starting with configured model
-        model_names = [llm_model]
-        for fallback in ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest']:
-            if fallback not in model_names:
-                model_names.append(fallback)
-                
+        client = None
         last_err = None
-        for model_name in model_names:
-            print(f"Trying Gemini model: {model_name}...")
-            for attempt in range(4):
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt
-                    )
-                    if response and response.text:
-                        response_text = response.text
-                        break
-                except Exception as e:
-                    err_msg = str(e)
-                    last_err = e
-                    is_transient = ("503" in err_msg or 
-                                    "unavailable" in err_msg.lower() or 
-                                    "demand" in err_msg.lower() or 
-                                    "429" in err_msg or 
-                                    "rate limit" in err_msg.lower() or 
-                                    "retry in" in err_msg.lower())
-                    is_daily_limit = ("perday" in err_msg.lower() or 
-                                      "per-day" in err_msg.lower() or 
-                                      "per_day" in err_msg.lower() or
-                                      "per day" in err_msg.lower() or
-                                      "daily" in err_msg.lower() or
-                                      "limit: 0" in err_msg.lower())
-                    if is_transient and not is_daily_limit:
-                        backoff = 2 ** attempt
-                        if "retry in" in err_msg.lower():
-                            try:
-                                delay_match = re.search(r"retry in ([\d\.]+)", err_msg.lower())
-                                if delay_match:
-                                    backoff = int(float(delay_match.group(1))) + 1
-                            except Exception:
-                                backoff = 20
-                        print(f"Gemini model {model_name} call failed (transient/rate-limit) with error: {err_msg}. Retrying in {backoff} seconds...")
-                        time.sleep(backoff)
-                    else:
-                        print(f"Gemini model {model_name} call failed (permanent/daily-quota) with error: {err_msg}")
-                        break
-            if response_text:
-                break
+        if gemini_api_key:
+            try:
+                client = genai.Client(api_key=gemini_api_key)
+            except Exception as e:
+                last_err = e
+                print(f"Failed to initialize Gemini Client: {e}")
+        else:
+            last_err = ValueError("No Gemini API key provided.")
+            print("No Gemini API key provided.")
+            
+        if client:
+            model_names = [llm_model]
+            for fallback in ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest']:
+                if fallback not in model_names:
+                    model_names.append(fallback)
+                    
+            for model_name in model_names:
+                print(f"Trying Gemini model: {model_name}...")
+                for attempt in range(4):
+                    try:
+                        response = client.models.generate_content(
+                            model=model_name,
+                            contents=prompt
+                        )
+                        if response and response.text:
+                            response_text = response.text
+                            break
+                    except Exception as e:
+                        err_msg = str(e)
+                        last_err = e
+                        is_quota_error = ("resource_exhausted" in err_msg.lower() or 
+                                          "spending cap" in err_msg.lower() or 
+                                          "quota" in err_msg.lower() or
+                                          "perday" in err_msg.lower() or 
+                                          "per-day" in err_msg.lower() or 
+                                          "per_day" in err_msg.lower() or
+                                          "per day" in err_msg.lower() or
+                                          "daily" in err_msg.lower() or
+                                          "limit: 0" in err_msg.lower())
+                        is_transient = (("503" in err_msg or 
+                                        "unavailable" in err_msg.lower() or 
+                                        "demand" in err_msg.lower() or 
+                                        "429" in err_msg or 
+                                        "rate limit" in err_msg.lower() or 
+                                        "retry in" in err_msg.lower()) and not is_quota_error)
+                        if is_transient:
+                            backoff = 2 ** attempt
+                            if "retry in" in err_msg.lower():
+                                try:
+                                    delay_match = re.search(r"retry in ([\d\.]+)", err_msg.lower())
+                                    if delay_match:
+                                        backoff = int(float(delay_match.group(1))) + 1
+                                except Exception:
+                                    backoff = 20
+                            print(f"Gemini model {model_name} call failed (transient rate-limit) with error: {err_msg}. Retrying in {backoff} seconds...")
+                            time.sleep(backoff)
+                        else:
+                            print(f"Gemini model {model_name} call failed (permanent/quota) with error: {err_msg}")
+                            if is_quota_error:
+                                print("Gemini API quota/spend limit reached across project. Aborting remaining Gemini models.")
+                                break
+                if response_text:
+                    break
+        if not response_text:
+            print(f"Gemini API failed ({last_err}). Attempting automatic fallback to local Ollama...")
+            ollama_urls_to_try = [ollama_url, "http://100.93.91.76:11434", "http://localhost:11434", "http://127.0.0.1:11434"]
+            unique_ollama_urls = []
+            for u in ollama_urls_to_try:
+                if u and u not in unique_ollama_urls:
+                    unique_ollama_urls.append(u)
+            
+            ollama_models = ["qwen2.5:7b", "qwen2.5-coder:7b", "llama3.1", "llama3.2"]
+            ollama_success = False
+            for o_url in unique_ollama_urls:
+                for o_model in ollama_models:
+                    try:
+                        url = f"{o_url.rstrip('/')}/api/generate"
+                        payload = {"model": o_model, "prompt": prompt, "stream": False}
+                        data_bytes = json.dumps(payload).encode("utf-8")
+                        req = urllib.request.Request(url, data=data_bytes, headers={"Content-Type": "application/json"})
+                        print(f"Trying Ollama fallback model '{o_model}' at {url}...")
+                        with urllib.request.urlopen(req, timeout=120) as resp:
+                            res_data = json.loads(resp.read().decode("utf-8"))
+                            text = res_data.get("response", "")
+                            if text:
+                                response_text = text
+                                ollama_success = True
+                                print(f"Successfully generated schedule using Ollama fallback ({o_model})!")
+                                break
+                    except Exception as o_err:
+                        print(f"Ollama fallback attempt failed ({o_model} at {o_url}): {o_err}")
+                if ollama_success:
+                    break
+
         if not response_text:
             raise last_err
             
