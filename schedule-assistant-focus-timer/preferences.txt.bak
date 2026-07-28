@@ -1,0 +1,15 @@
+# Bedtime Constraint
+- Under no circumstances should any task be scheduled past 10 PM (22:00) or wrap around into the night/morning hours (e.g. 22:00 to 05:59). If there are more tasks than can fit in the day before 22:00, do NOT assign them a time range; demote them to the untimed '### ☁️ Floating Micro-Tasks (Untimed)' section.
+
+# Project-Specific Scheduling Rules
+- **Focus Blocks Generation**: 
+  - Use the project names from Todoist (e.g. "Work", "Curriculum", "House", "Admin", "Habits") to define and name the timed blocks under "### ⏱️ Focus Blocks".
+  - For each active project, create a dedicated timed focus block (e.g., `09:00 - 11:00 Work`, `11:15 - 12:30 Curriculum`, `14:00 - 15:30 House`) and schedule the corresponding tasks inside that block.
+  - Group tasks inside these timed focus blocks by their respective projects.
+- **Floating Micro-Tasks**:
+  - Tasks that cannot fit into the day before the 22:00 bedtime constraint, or are very small/quick, must be placed in the "### ☁️ Floating Micro-Tasks (Untimed)" section.
+  - In the "### ☁️ Floating Micro-Tasks (Untimed)" section, you MUST group and sort all tasks by project/source. For each project/source group (e.g. 'Admin', 'Curriculum', 'House', 'Work', 'Google Tasks'), list the items under an H5 header showing the project name formatted exactly as:
+    ##### ProjectName
+    - [ ] Task Name [src](URL)
+    - [ ] Another Task [src](URL)
+  - Strip any trailing "(Project: ...)" context labels from the task names. Do NOT put bracketed project prefixes in the task names themselves.
