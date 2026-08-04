@@ -508,7 +508,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            
            ### ⏱️ Focus Blocks
            (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
-           IMPORTANT FOR TODOIST SECTIONS: If tasks belong to separate Todoist sections (e.g. Section: Morning Routine, Section: Midday Routine, Section: Evening Routine), you MUST create a SEPARATE, dedicated Focus Block for EACH section (e.g. `07:00 - 08:00 Habits: Morning Routine`, `12:00 - 12:30 Habits: Midday Routine`, `18:00 - 19:00 Habits: Evening Routine`). Do NOT merge or pile separate project sections into a single task!)
+           IMPORTANT: Both Work sections, all House project items, and all Routine sections (Morning, Midday, Evening) MUST be scheduled as timed Focus Blocks! Create a SEPARATE, dedicated Focus Block for EACH section/project. Do NOT merge or pile separate project sections into a single task!)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
            (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.
@@ -572,7 +572,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            
            ### ⏱️ Focus Blocks
            (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
-           IMPORTANT FOR TODOIST SECTIONS: If tasks belong to separate Todoist sections (e.g. Section: Morning Routine, Section: Midday Routine, Section: Evening Routine), you MUST create a SEPARATE, dedicated Focus Block for EACH section (e.g. `07:00 - 08:00 Habits: Morning Routine`, `12:00 - 12:30 Habits: Midday Routine`, `18:00 - 19:00 Habits: Evening Routine`). Do NOT merge or pile separate project sections into a single task!)
+           IMPORTANT: Both Work sections, all House project items, and all Routine sections (Morning, Midday, Evening) MUST be scheduled as timed Focus Blocks! Create a SEPARATE, dedicated Focus Block for EACH section/project. Do NOT merge or pile separate project sections into a single task!)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
            (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.

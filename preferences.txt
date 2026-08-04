@@ -1,7 +1,9 @@
 # Project and Section Specific Scheduling Rules
 - **Focus Blocks Generation**: 
-  - Use the project section names from Todoist (e.g., 'Morning Routine', 'Midday Routine', 'Evening Routine') to define and name separate, dedicated Focus Blocks under "### ⏱️ Focus Blocks".
-  - For each project section with active tasks, create a distinct timed Focus Block (e.g., `07:00 - 08:00 Habits: Morning Routine`, `12:00 - 12:30 Habits: Midday Routine`, `18:00 - 19:15 Habits: Evening Routine`).
-  - Schedule the corresponding tasks as individual checklist subtasks under their respective Focus Block.
-  - Never combine or pile separate project sections into a single task or block.
-  - Strip any trailing "(Project: ..., Section: ...)" or "(Project: ...)" context labels from the task names in the final schedule output. Do NOT put bracketed project prefixes in the task names themselves.
+  - Use project names and section names from Todoist (e.g., 'Work', 'House', 'Morning Routine', 'Midday Routine', 'Evening Routine') to define and name separate, dedicated Focus Blocks under "### ⏱️ Focus Blocks".
+  - **Work Sections**: Both Work sections (and all Work project tasks) MUST be scheduled as timed Focus Blocks (e.g., `09:00 - 11:30 Work: Deep Focus`, `13:00 - 15:00 Work: Operations`).
+  - **House Items**: All House project items and home maintenance tasks MUST be scheduled as a dedicated timed Focus Block (e.g., `15:30 - 16:30 House: Chores & Maintenance`).
+  - **Routine Sections**: For each routine section ('Morning Routine', 'Midday Routine', 'Evening Routine'), create a distinct timed Focus Block (e.g., `07:00 - 08:00 Habits: Morning Routine`, `12:00 - 12:30 Habits: Midday Routine`, `18:00 - 19:15 Habits: Evening Routine`).
+  - Schedule corresponding tasks as individual checklist subtasks under their respective Focus Block.
+  - Never combine or pile separate project sections or projects into a single task or block.
+  - Strip any trailing "(Project: ..., Section: ...)" or "(Project: ...)" context labels from task names in final schedule output. Do NOT put bracketed project prefixes in task names.
