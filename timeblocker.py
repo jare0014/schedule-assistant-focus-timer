@@ -273,6 +273,24 @@ def get_todoist_projects():
         print("Error fetching Todoist projects:", e)
         return {}
 
+def get_todoist_sections():
+    token = get_todoist_token()
+    if not token:
+        return {}
+    url = "https://api.todoist.com/api/v1/sections"
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}"
+    })
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            sections = res_data.get("results", []) if isinstance(res_data, dict) else res_data
+            return {s['id']: s['name'] for s in sections if 'id' in s and 'name' in s}
+    except Exception as e:
+        print("Error fetching Todoist sections:", e)
+        return {}
+
+
 def extract_daily_note_tasks(note_path):
     if not os.path.exists(note_path):
         return []
@@ -396,6 +414,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         events_str += f"- {summary} ({time_display})\n"
         
     project_map = get_todoist_projects()
+    section_map = get_todoist_sections()
     tasks_str = ""
     for t in todoist_tasks:
         content = t.get('content', '')
@@ -403,6 +422,14 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
         desc_str = f" (Description: {desc})" if desc else ""
         project_id = t.get('project_id')
         project_name = project_map.get(project_id, 'Inbox') if project_id else 'Inbox'
+        section_id = t.get('section_id')
+        section_name = section_map.get(section_id) if section_id else None
+
+        if section_name:
+            context_str = f" (Project: {project_name}, Section: {section_name})"
+        else:
+            context_str = f" (Project: {project_name})"
+
         if project_id:
             src_url = f"https://todoist.com/app/project/{project_id}/task/{t['id']}"
         else:
@@ -424,7 +451,8 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
                 except Exception as e:
                     print("Error parsing due date time:", e)
                     
-        tasks_str += f"- {content}{due_time_str} [src]({src_url}){desc_str} (Project: {project_name})\n"
+        tasks_str += f"- {content}{due_time_str} [src]({src_url}){desc_str}{context_str}\n"
+
 
     google_tasks_str = ""
     for gt in google_tasks:
@@ -480,7 +508,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            
            ### ⏱️ Focus Blocks
            (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
-           IMPORTANT: Any Habit or Routine blocks (e.g. Morning Routine, Midday Routine, Evening Routine) MUST be scheduled as timed Focus Blocks! Schedule Morning Routine early in the morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM), Midday Routine around noon (12:00 - 12:30 PM), and Evening Routine in the early evening around 18:00 / 6:00 PM (e.g. 18:00 - 19:00). Do NOT demote routine or habit blocks to untimed micro-tasks.)
+           IMPORTANT FOR TODOIST SECTIONS: If tasks belong to separate Todoist sections (e.g. Section: Morning Routine, Section: Midday Routine, Section: Evening Routine), you MUST create a SEPARATE, dedicated Focus Block for EACH section (e.g. `07:00 - 08:00 Habits: Morning Routine`, `12:00 - 12:30 Habits: Midday Routine`, `18:00 - 19:00 Habits: Evening Routine`). Do NOT merge or pile separate project sections into a single task!)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
            (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.
@@ -544,7 +572,7 @@ def generate_schedule(calendar_events, todoist_tasks, google_tasks, daily_tasks,
            
            ### ⏱️ Focus Blocks
            (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
-           IMPORTANT: Any Habit or Routine blocks (e.g. Morning Routine, Midday Routine, Evening Routine) MUST be scheduled as timed Focus Blocks! Schedule Morning Routine early in the morning (e.g. 05:00 - 06:00 AM or 06:00 - 07:00 AM), Midday Routine around noon (12:00 - 12:30 PM), and Evening Routine in the early evening around 18:00 / 6:00 PM (e.g. 18:00 - 19:00). Do NOT demote routine or habit blocks to untimed micro-tasks.)
+           IMPORTANT FOR TODOIST SECTIONS: If tasks belong to separate Todoist sections (e.g. Section: Morning Routine, Section: Midday Routine, Section: Evening Routine), you MUST create a SEPARATE, dedicated Focus Block for EACH section (e.g. `07:00 - 08:00 Habits: Morning Routine`, `12:00 - 12:30 Habits: Midday Routine`, `18:00 - 19:00 Habits: Evening Routine`). Do NOT merge or pile separate project sections into a single task!)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
            (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.
