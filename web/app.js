@@ -202,24 +202,29 @@ function renderSchedule(tasks) {
 }
 
 function renderGridView(tasks) {
-    // Separate untimed tasks vs timed tasks
-    const untimedTasks = tasks.filter(t => t.isUntimed || (t.subheading && (t.subheading.includes("☁️") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed"))));
-    const timedTasks = tasks.filter(t => !untimedTasks.includes(t));
+    // Separate standalone top-level untimed tasks (no parent line index)
+    const topLevelUntimed = tasks.filter(t => 
+        t.parentLineIndex === undefined && 
+        (t.isUntimed || (t.subheading && (t.subheading.includes("☁️") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed"))))
+    );
+    const timedTasks = tasks.filter(t => 
+        t.parentLineIndex === undefined && !topLevelUntimed.includes(t)
+    );
 
-    // 1. Untimed Accordion Drawer at top
-    if (untimedTasks.length > 0) {
+    // 1. Untimed Accordion Drawer at top (only standalone untimed tasks)
+    if (topLevelUntimed.length > 0) {
         const drawer = document.createElement('details');
         drawer.className = 'untimed-drawer';
         drawer.setAttribute('open', '');
 
         const summary = document.createElement('summary');
         summary.className = 'untimed-drawer-summary';
-        summary.textContent = `📦 Untimed & Backlog Tasks (${untimedTasks.length})`;
+        summary.textContent = `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})`;
         drawer.appendChild(summary);
 
         const content = document.createElement('div');
         content.className = 'untimed-drawer-content';
-        untimedTasks.forEach(task => {
+        topLevelUntimed.forEach(task => {
             content.appendChild(createTaskCard(task));
         });
         drawer.appendChild(content);
@@ -340,12 +345,11 @@ function renderGridView(tasks) {
             const durationMins = task.calcEndMins - task.calcStartMins;
 
             const topPx = Math.max(0, startMinsFromMinHour * (hourHeight / 60));
-            const heightPx = Math.max(28, durationMins * (hourHeight / 60));
+            let heightPx = Math.max(28, durationMins * (hourHeight / 60));
 
             const card = document.createElement('div');
             card.className = `timeblock-card${task.status === 'completed' ? ' completed' : ''}`;
             card.style.top = `${topPx}px`;
-            card.style.height = `${heightPx}px`;
 
             const widthPercent = 100 / totalCols;
             const leftPercent = colIndex * widthPercent;
@@ -405,6 +409,56 @@ function renderGridView(tasks) {
             cardTime.appendChild(durBadge);
 
             card.appendChild(cardTime);
+
+            // Render nested subtasks if any exist for this parent task
+            const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
+            if (subtasks.length > 0) {
+                const subtasksContainer = document.createElement('div');
+                subtasksContainer.className = 'timeblock-subtasks-container';
+
+                subtasks.forEach(subtask => {
+                    const subtaskEl = document.createElement('div');
+                    subtaskEl.className = `timeblock-subtask-item${subtask.status === 'completed' ? ' completed' : ''}`;
+
+                    const subCb = document.createElement('input');
+                    subCb.type = 'checkbox';
+                    subCb.checked = subtask.status === 'completed';
+                    subCb.onclick = (e) => {
+                        e.stopPropagation();
+                        toggleTaskStatus(subtask);
+                    };
+                    subtaskEl.appendChild(subCb);
+
+                    const subTitle = document.createElement('div');
+                    subTitle.className = 'timeblock-subtask-title';
+                    subTitle.textContent = subtask.description;
+                    subtaskEl.appendChild(subTitle);
+
+                    if (subtask.status !== 'completed') {
+                        const subPlayBtn = document.createElement('button');
+                        subPlayBtn.className = 'timeblock-subtask-play-btn';
+                        subPlayBtn.textContent = '▶';
+                        subPlayBtn.title = 'Start Subtask Timer';
+                        subPlayBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            startTaskTimer(subtask);
+                        };
+                        subtaskEl.appendChild(subPlayBtn);
+                    }
+
+                    subtasksContainer.appendChild(subtaskEl);
+                });
+
+                card.appendChild(subtasksContainer);
+
+                // Expand height to accommodate nested subtasks
+                const minRequiredHeight = 48 + (subtasks.length * 28);
+                if (heightPx < minRequiredHeight) {
+                    heightPx = minRequiredHeight;
+                }
+            }
+
+            card.style.height = `${heightPx}px`;
 
             // Card click handler
             card.onclick = () => {

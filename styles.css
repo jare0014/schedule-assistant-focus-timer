@@ -293,6 +293,53 @@
   line-height: 1;
 }
 
+/* Timeblock Nested Subtasks */
+.timeblock-subtasks-container {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.timeblock-subtask-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--text-normal);
+  padding: 3px 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  gap: 6px;
+}
+
+.timeblock-subtask-item.completed {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.timeblock-subtask-title {
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.timeblock-subtask-play-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  cursor: pointer;
+}
+
 /* Countdown Timer View */
 .timer-view-container {
   display: flex;
