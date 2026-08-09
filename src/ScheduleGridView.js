@@ -13,10 +13,10 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
         t.parentLineIndex === undefined && !topLevelUntimed.includes(t)
     );
 
-    // 1. Untimed Accordion Drawer at top (only standalone untimed tasks)
+    // 1. Untimed Accordion Drawer at top (collapsed by default)
     if (topLevelUntimed.length > 0) {
         const drawer = viewContainer.createEl('details', { cls: 'untimed-drawer' });
-        drawer.setAttribute('open', '');
+        // Collapsed by default - no open attribute
 
         const summary = drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
         const content = drawer.createDiv({ cls: 'untimed-drawer-content' });
@@ -62,6 +62,8 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
     const ruler = gridWrapper.createDiv({ cls: 'time-ruler' });
     for (let h = minHour; h <= maxHour; h++) {
         const hourLabel = ruler.createDiv({ cls: 'time-ruler-hour' });
+        hourLabel.style.height = `${hourHeight}px`;
+        hourLabel.style.boxSizing = 'border-box';
         const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
         const ampm = h >= 12 ? 'PM' : 'AM';
         hourLabel.textContent = `${displayH} ${ampm}`;
@@ -98,6 +100,23 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
         const aStart = (a.startHour ?? 0) * 60 + (a.startMin ?? 0);
         const bStart = (b.startHour ?? 0) * 60 + (b.startMin ?? 0);
         return aStart - bStart;
+    });
+
+    // Compute needed minutes factoring subtasks to prevent card overlap
+    sortedTasks.forEach(task => {
+        const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
+        const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
+        
+        const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
+        let neededMins = Math.max(15, taskEnd - taskStart);
+        if (subtasks.length > 0) {
+            const minPxNeeded = 54 + (subtasks.length * 30);
+            const minMinsNeeded = Math.ceil(minPxNeeded / (hourHeight / 60));
+            neededMins = Math.max(neededMins, minMinsNeeded);
+        }
+
+        task.calcStartMins = taskStart;
+        task.calcEndMins = taskStart + neededMins;
     });
 
     const columns = [];

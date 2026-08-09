@@ -211,11 +211,11 @@ function renderGridView(tasks) {
         t.parentLineIndex === undefined && !topLevelUntimed.includes(t)
     );
 
-    // 1. Untimed Accordion Drawer at top (only standalone untimed tasks)
+    // 1. Untimed Accordion Drawer at top (collapsed by default)
     if (topLevelUntimed.length > 0) {
         const drawer = document.createElement('details');
         drawer.className = 'untimed-drawer';
-        drawer.setAttribute('open', '');
+        // Collapsed by default - no open attribute
 
         const summary = document.createElement('summary');
         summary.className = 'untimed-drawer-summary';
@@ -310,6 +310,8 @@ function renderGridView(tasks) {
     for (let h = minHour; h <= maxHour; h++) {
         const hourLabel = document.createElement('div');
         hourLabel.className = 'time-ruler-hour';
+        hourLabel.style.height = `${hourHeight}px`;
+        hourLabel.style.boxSizing = 'border-box';
         const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
         const ampm = h >= 12 ? 'PM' : 'AM';
         hourLabel.textContent = `${displayH} ${ampm}`;

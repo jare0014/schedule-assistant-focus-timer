@@ -110,10 +110,10 @@ class TaskTimerView extends obsidian.ItemView {
             t.parentLineIndex === undefined && !topLevelUntimed.includes(t)
         );
 
-        // 1. Untimed Accordion Drawer at top (only standalone untimed tasks)
+        // 1. Untimed Accordion Drawer at top (collapsed by default)
         if (topLevelUntimed.length > 0) {
             const drawer = viewContainer.createEl('details', { cls: 'untimed-drawer' });
-            drawer.setAttribute('open', '');
+            // Collapsed by default - no open attribute
 
             const summary = drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
             const content = drawer.createDiv({ cls: 'untimed-drawer-content' });
@@ -159,6 +159,8 @@ class TaskTimerView extends obsidian.ItemView {
         const ruler = gridWrapper.createDiv({ cls: 'time-ruler' });
         for (let h = minHour; h <= maxHour; h++) {
             const hourLabel = ruler.createDiv({ cls: 'time-ruler-hour' });
+            hourLabel.style.height = `${hourHeight}px`;
+            hourLabel.style.boxSizing = 'border-box';
             const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
             const ampm = h >= 12 ? 'PM' : 'AM';
             hourLabel.textContent = `${displayH} ${ampm}`;
@@ -197,13 +199,25 @@ class TaskTimerView extends obsidian.ItemView {
             return aStart - bStart;
         });
 
-        const columns = [];
+        // Compute needed minutes factoring subtasks to prevent card overlap
         sortedTasks.forEach(task => {
             const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
             const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
-            task.calcStartMins = taskStart;
-            task.calcEndMins = Math.max(taskStart + 15, taskEnd);
+            
+            const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
+            let neededMins = Math.max(15, taskEnd - taskStart);
+            if (subtasks.length > 0) {
+                const minPxNeeded = 54 + (subtasks.length * 30);
+                const minMinsNeeded = Math.ceil(minPxNeeded / (hourHeight / 60));
+                neededMins = Math.max(neededMins, minMinsNeeded);
+            }
 
+            task.calcStartMins = taskStart;
+            task.calcEndMins = taskStart + neededMins;
+        });
+
+        const columns = [];
+        sortedTasks.forEach(task => {
             let placed = false;
             for (let col of columns) {
                 const lastInCol = col[col.length - 1];
@@ -294,7 +308,6 @@ class TaskTimerView extends obsidian.ItemView {
                         }
                     });
 
-                    // Ensure card height expands to fit nested subtasks cleanly
                     const minRequiredHeight = 48 + (subtasks.length * 28);
                     if (heightPx < minRequiredHeight) {
                         heightPx = minRequiredHeight;
@@ -310,10 +323,13 @@ class TaskTimerView extends obsidian.ItemView {
         });
 
         setTimeout(() => {
-            const scrollToMins = (currentHour >= minHour && currentHour <= maxHour)
-                ? ((currentHour - minHour) * 60 + currentMin)
-                : 0;
-            gridWrapper.scrollTop = Math.max(0, (scrollToMins - 60) * (hourHeight / 60));
+            if (currentHour >= minHour && currentHour <= maxHour) {
+                const currentMinsFromMinHour = ((currentHour - minHour) * 60) + currentMin;
+                // Position current time laser line right at top so current time + 2h is in view
+                gridWrapper.scrollTop = Math.max(0, (currentMinsFromMinHour * (hourHeight / 60)) - 10);
+            } else {
+                gridWrapper.scrollTop = 0;
+            }
         }, 100);
     }
 
