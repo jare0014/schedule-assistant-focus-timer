@@ -2,27 +2,70 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingVertical="6dp"
-    android:paddingHorizontal="4dp"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_timer_background"
+    android:padding="8dp"
+    android:layout_marginBottom="4dp"
     android:descendantFocusability="blocksDescendants">
 
-    <ImageView
-        android:id="@+id/widget_item_status_icon"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:src="@drawable/ic_checkbox_unchecked" />
-
+    <!-- Time Badge -->
     <TextView
-        android:id="@+id/widget_item_text"
+        android:id="@+id/widget_item_time_badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#27272A"
+        android:textColor="#A882DD"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="3dp"
+        android:text="04:30 PM" />
+
+    <!-- Colored Accent Bar -->
+    <View
+        android:id="@+id/widget_item_accent_bar"
+        android:layout_width="3dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="6dp"
+        android:background="#A882DD" />
+
+    <!-- Task Title & Subtitle -->
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:layout_marginStart="8dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="Task detail goes here"
-        android:textColor="#E4E4E7"
-        android:textSize="12sp" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_item_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Task Title"
+            android:textColor="#E4E4E7"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/widget_item_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="4:30 PM – 6:00 PM"
+            android:textColor="#A1A1AA"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- Checkbox Icon -->
+    <ImageView
+        android:id="@+id/widget_item_status_icon"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginStart="6dp"
+        android:padding="2dp"
+        android:src="@drawable/ic_checkbox_unchecked" />
 </LinearLayout>

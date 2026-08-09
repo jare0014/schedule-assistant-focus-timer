@@ -41,12 +41,21 @@ class ObsidianWidgetFactory(private val context: Context) : RemoteViewsService.R
         val task = tasksList[position]
         val views = RemoteViews(context.packageName, R.layout.widget_todo_item)
 
-        val itemDisplayText = if (task.timeRange != null) {
-            "${task.timeRange} ${task.displayTitle}"
+        val timeText = task.timeRange ?: "Untimed"
+        views.setTextViewText(R.id.widget_item_time_badge, timeText)
+        views.setTextViewText(R.id.widget_item_text, task.displayTitle)
+        
+        val subtitleText = if (task.timeRange != null) {
+            "Scheduled Time Block • ${task.project ?: "General"}"
         } else {
-            task.text
+            "Untimed Backlog • ${task.project ?: "General"}"
         }
-        views.setTextViewText(R.id.widget_item_text, itemDisplayText)
+        views.setTextViewText(R.id.widget_item_subtitle, subtitleText)
+
+        // Category accent color
+        val accentColor = if (task.timeRange != null) "#A882DD" else "#71717A"
+        views.setInt(R.id.widget_item_accent_bar, "setBackgroundColor", android.graphics.Color.parseColor(accentColor))
+        views.setInt(R.id.widget_item_time_badge, "setTextColor", android.graphics.Color.parseColor(accentColor))
 
         if (task.isCompleted) {
             views.setImageViewResource(R.id.widget_item_status_icon, R.drawable.ic_checkbox_checked)

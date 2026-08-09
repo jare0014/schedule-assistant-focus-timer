@@ -164,6 +164,27 @@ function updateUI(state) {
     lastState = state;
 }
 
+let currentViewMode = 'grid';
+
+// Bind view mode toggle buttons
+const viewGridBtn = document.getElementById('viewGridBtn');
+const viewListBtn = document.getElementById('viewListBtn');
+
+if (viewGridBtn && viewListBtn) {
+    viewGridBtn.onclick = () => {
+        currentViewMode = 'grid';
+        viewGridBtn.classList.add('active');
+        viewListBtn.classList.remove('active');
+        if (lastState && lastState.schedule) renderSchedule(lastState.schedule);
+    };
+    viewListBtn.onclick = () => {
+        currentViewMode = 'list';
+        viewListBtn.classList.add('active');
+        viewGridBtn.classList.remove('active');
+        if (lastState && lastState.schedule) renderSchedule(lastState.schedule);
+    };
+}
+
 // Render parsed timeline schedule
 function renderSchedule(tasks) {
     scheduleList.innerHTML = '';
@@ -173,6 +194,241 @@ function renderSchedule(tasks) {
         return;
     }
 
+    if (currentViewMode === 'grid') {
+        renderGridView(tasks);
+    } else {
+        renderListView(tasks);
+    }
+}
+
+function renderGridView(tasks) {
+    // Separate untimed tasks vs timed tasks
+    const untimedTasks = tasks.filter(t => t.isUntimed || (t.subheading && (t.subheading.includes("☁️") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed"))));
+    const timedTasks = tasks.filter(t => !untimedTasks.includes(t));
+
+    // 1. Untimed Accordion Drawer at top
+    if (untimedTasks.length > 0) {
+        const drawer = document.createElement('details');
+        drawer.className = 'untimed-drawer';
+        drawer.setAttribute('open', '');
+
+        const summary = document.createElement('summary');
+        summary.className = 'untimed-drawer-summary';
+        summary.textContent = `📦 Untimed & Backlog Tasks (${untimedTasks.length})`;
+        drawer.appendChild(summary);
+
+        const content = document.createElement('div');
+        content.className = 'untimed-drawer-content';
+        untimedTasks.forEach(task => {
+            content.appendChild(createTaskCard(task));
+        });
+        drawer.appendChild(content);
+        scheduleList.appendChild(drawer);
+    }
+
+    // 2. Day View Time Blocking Grid Container
+    const dayViewContainer = document.createElement('div');
+    dayViewContainer.className = 'timeblock-dayview-container';
+
+    const gridWrapper = document.createElement('div');
+    gridWrapper.className = 'time-grid-wrapper';
+
+    // Calculate hour range (Default 5 AM to 10 PM)
+    let minHour = 5;
+    let maxHour = 22;
+
+    timedTasks.forEach(t => {
+        if (typeof t.startHour === 'number' && t.startHour < minHour) minHour = Math.max(0, t.startHour);
+        if (typeof t.endHour === 'number' && t.endHour > maxHour) maxHour = Math.min(23, t.endHour);
+    });
+
+    const totalHours = maxHour - minHour + 1;
+    const hourHeight = 60; // 60px per hour (1px per minute)
+
+    // Left Time Ruler
+    const ruler = document.createElement('div');
+    ruler.className = 'time-ruler';
+    for (let h = minHour; h <= maxHour; h++) {
+        const hourLabel = document.createElement('div');
+        hourLabel.className = 'time-ruler-hour';
+        const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        hourLabel.textContent = `${displayH} ${ampm}`;
+        ruler.appendChild(hourLabel);
+    }
+    gridWrapper.appendChild(ruler);
+
+    // Right Canvas
+    const canvas = document.createElement('div');
+    canvas.className = 'time-grid-canvas';
+    canvas.style.height = `${totalHours * hourHeight}px`;
+
+    // Hour and Half-hour lines
+    for (let i = 0; i < totalHours; i++) {
+        const hourLine = document.createElement('div');
+        hourLine.className = 'hour-grid-line';
+        hourLine.style.top = `${i * hourHeight}px`;
+        canvas.appendChild(hourLine);
+
+        if (i < totalHours - 1) {
+            const halfHourLine = document.createElement('div');
+            halfHourLine.className = 'halfhour-grid-line';
+            halfHourLine.style.top = `${(i + 0.5) * hourHeight}px`;
+            canvas.appendChild(halfHourLine);
+        }
+    }
+
+    // Current Time Red Laser Line
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
+    if (currentHour >= minHour && currentHour <= maxHour) {
+        const currentMinsFromMinHour = ((currentHour - minHour) * 60) + currentMin;
+        const currentTop = currentMinsFromMinHour * (hourHeight / 60);
+
+        const timeIndicator = document.createElement('div');
+        timeIndicator.className = 'current-time-indicator';
+        timeIndicator.style.top = `${currentTop}px`;
+
+        const dot = document.createElement('div');
+        dot.className = 'current-time-dot';
+        timeIndicator.appendChild(dot);
+
+        const badge = document.createElement('div');
+        badge.className = 'current-time-badge';
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        badge.textContent = timeStr;
+        timeIndicator.appendChild(badge);
+
+        canvas.appendChild(timeIndicator);
+    }
+
+    // Sort and layout timed task cards with overlapping column support
+    const sortedTasks = [...timedTasks].sort((a, b) => {
+        const aStart = (a.startHour ?? 0) * 60 + (a.startMin ?? 0);
+        const bStart = (b.startHour ?? 0) * 60 + (b.startMin ?? 0);
+        return aStart - bStart;
+    });
+
+    // Group overlapping tasks into columns
+    const columns = [];
+    sortedTasks.forEach(task => {
+        const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
+        const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
+        task.calcStartMins = taskStart;
+        task.calcEndMins = Math.max(taskStart + 15, taskEnd);
+
+        let placed = false;
+        for (let col of columns) {
+            const lastInCol = col[col.length - 1];
+            if (lastInCol.calcEndMins <= task.calcStartMins) {
+                col.push(task);
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) {
+            columns.push([task]);
+        }
+    });
+
+    const totalCols = columns.length || 1;
+
+    columns.forEach((colTasks, colIndex) => {
+        colTasks.forEach(task => {
+            const startMinsFromMinHour = task.calcStartMins - (minHour * 60);
+            const durationMins = task.calcEndMins - task.calcStartMins;
+
+            const topPx = Math.max(0, startMinsFromMinHour * (hourHeight / 60));
+            const heightPx = Math.max(28, durationMins * (hourHeight / 60));
+
+            const card = document.createElement('div');
+            card.className = `timeblock-card${task.status === 'completed' ? ' completed' : ''}`;
+            card.style.top = `${topPx}px`;
+            card.style.height = `${heightPx}px`;
+
+            const widthPercent = 100 / totalCols;
+            const leftPercent = colIndex * widthPercent;
+            card.style.left = `calc(${leftPercent}% + 2px)`;
+            card.style.width = `calc(${widthPercent}% - 4px)`;
+
+            // Header section: Title and Controls
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'timeblock-card-header';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'timeblock-card-title';
+            titleEl.textContent = task.description;
+            cardHeader.appendChild(titleEl);
+
+            const controls = document.createElement('div');
+            controls.className = 'timeblock-card-controls';
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = task.status === 'completed';
+            cb.onclick = (e) => {
+                e.stopPropagation();
+                toggleTaskStatus(task);
+            };
+            controls.appendChild(cb);
+
+            const playBtn = document.createElement('button');
+            playBtn.className = 'timeblock-play-btn';
+            playBtn.innerHTML = '▶';
+            playBtn.title = 'Start Focus Session';
+            playBtn.onclick = (e) => {
+                e.stopPropagation();
+                startTaskTimer(task);
+            };
+            controls.appendChild(playBtn);
+
+            cardHeader.appendChild(controls);
+            card.appendChild(cardHeader);
+
+            // Time range & duration row
+            const cardTime = document.createElement('div');
+            cardTime.className = 'timeblock-card-time';
+
+            const formatHourMin = (h, m) => {
+                const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+                const ampm = h >= 12 ? 'pm' : 'am';
+                return `${dh}:${m < 10 ? '0' + m : m}${ampm}`;
+            };
+            const timeStr = `${formatHourMin(task.startHour, task.startMin)} – ${formatHourMin(task.endHour, task.endMin)}`;
+
+            cardTime.appendChild(document.createTextNode(timeStr));
+
+            const durBadge = document.createElement('span');
+            durBadge.className = 'timeblock-duration-badge';
+            durBadge.textContent = `${durationMins}m`;
+            cardTime.appendChild(durBadge);
+
+            card.appendChild(cardTime);
+
+            // Card click handler
+            card.onclick = () => {
+                startTaskTimer(task);
+            };
+
+            canvas.appendChild(card);
+        });
+    });
+
+    gridWrapper.appendChild(canvas);
+    dayViewContainer.appendChild(gridWrapper);
+    scheduleList.appendChild(dayViewContainer);
+
+    // Auto scroll grid to current time or first task
+    setTimeout(() => {
+        const scrollToMins = (currentHour >= minHour && currentHour <= maxHour)
+            ? ((currentHour - minHour) * 60 + currentMin)
+            : 0;
+        gridWrapper.scrollTop = Math.max(0, (scrollToMins - 60) * (hourHeight / 60));
+    }, 100);
+}
+
+function renderListView(tasks) {
     // Group tasks by subheading
     const grouped = {};
     tasks.forEach(t => {
@@ -182,7 +438,6 @@ function renderSchedule(tasks) {
     });
 
     for (const subheading in grouped) {
-        // Create subheading row
         const subEl = document.createElement('div');
         subEl.className = 'schedule-subheading';
         subEl.textContent = subheading.replace(/^###\s+/, '');
@@ -192,69 +447,10 @@ function renderSchedule(tasks) {
         groupSection.className = 'schedule-group-section';
         groupSection.setAttribute('data-subheading', subheading);
 
-        // Drag and drop event listeners on the groupSection
-        groupSection.ondragover = (e) => {
-            e.preventDefault();
-            groupSection.classList.add('dragover');
-        };
-        groupSection.ondragleave = () => {
-            groupSection.classList.remove('dragover');
-        };
-        groupSection.ondrop = async (e) => {
-            e.preventDefault();
-            groupSection.classList.remove('dragover');
-            try {
-                const data = JSON.parse(e.dataTransfer.getData("text/plain"));
-                await handleTaskDrop(data, subheading);
-            } catch (err) {
-                console.error("Drop parsing failed:", err);
-            }
-        };
-
-        const isUntimedSubheading = subheading.includes("☁️") || subheading.toLowerCase().includes("micro-task") || subheading.toLowerCase().includes("untimed");
-
-        if (isUntimedSubheading) {
-            // Group by project
-            const projectGroups = {};
-            grouped[subheading].forEach(task => {
-                const proj = task.project || "Other Tasks";
-                if (!projectGroups[proj]) {
-                    projectGroups[proj] = [];
-                }
-                projectGroups[proj].push(task);
-            });
-
-            for (const proj in projectGroups) {
-                const projectDetails = document.createElement('details');
-                projectDetails.className = 'sidebar-project-details';
-                projectDetails.setAttribute('open', '');
-
-                const projectSummary = document.createElement('summary');
-                projectSummary.className = 'sidebar-project-summary';
-
-                const titleSpan = document.createElement('span');
-                titleSpan.className = 'sidebar-project-title';
-                titleSpan.textContent = proj;
-                projectSummary.appendChild(titleSpan);
-                projectDetails.appendChild(projectSummary);
-
-                const projectContainer = document.createElement('div');
-                projectContainer.className = 'sidebar-project-container';
-
-                projectGroups[proj].forEach(task => {
-                    const card = createTaskCard(task);
-                    projectContainer.appendChild(card);
-                });
-
-                projectDetails.appendChild(projectContainer);
-                groupSection.appendChild(projectDetails);
-            }
-        } else {
-            grouped[subheading].forEach(task => {
-                const card = createTaskCard(task);
-                groupSection.appendChild(card);
-            });
-        }
+        grouped[subheading].forEach(task => {
+            const card = createTaskCard(task);
+            groupSection.appendChild(card);
+        });
 
         scheduleList.appendChild(groupSection);
     }

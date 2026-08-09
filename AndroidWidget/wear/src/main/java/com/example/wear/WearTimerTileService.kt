@@ -70,6 +70,23 @@ class WearTimerTileService : TileService() {
                     .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
                     .addContent(
                         LayoutElementBuilders.Text.Builder()
+                            .setText("📅 TIME BLOCK")
+                            .setFontStyle(
+                                LayoutElementBuilders.FontStyle.Builder()
+                                    .setSize(DimensionBuilders.sp(10f))
+                                    .setColor(ColorBuilders.argb(0xFFA882DD.toInt()))
+                                    .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .addContent(
+                        LayoutElementBuilders.Spacer.Builder()
+                            .setHeight(DimensionBuilders.dp(4f))
+                            .build()
+                    )
+                    .addContent(
+                        LayoutElementBuilders.Text.Builder()
                             .setText(displayTaskName)
                             .setFontStyle(
                                 LayoutElementBuilders.FontStyle.Builder()

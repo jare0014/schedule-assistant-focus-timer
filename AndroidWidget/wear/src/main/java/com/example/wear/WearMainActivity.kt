@@ -329,6 +329,60 @@ fun WearTimerScreen(
                 }
             }
 
+            // Schedule Time Blocks Header & Items
+            item {
+                Text(
+                    text = "SCHEDULE BLOCKS",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFA882DD),
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                )
+            }
+
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    val sampleBlocks = listOf(
+                        Pair("08:00 AM", "Morning Focus & Planning"),
+                        Pair("10:30 AM", "Core Project Development"),
+                        Pair("01:00 PM", "Review & Communications"),
+                        Pair("04:30 PM", "Schedule & Routine Tasks")
+                    )
+
+                    sampleBlocks.forEach { (time, title) ->
+                        Chip(
+                            onClick = { },
+                            label = {
+                                Column {
+                                    Text(
+                                        text = title,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = time,
+                                        fontSize = 9.sp,
+                                        color = Color(0xFFA882DD)
+                                    )
+                                }
+                            },
+                            colors = ChipDefaults.chipColors(
+                                backgroundColor = Color(0xFF1E1E24),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(38.dp)
+                        )
+                    }
+                }
+            }
+
             // Quick Log Header
             item {
                 Text(
@@ -336,7 +390,7 @@ fun WearTimerScreen(
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFA882DD),
-                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
                 )
             }
 
