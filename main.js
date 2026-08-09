@@ -66,16 +66,6 @@ class TaskTimerView extends obsidian.ItemView {
     }
 
     getDailyNoteFile() {
-        if (this.plugin && typeof this.plugin.getDailyNoteFile === 'function') {
-            const file = this.plugin.getDailyNoteFile();
-            if (file) return file;
-        }
-
-        const activeFile = this.app.workspace.getActiveFile();
-        if (activeFile && activeFile.extension === 'md') {
-            return activeFile;
-        }
-
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -83,13 +73,22 @@ class TaskTimerView extends obsidian.ItemView {
         const todayDateStr = `${year}-${month}-${day}`;
 
         const files = this.app.vault.getFiles();
+        
+        // 1. Exact match on today's date filename (e.g. 2026-08-09.md anywhere in vault)
         let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
         if (noteFile) return noteFile;
 
-        noteFile = files.find(f => f.name.includes(todayDateStr));
+        // 2. Path match containing today's date
+        noteFile = files.find(f => f.path.includes(todayDateStr));
         if (noteFile) return noteFile;
 
-        return files.find(f => f.extension === 'md') || null;
+        // 3. Check if active editor file is today's note
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.basename === todayDateStr) {
+            return activeFile;
+        }
+
+        return null;
     }
 
     renderIdleView(viewContainer) {
@@ -2216,11 +2215,6 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
     }
 
     getDailyNoteFile() {
-        const activeFile = this.app.workspace.getActiveFile();
-        if (activeFile && activeFile.extension === 'md') {
-            return activeFile;
-        }
-
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -2228,13 +2222,19 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         const todayDateStr = `${year}-${month}-${day}`;
 
         const files = this.app.vault.getFiles();
+        
         let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
         if (noteFile) return noteFile;
 
-        noteFile = files.find(f => f.name.includes(todayDateStr));
+        noteFile = files.find(f => f.path.includes(todayDateStr));
         if (noteFile) return noteFile;
 
-        return files.find(f => f.extension === 'md') || null;
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.basename === todayDateStr) {
+            return activeFile;
+        }
+
+        return null;
     }
 
     parseAllTasks(content) {
