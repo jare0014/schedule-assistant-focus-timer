@@ -65,6 +65,33 @@ class TaskTimerView extends obsidian.ItemView {
         }
     }
 
+    getDailyNoteFile() {
+        if (this.plugin && typeof this.plugin.getDailyNoteFile === 'function') {
+            const file = this.plugin.getDailyNoteFile();
+            if (file) return file;
+        }
+
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.extension === 'md') {
+            return activeFile;
+        }
+
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayDateStr = `${year}-${month}-${day}`;
+
+        const files = this.app.vault.getFiles();
+        let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
+        if (noteFile) return noteFile;
+
+        noteFile = files.find(f => f.name.includes(todayDateStr));
+        if (noteFile) return noteFile;
+
+        return files.find(f => f.extension === 'md') || null;
+    }
+
     renderIdleView(viewContainer) {
         const idleContainer = viewContainer.createDiv({ cls: 'timer-idle-container' });
         const iconDiv = idleContainer.createDiv({ cls: 'timer-idle-icon' });
@@ -2186,6 +2213,28 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                 });
             }
         }
+    }
+
+    getDailyNoteFile() {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.extension === 'md') {
+            return activeFile;
+        }
+
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayDateStr = `${year}-${month}-${day}`;
+
+        const files = this.app.vault.getFiles();
+        let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
+        if (noteFile) return noteFile;
+
+        noteFile = files.find(f => f.name.includes(todayDateStr));
+        if (noteFile) return noteFile;
+
+        return files.find(f => f.extension === 'md') || null;
     }
 
     parseAllTasks(content) {
