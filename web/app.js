@@ -248,7 +248,61 @@ function renderGridView(tasks) {
     });
 
     const totalHours = maxHour - minHour + 1;
-    const hourHeight = 60; // 60px per hour (1px per minute)
+    const hourHeight = window.webZoomLevel || 60;
+
+    // Render Zoom controls in header if not present
+    let zoomGroup = document.getElementById('webZoomGroup');
+    if (!zoomGroup) {
+        zoomGroup = document.createElement('div');
+        zoomGroup.id = 'webZoomGroup';
+        zoomGroup.className = 'timescale-zoom-group';
+        zoomGroup.style.marginLeft = '10px';
+
+        const zoomOutBtn = document.createElement('button');
+        zoomOutBtn.className = 'zoom-btn';
+        zoomOutBtn.textContent = '🔍−';
+        zoomOutBtn.title = 'Zoom Out (Compact)';
+        zoomOutBtn.onclick = () => {
+            window.webZoomLevel = Math.max(40, (window.webZoomLevel || 60) - 20);
+            if (lastState && lastState.schedule) renderSchedule(lastState.schedule);
+        };
+
+        const zoomLabel = document.createElement('span');
+        zoomLabel.className = 'zoom-label';
+        zoomLabel.id = 'webZoomLabel';
+        zoomLabel.textContent = `${window.webZoomLevel || 60}px/h`;
+
+        const zoomInBtn = document.createElement('button');
+        zoomInBtn.className = 'zoom-btn';
+        zoomInBtn.textContent = '🔍+';
+        zoomInBtn.title = 'Zoom In (Expanded)';
+        zoomInBtn.onclick = () => {
+            window.webZoomLevel = Math.min(180, (window.webZoomLevel || 60) + 20);
+            if (lastState && lastState.schedule) renderSchedule(lastState.schedule);
+        };
+
+        const focusBtn = document.createElement('button');
+        focusBtn.className = 'zoom-btn';
+        focusBtn.textContent = '🎯 Focus';
+        focusBtn.title = 'Focus Next 3 Hours (Expanded)';
+        focusBtn.onclick = () => {
+            window.webZoomLevel = 130;
+            if (lastState && lastState.schedule) renderSchedule(lastState.schedule);
+        };
+
+        zoomGroup.appendChild(zoomOutBtn);
+        zoomGroup.appendChild(zoomLabel);
+        zoomGroup.appendChild(zoomInBtn);
+        zoomGroup.appendChild(focusBtn);
+
+        const toggleContainer = document.querySelector('.view-mode-toggle');
+        if (toggleContainer && toggleContainer.parentNode) {
+            toggleContainer.parentNode.insertBefore(zoomGroup, toggleContainer.nextSibling);
+        }
+    } else {
+        const lbl = document.getElementById('webZoomLabel');
+        if (lbl) lbl.textContent = `${window.webZoomLevel || 60}px/h`;
+    }
 
     // Left Time Ruler
     const ruler = document.createElement('div');

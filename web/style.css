@@ -530,6 +530,47 @@ body {
     border-radius: 12px;
 }
 
+/* Timescale Zoom Controls */
+.timescale-zoom-group {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 3px;
+}
+
+.zoom-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.zoom-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.zoom-btn.active {
+    background: var(--accent-cyan);
+    color: #000;
+    font-weight: 700;
+}
+
+.zoom-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    padding: 0 4px;
+    font-weight: 600;
+}
+
 /* Positioned Time Block Cards */
 .timeblock-card {
     position: absolute;

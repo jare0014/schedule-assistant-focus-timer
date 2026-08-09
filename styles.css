@@ -76,6 +76,45 @@
   color: var(--text-on-accent);
 }
 
+/* Timescale Zoom Controls */
+.timescale-zoom-group {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.zoom-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-normal);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.zoom-btn:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.zoom-btn.active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.zoom-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  padding: 0 4px;
+  font-weight: 600;
+}
+
 /* Untimed Tasks Drawer */
 .untimed-drawer {
   margin-bottom: 12px;

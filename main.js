@@ -154,7 +154,7 @@ class TaskTimerView extends obsidian.ItemView {
         });
 
         const totalHours = maxHour - minHour + 1;
-        const hourHeight = 60;
+        const hourHeight = this.gridZoomLevel || 60;
 
         const ruler = gridWrapper.createDiv({ cls: 'time-ruler' });
         for (let h = minHour; h <= maxHour; h++) {
@@ -329,6 +329,10 @@ class TaskTimerView extends obsidian.ItemView {
             this.scheduleViewMode = 'grid';
         }
 
+        if (!this.gridZoomLevel) {
+            this.gridZoomLevel = 60;
+        }
+
         const controlsContainer = header.createDiv({ cls: 'task-timer-header-controls' });
 
         const viewToggle = controlsContainer.createDiv({ cls: 'view-mode-toggle' });
@@ -349,6 +353,30 @@ class TaskTimerView extends obsidian.ItemView {
             this.scheduleViewMode = 'list';
             this.renderSchedule();
         };
+
+        if (this.scheduleViewMode === 'grid') {
+            const zoomGroup = controlsContainer.createDiv({ cls: 'timescale-zoom-group' });
+            
+            const zoomOutBtn = zoomGroup.createEl('button', { cls: 'zoom-btn', text: '🔍−', title: 'Zoom Out (Compact)' });
+            zoomGroup.createEl('span', { cls: 'zoom-label', text: `${this.gridZoomLevel}px/h` });
+            const zoomInBtn = zoomGroup.createEl('button', { cls: 'zoom-btn', text: '🔍+', title: 'Zoom In (Expanded)' });
+            const focusBtn = zoomGroup.createEl('button', { cls: 'zoom-btn', text: '🎯 Focus', title: 'Focus Next 3 Hours (Expanded)' });
+
+            zoomOutBtn.onclick = () => {
+                this.gridZoomLevel = Math.max(40, this.gridZoomLevel - 20);
+                this.renderSchedule();
+            };
+
+            zoomInBtn.onclick = () => {
+                this.gridZoomLevel = Math.min(180, this.gridZoomLevel + 20);
+                this.renderSchedule();
+            };
+
+            focusBtn.onclick = () => {
+                this.gridZoomLevel = 130;
+                this.renderSchedule();
+            };
+        }
         
         const genBtn = controlsContainer.createEl('button', { cls: 'auto-block-btn', text: 'Generate Schedule' });
         genBtn.onclick = () => {

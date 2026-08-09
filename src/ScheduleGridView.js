@@ -57,7 +57,7 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
     });
 
     const totalHours = maxHour - minHour + 1;
-    const hourHeight = 60;
+    const hourHeight = (viewInstance && viewInstance.gridZoomLevel) || 60;
 
     const ruler = gridWrapper.createDiv({ cls: 'time-ruler' });
     for (let h = minHour; h <= maxHour; h++) {
