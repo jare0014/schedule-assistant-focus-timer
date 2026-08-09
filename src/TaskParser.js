@@ -1,5 +1,5 @@
 /**
- * TaskParser.js - Utility for parsing Day Planner tasks and subtasks from Obsidian Markdown notes.
+ * TaskParser.js - Modular helper for parsing tasks, subtasks, and resolving daily notes.
  */
 
 function parseAllTasks(content) {
@@ -8,6 +8,7 @@ function parseAllTasks(content) {
     const tasks = [];
     const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
     let currentSubheading = "";
+    
     let hasPlannerHeader = false;
     for (const l of lines) {
         const lower = l.toLowerCase();
@@ -134,6 +135,7 @@ function parseAllTasks(content) {
                     description = description.replace(/\s+src$/i, '').trim();
                     description = description.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
                     description = description.replace(/#\w+/g, '').trim();
+                    description = description.replace(/#\w+/g, '').trim();
                     description = description.replace(/\s+/g, ' ').trim();
                     
                     const taskObj = {
@@ -170,4 +172,28 @@ function parseAllTasks(content) {
     return tasks;
 }
 
-module.exports = { parseAllTasks };
+function getDailyNoteFile(app) {
+    if (!app || !app.vault) return null;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayDateStr = `${year}-${month}-${day}`;
+
+    const files = app.vault.getFiles();
+    
+    let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
+    if (noteFile) return noteFile;
+
+    noteFile = files.find(f => f.path && f.path.includes(todayDateStr));
+    if (noteFile) return noteFile;
+
+    const activeFile = app.workspace ? app.workspace.getActiveFile() : null;
+    if (activeFile && activeFile.basename === todayDateStr) {
+        return activeFile;
+    }
+
+    return null;
+}
+
+module.exports = { parseAllTasks, getDailyNoteFile };

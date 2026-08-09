@@ -1,5 +1,5 @@
 /**
- * ScheduleGridView.js - Renders Google Calendar style Day View grid and subtasks.
+ * ScheduleGridView.js - Renders Google Calendar style Day View grid, ruler, zoom, and subtasks.
  */
 
 async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
@@ -16,7 +16,7 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
     // 1. Untimed Accordion Drawer at top (collapsed by default)
     if (topLevelUntimed.length > 0) {
         const drawer = viewContainer.createEl('details', { cls: 'untimed-drawer' });
-        // Collapsed by default - no open attribute
+        // Collapsed by default - no open attribute set
 
         const summary = drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
         const content = drawer.createDiv({ cls: 'untimed-drawer-content' });
@@ -59,6 +59,7 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
     const totalHours = maxHour - minHour + 1;
     const hourHeight = (viewInstance && viewInstance.gridZoomLevel) || 60;
 
+    // Time ruler height matches zoomed hour scale
     const ruler = gridWrapper.createDiv({ cls: 'time-ruler' });
     for (let h = minHour; h <= maxHour; h++) {
         const hourLabel = ruler.createDiv({ cls: 'time-ruler-hour' });
@@ -102,7 +103,7 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
         return aStart - bStart;
     });
 
-    // Compute needed minutes factoring subtasks to prevent card overlap
+    // Calculate needed duration for subtasks to prevent card overlap
     sortedTasks.forEach(task => {
         const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
         const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
@@ -121,11 +122,6 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
 
     const columns = [];
     sortedTasks.forEach(task => {
-        const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
-        const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
-        task.calcStartMins = taskStart;
-        task.calcEndMins = Math.max(taskStart + 15, taskEnd);
-
         let placed = false;
         for (let col of columns) {
             const lastInCol = col[col.length - 1];
@@ -216,7 +212,6 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
                     }
                 });
 
-                // Ensure card height expands to fit nested subtasks cleanly
                 const minRequiredHeight = 48 + (subtasks.length * 28);
                 if (heightPx < minRequiredHeight) {
                     heightPx = minRequiredHeight;
@@ -232,10 +227,13 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
     });
 
     setTimeout(() => {
-        const scrollToMins = (currentHour >= minHour && currentHour <= maxHour)
-            ? ((currentHour - minHour) * 60 + currentMin)
-            : 0;
-        gridWrapper.scrollTop = Math.max(0, (scrollToMins - 60) * (hourHeight / 60));
+        if (currentHour >= minHour && currentHour <= maxHour) {
+            const currentMinsFromMinHour = ((currentHour - minHour) * 60) + currentMin;
+            // Scroll to bring current time + next 2 hours directly into view
+            gridWrapper.scrollTop = Math.max(0, (currentMinsFromMinHour * (hourHeight / 60)) - 10);
+        } else {
+            gridWrapper.scrollTop = 0;
+        }
     }, 100);
 }
 
