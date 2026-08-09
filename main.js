@@ -344,8 +344,8 @@ class TaskTimerView extends obsidian.ItemView {
             return;
         }
 
-        // 3. Parse tasks (filter out completed tasks)
-        const tasks = this.plugin.parseAllTasks(content).filter(t => t.status !== 'completed');
+        // 3. Parse tasks from daily note
+        const tasks = this.plugin.parseAllTasks(content);
         if (tasks.length === 0) {
             this.renderIdleView(viewContainer);
             return;
@@ -2189,23 +2189,35 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
     }
 
     parseAllTasks(content) {
+        if (!content) return [];
         const lines = content.split(/\r?\n/);
         const tasks = [];
         const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         let currentSubheading = "";
-        let inPlanner = false;
+        
+        let hasPlannerHeader = false;
+        for (const l of lines) {
+            const lower = l.toLowerCase();
+            if (lower.includes("day planner") || lower.includes("schedule")) {
+                hasPlannerHeader = true;
+                break;
+            }
+        }
+        let inPlanner = !hasPlannerHeader;
+
         let currentProject = "";
         let lastParentTask = null;
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
+            const lowerLine = line.toLowerCase();
             const isIndented = /^\s+/.test(line);
 
-            if (line.includes("## 📅Day Planner")) {
+            if (hasPlannerHeader && (lowerLine.includes("day planner") || lowerLine.includes("schedule")) && line.startsWith('## ')) {
                 inPlanner = true;
                 continue;
             }
-            if (inPlanner && line.startsWith('## ') && !line.includes("## 📅Day Planner")) {
+            if (hasPlannerHeader && inPlanner && line.startsWith('## ') && !lowerLine.includes("day planner") && !lowerLine.includes("schedule")) {
                 break;
             }
             if (inPlanner) {

@@ -8,19 +8,29 @@ function parseAllTasks(content) {
     const tasks = [];
     const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
     let currentSubheading = "";
-    let inPlanner = false;
+    let hasPlannerHeader = false;
+    for (const l of lines) {
+        const lower = l.toLowerCase();
+        if (lower.includes("day planner") || lower.includes("schedule")) {
+            hasPlannerHeader = true;
+            break;
+        }
+    }
+    let inPlanner = !hasPlannerHeader;
+
     let currentProject = "";
     let lastParentTask = null;
     
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        const lowerLine = line.toLowerCase();
         const isIndented = /^\s+/.test(line);
 
-        if (line.includes("## 📅Day Planner")) {
+        if (hasPlannerHeader && (lowerLine.includes("day planner") || lowerLine.includes("schedule")) && line.startsWith('## ')) {
             inPlanner = true;
             continue;
         }
-        if (inPlanner && line.startsWith('## ') && !line.includes("## 📅Day Planner")) {
+        if (hasPlannerHeader && inPlanner && line.startsWith('## ') && !lowerLine.includes("day planner") && !lowerLine.includes("schedule")) {
             break;
         }
         if (inPlanner) {
