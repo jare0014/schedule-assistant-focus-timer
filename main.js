@@ -427,16 +427,33 @@ class TaskTimerView extends obsidian.ItemView {
                 return;
             }
             const originalLine = lines[lineIndex];
-            
+
+            // Toggle the parent task line
             if (complete) {
                 lines[lineIndex] = originalLine.replace('- [ ]', '- [x]').replace('- [/]', '- [x]');
             } else {
                 lines[lineIndex] = originalLine.replace('- [x]', '- [ ]');
             }
 
-            // Sync API
+            // Cascade to subtasks: find all immediately-indented child task lines after the parent
+            const parentIndent = originalLine.match(/^(\s*)/)[1].length;
+            for (let i = lineIndex + 1; i < lines.length; i++) {
+                const childLine = lines[i];
+                if (!childLine.trim()) continue; // skip blank lines
+                const childIndent = childLine.match(/^(\s*)/)[1].length;
+                if (childIndent <= parentIndent) break; // back to same/higher level — stop
+                if (childLine.includes('- [ ]') || childLine.includes('- [x]') || childLine.includes('- [/]')) {
+                    if (complete) {
+                        lines[i] = childLine.replace('- [ ]', '- [x]').replace('- [/]', '- [x]');
+                    } else {
+                        lines[i] = childLine.replace('- [x]', '- [ ]');
+                    }
+                }
+            }
+
+            // Sync API for parent task
             await this.plugin.toggleTaskStatusByLineText(originalLine, complete);
-            
+
             // Save daily note
             await this.app.vault.modify(dailyFile, lines.join('\n'));
             this.renderSchedule();
