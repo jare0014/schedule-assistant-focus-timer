@@ -361,36 +361,31 @@ function renderGridView(tasks) {
         return aStart - bStart;
     });
 
-    // Pre-compute calcEndMins accounting for subtask height so column layout doesn't overlap
+    // Pre-compute calcStartMins / calcEndMins using REAL schedule times only
+    // (subtask height expansion is handled in card rendering, not column layout)
     sortedTasks.forEach(task => {
         const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
         const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
-        const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
-        let neededMins = Math.max(15, taskEnd - taskStart);
-        if (subtasks.length > 0) {
-            const minPxNeeded = 54 + (subtasks.length * 30);
-            const minMinsNeeded = Math.ceil(minPxNeeded / (hourHeight / 60));
-            neededMins = Math.max(neededMins, minMinsNeeded);
-        }
         task.calcStartMins = taskStart;
-        task.calcEndMins = taskStart + neededMins;
+        task.calcEndMins = Math.max(taskStart + 15, taskEnd);
     });
 
-    // Group overlapping tasks into columns
+    // Group truly overlapping tasks into columns (by real schedule time)
     const columns = [];
     sortedTasks.forEach(task => {
         let placed = false;
         for (let col of columns) {
-            const lastInCol = col[col.length - 1];
-            if (lastInCol.calcEndMins <= task.calcStartMins) {
+            // Check ALL tasks in column for true overlap, not just the last one
+            const overlaps = col.some(existing =>
+                task.calcStartMins < existing.calcEndMins && task.calcEndMins > existing.calcStartMins
+            );
+            if (!overlaps) {
                 col.push(task);
                 placed = true;
                 break;
             }
         }
-        if (!placed) {
-            columns.push([task]);
-        }
+        if (!placed) columns.push([task]);
     });
 
     const totalCols = columns.length || 1;

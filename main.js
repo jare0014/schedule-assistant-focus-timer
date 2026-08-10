@@ -127,19 +127,21 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
 
     const sortedTasks = [...timedTasks].sort((a, b) => ((a.startHour ?? 0) * 60 + (a.startMin ?? 0)) - ((b.startHour ?? 0) * 60 + (b.startMin ?? 0)));
 
+    // Use real schedule times for column placement — subtask height expansion is visual only
     sortedTasks.forEach(task => {
         const ts = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
         const te = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
-        const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
-        let neededMins = Math.max(15, te - ts);
-        if (subtasks.length > 0) { const minMins = Math.ceil((54 + subtasks.length * 30) / (hourHeight / 60)); neededMins = Math.max(neededMins, minMins); }
-        task.calcStartMins = ts; task.calcEndMins = ts + neededMins;
+        task.calcStartMins = ts;
+        task.calcEndMins = Math.max(ts + 15, te);
     });
 
     const columns = [];
     sortedTasks.forEach(task => {
         let placed = false;
-        for (const col of columns) { if (col[col.length - 1].calcEndMins <= task.calcStartMins) { col.push(task); placed = true; break; } }
+        for (const col of columns) {
+            const overlaps = col.some(ex => task.calcStartMins < ex.calcEndMins && task.calcEndMins > ex.calcStartMins);
+            if (!overlaps) { col.push(task); placed = true; break; }
+        }
         if (!placed) columns.push([task]);
     });
     const totalCols = columns.length || 1;
@@ -2799,7 +2801,9 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                             duration: t.duration,
                             description: t.description,
                             subheading: t.subheading ? t.subheading.replace(/^###\s+/, '') : "Agenda",
-                            project: t.project || null
+                            project: t.project || null,
+                            isUntimed: t.isUntimed || false,
+                            parentLineIndex: t.parentLineIndex !== undefined ? t.parentLineIndex : undefined
                         }))
                     }));
                     return;
