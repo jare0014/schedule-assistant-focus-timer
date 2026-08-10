@@ -171,10 +171,15 @@
   left: 0;
   z-index: 5;
   user-select: none;
+  /* Flex column ensures inline height on each cell is respected */
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .time-ruler-hour {
-  height: 60px;
+  /* height is set dynamically by JS to match hourHeight (zoom level) */
+  flex-shrink: 0;
   box-sizing: border-box;
   padding-right: 8px;
   padding-top: 4px;
@@ -188,7 +193,7 @@
 .time-grid-canvas {
   flex: 1;
   position: relative;
-  background-size: 100% 60px;
+  /* background-size is not used; grid lines are JS-positioned absolute divs */
 }
 
 .hour-grid-line {

@@ -457,10 +457,15 @@ body {
     left: 0;
     z-index: 5;
     user-select: none;
+    /* Flex column so inline height per cell (set by JS at zoom time) is respected */
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
 }
 
 .time-ruler-hour {
-    height: 60px;
+    /* height set dynamically by JS to match zoom level */
+    flex-shrink: 0;
     box-sizing: border-box;
     padding-right: 10px;
     padding-top: 6px;
