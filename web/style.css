@@ -510,6 +510,7 @@ body {
     z-index: 10;
     pointer-events: none;
     box-shadow: 0 0 10px rgba(0, 255, 208, 0.8);
+    transition: top 1s linear;
 }
 
 .current-time-dot {

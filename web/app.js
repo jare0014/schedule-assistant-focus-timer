@@ -193,6 +193,28 @@ if (webZoomOut) webZoomOut.onclick = () => { window.webZoomLevel = Math.max(40, 
 if (webZoomIn)  webZoomIn.onclick  = () => { window.webZoomLevel = Math.min(180, (window.webZoomLevel || 60) + 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
 if (webZoomFocus) webZoomFocus.onclick = () => { window.webZoomLevel = 130; if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
 
+// Lightweight: update only the current-time indicator position in-place (no full re-render)
+function updateTimeIndicatorInPlace() {
+    const indicator = document.querySelector('.current-time-indicator');
+    const badge = document.querySelector('.current-time-badge');
+    if (!indicator) return;
+    const now = new Date();
+    const hourHeight = window.webZoomLevel || 60;
+    // Read minHour from a data attribute stored on the grid wrapper
+    const gridWrapper = document.querySelector('.time-grid-wrapper');
+    if (!gridWrapper) return;
+    const minHour = parseInt(gridWrapper.dataset.minHour || '5', 10);
+    const maxHour = parseInt(gridWrapper.dataset.maxHour || '22', 10);
+    const h = now.getHours(), m = now.getMinutes();
+    if (h < minHour || h > maxHour) { indicator.style.display = 'none'; return; }
+    indicator.style.display = '';
+    const top = ((h - minHour) * 60 + m) * (hourHeight / 60);
+    indicator.style.top = `${top}px`;
+    if (badge) badge.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+// Run time indicator update every 30 seconds without touching anything else
+setInterval(updateTimeIndicatorInPlace, 30000);
+
 // Render parsed timeline schedule
 function renderSchedule(tasks) {
     scheduleList.innerHTML = '';
@@ -210,13 +232,19 @@ function renderSchedule(tasks) {
 }
 
 function renderGridView(tasks) {
-    // Separate standalone top-level untimed tasks (no parent line index)
-    const topLevelUntimed = tasks.filter(t => 
-        t.parentLineIndex === undefined && 
-        (t.isUntimed || (t.subheading && (t.subheading.includes("☁️") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed"))))
+    // Untimed = no valid startHour/endHour OR explicitly marked isUntimed, and no parent
+    const topLevelUntimed = tasks.filter(t =>
+        t.parentLineIndex === undefined &&
+        (t.isUntimed ||
+         t.startHour === null || t.startHour === undefined ||
+         t.endHour === null || t.endHour === undefined ||
+         (t.subheading && (t.subheading.includes("\u2601\ufe0f") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed"))))
     );
-    const timedTasks = tasks.filter(t => 
-        t.parentLineIndex === undefined && !topLevelUntimed.includes(t)
+    const timedTasks = tasks.filter(t =>
+        t.parentLineIndex === undefined &&
+        !topLevelUntimed.includes(t) &&
+        typeof t.startHour === 'number' &&
+        typeof t.endHour === 'number'
     );
 
     // 1. Untimed Accordion Drawer at top (collapsed by default)
@@ -254,6 +282,10 @@ function renderGridView(tasks) {
         if (typeof t.startHour === 'number' && t.startHour < minHour) minHour = Math.max(0, t.startHour);
         if (typeof t.endHour === 'number' && t.endHour > maxHour) maxHour = Math.min(23, t.endHour);
     });
+
+    // Store for in-place time indicator updates
+    gridWrapper.dataset.minHour = minHour;
+    gridWrapper.dataset.maxHour = maxHour;
 
     const totalHours = maxHour - minHour + 1;
     const hourHeight = window.webZoomLevel || 60;
@@ -922,4 +954,4 @@ async function adjustTime(minutes) {
 
 // Initial Poll & Setup Interval
 checkStatus();
-setInterval(checkStatus, 1000);
+setInterval(checkStatus, 5000);
