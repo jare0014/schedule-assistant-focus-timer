@@ -462,6 +462,46 @@ class TaskTimerView extends obsidian.ItemView {
         }
     }
 
+    async deleteTaskBlock(task) {
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return;
+
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            const lines = content.split(/\r?\n/);
+            let lineIndex = task.lineIndex;
+
+            // Fallback: find by description if lineIndex is stale
+            if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].toLowerCase().includes(task.description.toLowerCase().trim())) {
+                lineIndex = lines.findIndex(l => l.toLowerCase().includes(task.description.toLowerCase().trim()) && (l.includes('- [ ]') || l.includes('- [x]') || l.includes('- [/]')));
+            }
+            if (lineIndex === -1) {
+                new obsidian.Notice("Could not find task in daily note!");
+                return;
+            }
+
+            // Determine range: parent line + all immediately-indented subtask lines
+            const parentIndent = lines[lineIndex].match(/^(\s*)/)[1].length;
+            let endIndex = lineIndex + 1;
+            while (endIndex < lines.length) {
+                const childLine = lines[endIndex];
+                if (!childLine.trim()) { endIndex++; continue; } // keep scanning over blank lines within block
+                const childIndent = childLine.match(/^(\s*)/)[1].length;
+                if (childIndent <= parentIndent) break;
+                endIndex++;
+            }
+
+            // Splice out the parent + subtasks block
+            lines.splice(lineIndex, endIndex - lineIndex);
+
+            await this.app.vault.modify(dailyFile, lines.join('\n'));
+            new obsidian.Notice(`Removed: ${task.description}`);
+            this.renderSchedule();
+        } catch(e) {
+            console.error("Failed to delete task block:", e);
+        }
+    }
+
     async handleTaskDrop(draggedTask, targetSubheading) {
         const dailyFile = this.getDailyNoteFile();
         if (!dailyFile) return;

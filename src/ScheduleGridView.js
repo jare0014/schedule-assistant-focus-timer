@@ -171,6 +171,12 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
                 viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
             };
 
+            const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
+            delBtn.onclick = async (e) => {
+                e.stopPropagation();
+                await viewInstance.deleteTaskBlock(task);
+            };
+
             const cardTime = card.createDiv({ cls: 'timeblock-card-time' });
             const formatHourMin = (h, m) => {
                 const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);

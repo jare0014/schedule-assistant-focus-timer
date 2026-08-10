@@ -666,6 +666,31 @@ body {
     box-shadow: 0 0 10px rgba(0, 255, 208, 0.5);
 }
 
+.timeblock-delete-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted, rgba(255,255,255,0.4));
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.timeblock-card:hover .timeblock-delete-btn {
+    opacity: 1;
+}
+.timeblock-delete-btn:hover {
+    background: rgba(220, 53, 69, 0.25);
+    color: #ff6b6b;
+    border-color: rgba(220, 53, 69, 0.4);
+}
+
 /* Timeblock Nested Subtasks */
 .timeblock-subtasks-container {
     margin-top: 6px;

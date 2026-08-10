@@ -371,14 +371,24 @@ function renderGridView(tasks) {
         return aStart - bStart;
     });
 
-    // Group overlapping tasks into columns
-    const columns = [];
+    // Pre-compute calcEndMins accounting for subtask height so column layout doesn't overlap
     sortedTasks.forEach(task => {
         const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
         const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
+        const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
+        let neededMins = Math.max(15, taskEnd - taskStart);
+        if (subtasks.length > 0) {
+            const minPxNeeded = 54 + (subtasks.length * 30);
+            const minMinsNeeded = Math.ceil(minPxNeeded / (hourHeight / 60));
+            neededMins = Math.max(neededMins, minMinsNeeded);
+        }
         task.calcStartMins = taskStart;
-        task.calcEndMins = Math.max(taskStart + 15, taskEnd);
+        task.calcEndMins = taskStart + neededMins;
+    });
 
+    // Group overlapping tasks into columns
+    const columns = [];
+    sortedTasks.forEach(task => {
         let placed = false;
         for (let col of columns) {
             const lastInCol = col[col.length - 1];
@@ -442,6 +452,18 @@ function renderGridView(tasks) {
                 startTaskTimer(task);
             };
             controls.appendChild(playBtn);
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'timeblock-delete-btn';
+            delBtn.innerHTML = '✕';
+            delBtn.title = 'Remove task block from daily note';
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm(`Remove "${task.description}" and its subtasks from today's note?`)) {
+                    deleteTaskBlock(task);
+                }
+            };
+            controls.appendChild(delBtn);
 
             cardHeader.appendChild(controls);
             card.appendChild(cardHeader);
