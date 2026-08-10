@@ -267,7 +267,19 @@ class TaskTimerView extends obsidian.ItemView {
     }
 
     getDailyNoteFile() {
-        return getDailyNoteFile(this.app);
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayDateStr = `${year}-${month}-${day}`;
+        const files = this.app.vault.getFiles();
+        let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
+        if (noteFile) return noteFile;
+        noteFile = files.find(f => f.path && f.path.includes(todayDateStr));
+        if (noteFile) return noteFile;
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.basename === todayDateStr) return activeFile;
+        return null;
     }
 
     renderIdleView(viewContainer) {
@@ -3074,6 +3086,41 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     setCorsHeaders();
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: "Task not found or daily note not available." }));
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/task/delete') {
+                    const body = await readBody();
+                    const dailyFile = this.getDailyNoteFile();
+                    if (dailyFile) {
+                        const content = await this.app.vault.read(dailyFile);
+                        const lines = content.split(/\r?\n/);
+                        let lineIndex = body.lineIndex;
+                        if (lineIndex === undefined || lineIndex >= lines.length) {
+                            lineIndex = lines.findIndex(l => l.toLowerCase().includes((body.description || '').toLowerCase()) && (l.includes('- [ ]') || l.includes('- [x]')));
+                        }
+                        if (lineIndex !== -1) {
+                            const parentIndent = lines[lineIndex].match(/^(\s*)/)[1].length;
+                            let endIndex = lineIndex + 1;
+                            while (endIndex < lines.length) {
+                                const child = lines[endIndex];
+                                if (!child.trim()) { endIndex++; continue; }
+                                if (child.match(/^(\s*)/)[1].length <= parentIndent) break;
+                                endIndex++;
+                            }
+                            lines.splice(lineIndex, endIndex - lineIndex);
+                            await this.app.vault.modify(dailyFile, lines.join('\n'));
+                            const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                            if (leaves.length > 0) leaves[0].view.renderSchedule();
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true }));
+                            return;
+                        }
+                    }
+                    setCorsHeaders();
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Task not found or daily note unavailable.' }));
                     return;
                 }
 

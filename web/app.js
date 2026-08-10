@@ -185,6 +185,14 @@ if (viewGridBtn && viewListBtn) {
     };
 }
 
+// Bind zoom controls (static HTML buttons)
+const webZoomOut = document.getElementById('webZoomOut');
+const webZoomIn = document.getElementById('webZoomIn');
+const webZoomFocus = document.getElementById('webZoomFocus');
+if (webZoomOut) webZoomOut.onclick = () => { window.webZoomLevel = Math.max(40, (window.webZoomLevel || 60) - 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
+if (webZoomIn)  webZoomIn.onclick  = () => { window.webZoomLevel = Math.min(180, (window.webZoomLevel || 60) + 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
+if (webZoomFocus) webZoomFocus.onclick = () => { window.webZoomLevel = 130; if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
+
 // Render parsed timeline schedule
 function renderSchedule(tasks) {
     scheduleList.innerHTML = '';
@@ -250,59 +258,9 @@ function renderGridView(tasks) {
     const totalHours = maxHour - minHour + 1;
     const hourHeight = window.webZoomLevel || 60;
 
-    // Render Zoom controls in header if not present
-    let zoomGroup = document.getElementById('webZoomGroup');
-    if (!zoomGroup) {
-        zoomGroup = document.createElement('div');
-        zoomGroup.id = 'webZoomGroup';
-        zoomGroup.className = 'timescale-zoom-group';
-        zoomGroup.style.marginLeft = '10px';
-
-        const zoomOutBtn = document.createElement('button');
-        zoomOutBtn.className = 'zoom-btn';
-        zoomOutBtn.textContent = '🔍−';
-        zoomOutBtn.title = 'Zoom Out (Compact)';
-        zoomOutBtn.onclick = () => {
-            window.webZoomLevel = Math.max(40, (window.webZoomLevel || 60) - 20);
-            if (lastState && lastState.schedule) renderSchedule(lastState.schedule);
-        };
-
-        const zoomLabel = document.createElement('span');
-        zoomLabel.className = 'zoom-label';
-        zoomLabel.id = 'webZoomLabel';
-        zoomLabel.textContent = `${window.webZoomLevel || 60}px/h`;
-
-        const zoomInBtn = document.createElement('button');
-        zoomInBtn.className = 'zoom-btn';
-        zoomInBtn.textContent = '🔍+';
-        zoomInBtn.title = 'Zoom In (Expanded)';
-        zoomInBtn.onclick = () => {
-            window.webZoomLevel = Math.min(180, (window.webZoomLevel || 60) + 20);
-            if (lastState && lastState.schedule) renderSchedule(lastState.schedule);
-        };
-
-        const focusBtn = document.createElement('button');
-        focusBtn.className = 'zoom-btn';
-        focusBtn.textContent = '🎯 Focus';
-        focusBtn.title = 'Focus Next 3 Hours (Expanded)';
-        focusBtn.onclick = () => {
-            window.webZoomLevel = 130;
-            if (lastState && lastState.schedule) renderSchedule(lastState.schedule);
-        };
-
-        zoomGroup.appendChild(zoomOutBtn);
-        zoomGroup.appendChild(zoomLabel);
-        zoomGroup.appendChild(zoomInBtn);
-        zoomGroup.appendChild(focusBtn);
-
-        const toggleContainer = document.querySelector('.view-mode-toggle');
-        if (toggleContainer && toggleContainer.parentNode) {
-            toggleContainer.parentNode.insertBefore(zoomGroup, toggleContainer.nextSibling);
-        }
-    } else {
-        const lbl = document.getElementById('webZoomLabel');
-        if (lbl) lbl.textContent = `${window.webZoomLevel || 60}px/h`;
-    }
+    // Update zoom label
+    const zoomLbl = document.getElementById('webZoomLabel');
+    if (zoomLbl) zoomLbl.textContent = `${window.webZoomLevel || 60}px/h`;
 
     // Left Time Ruler
     const ruler = document.createElement('div');
@@ -732,6 +690,21 @@ async function handleTaskDrop(draggedTask, targetSubheading) {
         checkStatus();
     } catch (err) {
         console.error("Failed to drop task:", err);
+    }
+}
+
+async function deleteTaskBlock(task) {
+    try {
+        const res = await fetch(`${API_BASE}/api/task/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lineIndex: task.lineIndex, description: task.description })
+        });
+        if (res.ok) {
+            checkStatus();
+        }
+    } catch (err) {
+        console.error('Failed to delete task block:', err);
     }
 }
 
