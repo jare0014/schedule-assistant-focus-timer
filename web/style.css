@@ -959,24 +959,36 @@ body {
     }
 }
 
-/* Watch Layout (Android Wear OS style, round/square screen < 380px) */
+/* Watch Layout (Android Wear OS style, round/square screen < 260px) */
+body.wear-os .schedule-section,
+@media (max-width: 260px) {
+    .schedule-section {
+        display: none !important;
+    }
+}
+
 @media (max-width: 380px) {
     body {
         font-size: 14px;
         background-color: #000;
-        overflow: hidden;
     }
     
     .app-container {
         flex-direction: column;
         height: 100vh;
         width: 100vw;
-        overflow: hidden;
     }
     
-    /* Hide the entire schedule timeline on the watch */
+    .timer-section {
+        flex: none;
+        padding: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
     .schedule-section {
-        display: none;
+        flex: 1;
+        padding: 12px;
+        overflow-y: auto;
     }
     
     .timer-section {

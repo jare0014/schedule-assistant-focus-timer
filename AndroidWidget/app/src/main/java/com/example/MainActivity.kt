@@ -481,26 +481,78 @@ fun ObsidianTodoScreen(
                     }
                 }
 
-                // View Mode Toggle Button (Grid vs List)
-                Button(
-                    onClick = {
-                        selectedViewMode = if (selectedViewMode == "GRID") "LIST" else "GRID"
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedViewMode == "GRID") ObsidianPurple.copy(alpha = 0.25f) else ObsidianSurface,
-                        contentColor = if (selectedViewMode == "GRID") ObsidianPurple else ObsidianTextPrimary
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, if (selectedViewMode == "GRID") ObsidianPurple else ObsidianBorder),
-                    contentPadding = PaddingValues(horizontal = 10.dp),
-                    modifier = Modifier
-                        .height(40.dp)
-                        .testTag("grid_view_button")
-                ) {
+            }
+        }
+
+        // Segmented View Mode Switcher Row (List View vs Timeline Grid)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .background(ObsidianSurface, RoundedCornerShape(8.dp))
+                .border(1.dp, ObsidianBorder, RoundedCornerShape(8.dp))
+                .padding(4.dp)
+        ) {
+            // List View Tab
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (selectedViewMode == "LIST") ObsidianPurple.copy(alpha = 0.25f) else Color.Transparent)
+                    .border(
+                        1.dp,
+                        if (selectedViewMode == "LIST") ObsidianPurple else Color.Transparent,
+                        RoundedCornerShape(6.dp)
+                    )
+                    .clickable { selectedViewMode = "LIST" },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.List,
+                        contentDescription = null,
+                        tint = if (selectedViewMode == "LIST") ObsidianPurple else ObsidianTextMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (selectedViewMode == "GRID") "📋 List" else "📅 Grid",
+                        text = "List View",
+                        color = if (selectedViewMode == "LIST") ObsidianTextPrimary else ObsidianTextMuted,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            // Timeline Grid Tab
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (selectedViewMode == "GRID") ObsidianPurple.copy(alpha = 0.25f) else Color.Transparent)
+                    .border(
+                        1.dp,
+                        if (selectedViewMode == "GRID") ObsidianPurple else Color.Transparent,
+                        RoundedCornerShape(6.dp)
+                    )
+                    .clickable { selectedViewMode = "GRID" },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = null,
+                        tint = if (selectedViewMode == "GRID") ObsidianPurple else ObsidianTextMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Timeline Grid",
+                        color = if (selectedViewMode == "GRID") ObsidianTextPrimary else ObsidianTextMuted,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -960,6 +1012,11 @@ fun ObsidianTodoScreen(
                         WebView(ctx).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
+                            settings.loadWithOverviewMode = true
+                            settings.useWideViewPort = true
+                            settings.builtInZoomControls = false
+                            settings.displayZoomControls = false
+                            settings.setSupportZoom(true)
                             webViewClient = WebViewClient()
                             val ip = serverIp.ifEmpty { "10.0.0.75" }
                             val port = serverPort.ifEmpty { "8090" }
