@@ -75,8 +75,39 @@ function formatTime(seconds) {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+// Expose updateState globally immediately
+window.updateState = function(newState) {
+    if (!newState) return;
+    try {
+        updateUI(newState);
+    } catch(e) {
+        console.error("updateUI error:", e);
+    }
+};
+
+// Check AndroidBridge synchronously on load
+function checkAndroidBridge() {
+    if (window.AndroidBridge && typeof window.AndroidBridge.getInitialState === 'function') {
+        try {
+            const raw = window.AndroidBridge.getInitialState();
+            if (raw) {
+                const state = JSON.parse(raw);
+                updateUI(state);
+                return true;
+            }
+        } catch(e) {
+            console.error("AndroidBridge fetch error:", e);
+        }
+    }
+    return false;
+}
+
 // Fetch status from Obsidian Server
 async function checkStatus() {
+    if (checkAndroidBridge()) {
+        return;
+    }
+    if (window.location.protocol === 'file:') return;
     try {
         const response = await fetch(`${API_BASE}/api/status`);
         if (!response.ok) throw new Error('Network response not ok');
@@ -89,9 +120,9 @@ async function checkStatus() {
         updateUI(state);
     } catch (e) {
         console.error('Connection failed:', e);
-        syncStatus.textContent = '○ Reconnecting...';
-        syncStatus.style.background = 'rgba(255, 69, 58, 0.15)';
-        syncStatus.style.color = '#ff453a';
+        syncStatus.textContent = '○ Offline / Local';
+        syncStatus.style.background = 'rgba(168, 130, 221, 0.15)';
+        syncStatus.style.color = '#a882dd';
     }
 }
 

@@ -11,6 +11,7 @@ import android.net.Uri
 import android.widget.Toast
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.JavascriptInterface
 import org.json.JSONObject
 import org.json.JSONArray
 import androidx.compose.ui.viewinterop.AndroidView
@@ -1075,6 +1076,10 @@ fun ObsidianTodoScreen(
                             settings.builtInZoomControls = false
                             settings.displayZoomControls = false
                             settings.setSupportZoom(true)
+                            addJavascriptInterface(object {
+                                @JavascriptInterface
+                                fun getInitialState(): String = webStateJson
+                            }, "AndroidBridge")
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
