@@ -227,6 +227,12 @@ class ObsidianSyncRepository(private val context: Context) {
                     resolvedCategory = currentCategory
                 }
 
+                val resolvedParentLineNumber = if (isIndented && lastParentTask != null) {
+                    lastParentTask.lineNumber
+                } else {
+                    null
+                }
+
                 val stableId = "md_${getResolvedPathOrEndpoint().hashCode()}_${index}_${text.hashCode()}"
 
                 val newTask = Task(
@@ -235,6 +241,7 @@ class ObsidianSyncRepository(private val context: Context) {
                     isCompleted = isCompleted,
                     notePath = getResolvedPathOrEndpoint(),
                     lineNumber = index + 1, // 1-based index
+                    parentLineNumber = resolvedParentLineNumber,
                     rawMarkdownLine = line,
                     timeRange = timeRange,
                     displayTitle = displayTitle,
@@ -339,6 +346,10 @@ class ObsidianSyncRepository(private val context: Context) {
 
                     val projectVal = if (taskObj.isNull("project")) "" else taskObj.optString("project", "")
                     val project = if (projectVal.isEmpty() || projectVal == "null") null else projectVal
+                    
+                    val rawParentIdx = taskObj.optInt("parentLineIndex", -1)
+                    val parentLineNum = if (rawParentIdx >= 0) rawParentIdx + 1 else if (taskObj.has("parentLineNumber") && !taskObj.isNull("parentLineNumber")) taskObj.optInt("parentLineNumber") else null
+
                     tasks.add(
                         Task(
                             id = id,
@@ -346,6 +357,7 @@ class ObsidianSyncRepository(private val context: Context) {
                             isCompleted = isCompleted,
                             notePath = getResolvedPathOrEndpoint(),
                             lineNumber = if (taskObj.has("lineIndex")) taskObj.optInt("lineIndex") + 1 else i + 1,
+                            parentLineNumber = parentLineNum,
                             timeRange = timeRange,
                             displayTitle = text,
                             category = resolvedCategory,

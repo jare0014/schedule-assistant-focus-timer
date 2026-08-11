@@ -10,6 +10,7 @@ data class Task(
     val isCompleted: Boolean,
     val notePath: String = "",
     val lineNumber: Int = 0,
+    val parentLineNumber: Int? = null,
     val rawMarkdownLine: String = "",
     val timeRange: String? = null,
     val displayTitle: String = text,

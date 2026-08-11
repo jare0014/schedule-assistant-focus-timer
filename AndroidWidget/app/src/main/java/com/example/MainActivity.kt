@@ -1845,7 +1845,16 @@ fun NativeTimelineGridView(
 
     val untimedTasks = remember(tasks, timedTasks) {
         val timedIds = timedTasks.map { it.first.id }.toSet()
-        tasks.filter { it.id !in timedIds && !it.isCompleted }
+        tasks.filter { task ->
+            task.id !in timedIds &&
+            task.parentLineNumber == null &&
+            !task.isCompleted
+        }
+    }
+
+    val subtasksByParent = remember(tasks) {
+        tasks.filter { it.parentLineNumber != null }
+            .groupBy { it.parentLineNumber!! }
     }
 
     var minHour = 5
@@ -2042,11 +2051,15 @@ fun NativeTimelineGridView(
                         val topDp = (startOffsetMins.toFloat() / 60f) * zoomLevel
                         val cardHeightDp = Math.max(32f, (durationMins.toFloat() / 60f) * zoomLevel)
 
+                        val subtasks = subtasksByParent[task.lineNumber] ?: emptyList()
+                        val extraHeightDp = if (subtasks.isNotEmpty()) subtasks.size * 22f else 0f
+                        val finalCardHeightDp = Math.max(cardHeightDp, 32f + extraHeightDp)
+
                         Card(
                             modifier = Modifier
                                 .padding(start = 60.dp, end = 8.dp)
                                 .fillMaxWidth()
-                                .height(cardHeightDp.dp)
+                                .height(finalCardHeightDp.dp)
                                 .offset(y = topDp.dp)
                                 .border(1.dp, com.example.ui.theme.ObsidianPurple, RoundedCornerShape(8.dp)),
                             colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ObsidianPurple.copy(alpha = 0.25f)),
@@ -2057,7 +2070,7 @@ fun NativeTimelineGridView(
                                     .fillMaxSize()
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.Top
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
@@ -2073,6 +2086,50 @@ fun NativeTimelineGridView(
                                         color = com.example.ui.theme.ObsidianTextMuted,
                                         fontSize = 10.sp
                                     )
+
+                                    if (subtasks.isNotEmpty()) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 4.dp),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            subtasks.forEach { sub ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .clickable { onToggleTask(sub) }
+                                                    ) {
+                                                        Text(
+                                                            text = if (sub.isCompleted) "☑ " else "☐ ",
+                                                            color = if (sub.isCompleted) ObsidianAccentGreen else com.example.ui.theme.ObsidianTextMuted,
+                                                            fontSize = 10.sp
+                                                        )
+                                                        Text(
+                                                            text = sub.displayTitle.ifEmpty { sub.text },
+                                                            color = if (sub.isCompleted) com.example.ui.theme.ObsidianTextMuted else com.example.ui.theme.ObsidianTextPrimary,
+                                                            fontSize = 10.sp,
+                                                            textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                    IconButton(
+                                                        onClick = { onStartTimer(sub) },
+                                                        modifier = Modifier.size(20.dp)
+                                                    ) {
+                                                        Text("▶", color = ObsidianAccentGreen, fontSize = 8.sp)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
                                 IconButton(
