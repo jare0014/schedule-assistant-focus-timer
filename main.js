@@ -273,11 +273,12 @@ class TaskTimerView extends obsidian.ItemView {
 
     renderSchedule() {
         const container = this.containerEl.children[1];
+        if (!container) return;
         container.empty();
         container.addClass('task-timer-view-container');
 
-        if (this.plugin.activeTimer) {
-            this.renderCountdownView(container);
+        if (this.currentTimer || this.plugin.activeTimer) {
+            this.renderTimer();
         } else {
             this.renderScheduleTimeline(container);
         }
@@ -362,7 +363,7 @@ class TaskTimerView extends obsidian.ItemView {
             };
 
             zoomInBtn.onclick = () => {
-                this.gridZoomLevel = Math.min(180, this.gridZoomLevel + 20);
+                this.gridZoomLevel = Math.min(240, this.gridZoomLevel + 20);
                 this.renderSchedule();
             };
 
@@ -895,6 +896,7 @@ class TaskTimerView extends obsidian.ItemView {
             totalSeconds: totalSeconds,
             isPaused: false
         };
+        this.plugin.activeTimer = this.currentTimer;
 
         this.renderTimer();
         
@@ -908,6 +910,7 @@ class TaskTimerView extends obsidian.ItemView {
                     const expiredTask = this.currentTimer.task;
                     const expiredTaskName = this.currentTimer.taskName;
                     this.currentTimer = null;
+                    this.plugin.activeTimer = null;
                     await this.plugin.logUpdate(true); // Log completed
                     this.triggerAlarm(expiredTask || expiredTaskName);
                 }
@@ -920,6 +923,7 @@ class TaskTimerView extends obsidian.ItemView {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
+        this.plugin.activeTimer = null;
     }
 
     async completeTimer() {

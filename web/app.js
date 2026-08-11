@@ -190,7 +190,7 @@ const webZoomOut = document.getElementById('webZoomOut');
 const webZoomIn = document.getElementById('webZoomIn');
 const webZoomFocus = document.getElementById('webZoomFocus');
 if (webZoomOut) webZoomOut.onclick = () => { window.webZoomLevel = Math.max(40, (window.webZoomLevel || 60) - 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
-if (webZoomIn)  webZoomIn.onclick  = () => { window.webZoomLevel = Math.min(180, (window.webZoomLevel || 60) + 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
+if (webZoomIn)  webZoomIn.onclick  = () => { window.webZoomLevel = Math.min(240, (window.webZoomLevel || 60) + 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
 if (webZoomFocus) webZoomFocus.onclick = () => { window.webZoomLevel = 130; window.webResetScrollToFocus = true; if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
 
 // Lightweight: update only the current-time indicator position in-place (no full re-render)
