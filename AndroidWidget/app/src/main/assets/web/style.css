@@ -1,0 +1,1241 @@
+:root {
+    --bg-base: #0c0c0e;
+    --bg-glass: rgba(22, 22, 28, 0.75);
+    --border-color: rgba(255, 255, 255, 0.07);
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0a5;
+    --text-muted: #66666c;
+    
+    --accent-cyan: #00ffd0;
+    --accent-green: #30d158;
+    --accent-yellow: #ff9f0a;
+    --accent-red: #ff453a;
+    --accent-blue: #0a84ff;
+    
+    --font-stack: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --shadow-premium: 0 16px 40px rgba(0, 0, 0, 0.5);
+    --transition-smooth: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-stack);
+    font-size: 16px;
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    overflow-x: hidden;
+}
+
+.app-container {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-height: 100vh;
+}
+
+/* ==========================================================================
+   Timer Section (Left Pane / Circle Control View)
+   ========================================================================== */
+.timer-section {
+    flex: 1.1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: radial-gradient(circle at 10% 20%, rgba(10, 132, 255, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 255, 208, 0.05) 0%, transparent 45%);
+    border-right: 1px solid var(--border-color);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Idle Screen */
+.timer-idle-card {
+    text-align: center;
+    max-width: 380px;
+    padding: 40px;
+    border-radius: 24px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-premium);
+    backdrop-filter: blur(20px);
+    transition: var(--transition-smooth);
+}
+
+.timer-idle-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.timer-idle-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.timer-idle-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+}
+
+.timer-idle-desc {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+/* Active Screen */
+.timer-active-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 440px;
+    padding: 40px;
+    border-radius: 28px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-premium);
+    backdrop-filter: blur(20px);
+    text-align: center;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.timer-task-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 24px;
+    letter-spacing: -0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.progress-ring-container {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    margin-bottom: 32px;
+}
+
+.progress-ring {
+    transform: rotate(-90deg);
+}
+
+.progress-ring-circle {
+    transition: stroke-dashoffset 0.35s;
+    transform-origin: 50% 50%;
+}
+
+.countdown-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2.8rem;
+    font-weight: 300;
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+}
+
+.timer-adjust-controls {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.btn-adjust {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.btn-adjust:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: var(--text-primary);
+}
+
+.timer-controls {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+/* Buttons */
+.timer-btn, .alarm-btn {
+    flex: 1;
+    padding: 14px 24px;
+    border-radius: 14px;
+    font-family: var(--font-stack);
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: var(--transition-smooth);
+}
+
+.btn-primary {
+    background-color: var(--accent-cyan);
+    color: #000;
+    font-weight: 600;
+}
+.btn-primary:hover {
+    box-shadow: 0 0 16px rgba(0, 255, 208, 0.4);
+    opacity: 0.9;
+}
+
+.btn-secondary {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-warning {
+    background-color: rgba(255, 159, 10, 0.15);
+    color: var(--accent-yellow);
+    border: 1px solid rgba(255, 159, 10, 0.1);
+}
+.btn-warning:hover {
+    background-color: rgba(255, 159, 10, 0.25);
+}
+
+.btn-danger {
+    background-color: rgba(255, 69, 58, 0.15);
+    color: var(--accent-red);
+    border: 1px solid rgba(255, 69, 58, 0.1);
+}
+.btn-danger:hover {
+    background-color: rgba(255, 69, 58, 0.25);
+}
+
+.btn-success {
+    background-color: var(--accent-green);
+    color: #000;
+    font-weight: 600;
+}
+.btn-success:hover {
+    box-shadow: 0 0 16px rgba(48, 209, 88, 0.4);
+    opacity: 0.9;
+}
+
+/* Alarm Overlay */
+.alarm-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(12, 12, 14, 0.95);
+    backdrop-filter: blur(25px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    z-index: 100;
+    text-align: center;
+}
+
+.alarm-icon-container {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 24px;
+}
+
+.bell-pulse {
+    animation: ring 0.8s infinite;
+}
+
+.alarm-task-name {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.alarm-alert-text {
+    font-size: 1.1rem;
+    color: var(--accent-red);
+    font-weight: 500;
+    margin-bottom: 36px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.alarm-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Pulsing outline animation */
+.pulsing {
+    animation: timerPulse 2s infinite ease-in-out;
+}
+
+/* ==========================================================================
+   Schedule Section (Right Pane / Timeline List)
+   ========================================================================== */
+.schedule-section {
+    flex: 0.9;
+    display: flex;
+    flex-direction: column;
+    padding: 40px;
+    overflow-y: auto;
+    max-height: 100vh;
+}
+
+.schedule-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+}
+
+.schedule-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-badge {
+    background: rgba(48, 209, 88, 0.15);
+    color: var(--accent-green);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.auto-block-btn {
+    background: var(--accent-cyan);
+    color: #000;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-family: var(--font-stack);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.auto-block-btn:hover {
+    box-shadow: 0 0 12px rgba(0, 255, 208, 0.35);
+    transform: translateY(-1px);
+}
+
+.auto-block-btn:disabled {
+    background: var(--text-muted);
+    color: rgba(0, 0, 0, 0.5);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+.schedule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* View Mode Switcher */
+.view-mode-toggle {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 3px;
+    gap: 2px;
+}
+
+.view-mode-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 5px 14px;
+    border-radius: 16px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.view-mode-btn.active {
+    background: var(--accent-cyan);
+    color: #000;
+}
+
+/* Untimed Drawer */
+.untimed-drawer {
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: var(--bg-glass);
+    overflow: hidden;
+}
+
+.untimed-drawer-summary {
+    padding: 12px 18px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--accent-cyan);
+    cursor: pointer;
+    user-select: none;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.untimed-drawer-content {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Google Calendar Style Day View Container */
+.timeblock-dayview-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    background: var(--bg-glass);
+    backdrop-filter: blur(20px);
+    overflow: hidden;
+    position: relative;
+    box-shadow: var(--shadow-premium);
+}
+
+.time-grid-wrapper {
+    display: flex;
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+    max-height: calc(100vh - 200px);
+}
+
+.time-ruler {
+    width: 70px;
+    min-width: 70px;
+    background: rgba(0, 0, 0, 0.2);
+    border-right: 1px solid var(--border-color);
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    user-select: none;
+    /* Flex column so inline height per cell (set by JS at zoom time) is respected */
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.time-ruler-hour {
+    /* height set dynamically by JS to match zoom level */
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding-right: 10px;
+    padding-top: 6px;
+    text-align: right;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.time-grid-canvas {
+    flex: 1;
+    position: relative;
+}
+
+.hour-grid-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border-color);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.halfhour-grid-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.05);
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Current Time Laser Line */
+.current-time-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-cyan);
+    z-index: 10;
+    pointer-events: none;
+    box-shadow: 0 0 10px rgba(0, 255, 208, 0.8);
+    transition: top 1s linear;
+}
+
+.current-time-dot {
+    position: absolute;
+    left: -6px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 8px rgba(0, 255, 208, 1);
+}
+
+.current-time-badge {
+    position: absolute;
+    right: 12px;
+    top: -10px;
+    background: var(--accent-cyan);
+    color: #000;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+/* Timescale Zoom Controls */
+.timescale-zoom-group {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 3px;
+}
+
+.zoom-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.zoom-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.zoom-btn.active {
+    background: var(--accent-cyan);
+    color: #000;
+    font-weight: 700;
+}
+
+.zoom-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    padding: 0 4px;
+    font-weight: 600;
+}
+
+/* Positioned Time Block Cards */
+.timeblock-card {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 12px;
+    padding: 8px 12px;
+    background: rgba(0, 255, 208, 0.1);
+    border: 1px solid rgba(0, 255, 208, 0.3);
+    border-left: 4px solid var(--accent-cyan);
+    z-index: 4;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.2s ease;
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+}
+
+.timeblock-card:hover {
+    z-index: 8;
+    transform: translateY(-1px) scale(1.008);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border-color: var(--accent-cyan);
+}
+
+.timeblock-card.completed {
+    opacity: 0.55;
+    filter: grayscale(0.5);
+    text-decoration: line-through;
+}
+
+.timeblock-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.timeblock-card-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.timeblock-card-time {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.timeblock-duration-badge {
+    font-size: 0.68rem;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+}
+
+.timeblock-card-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timeblock-play-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    color: #000;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.timeblock-play-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(0, 255, 208, 0.5);
+}
+
+.timeblock-delete-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted, rgba(255,255,255,0.4));
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.timeblock-card:hover .timeblock-delete-btn {
+    opacity: 1;
+}
+.timeblock-delete-btn:hover {
+    background: rgba(220, 53, 69, 0.25);
+    color: #ff6b6b;
+    border-color: rgba(220, 53, 69, 0.4);
+}
+
+/* Timeblock Nested Subtasks */
+.timeblock-subtasks-container {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.timeblock-subtask-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.76rem;
+    color: var(--text-primary);
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    gap: 8px;
+}
+
+.timeblock-subtask-item.completed {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+.timeblock-subtask-title {
+    flex: 1;
+    word-break: break-word;
+    line-height: 1.25;
+}
+
+.timeblock-subtask-play-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    color: #000;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    cursor: pointer;
+}
+
+.schedule-subheading {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: -10px;
+    margin-top: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 6px;
+}
+
+/* Cards */
+.task-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    transition: var(--transition-smooth);
+}
+
+.task-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
+    transform: translateY(-2px);
+}
+
+.task-card-left {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    padding-right: 15px;
+}
+
+.task-card-time {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    font-variant-numeric: tabular-nums;
+}
+
+.task-card-name {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.task-card-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Form Checkbox Styling */
+.task-card-controls input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 2px solid var(--text-muted);
+    appearance: none;
+    outline: none;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    position: relative;
+    margin-right: 8px;
+}
+
+.task-card-controls input[type="checkbox"]:checked {
+    background-color: var(--accent-green);
+    border-color: var(--accent-green);
+}
+
+.task-card-controls input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 3px;
+    width: 5px;
+    height: 10px;
+    border: solid #000;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+/* Card Control Buttons */
+.task-card-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.task-card-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.task-card-play-btn:hover {
+    color: #000;
+    background: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 10px rgba(0, 255, 208, 0.3);
+}
+
+.task-card-postpone-btn:hover {
+    color: var(--accent-yellow);
+    background: rgba(255, 159, 10, 0.15);
+    border-color: rgba(255, 159, 10, 0.2);
+}
+
+.task-card-delete-btn:hover {
+    color: var(--accent-red);
+    background: rgba(255, 69, 58, 0.15);
+    border-color: rgba(255, 69, 58, 0.2);
+}
+
+/* Completed Card Styling */
+.task-card.completed {
+    opacity: 0.45;
+}
+
+.task-card.completed .task-card-name {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+}
+
+.task-card.completed .task-card-time {
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Breakpoints for tablets, phones, and watches
+   ========================================================================== */
+
+/* Tablet & Smaller (Split layout collapses into single column) */
+@media (max-width: 900px) {
+    .app-container {
+        flex-direction: column;
+        overflow-y: auto;
+    }
+    
+    .timer-section {
+        flex: none;
+        padding: 30px;
+        min-height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .schedule-section {
+        flex: none;
+        padding: 30px;
+        max-height: none;
+    }
+}
+
+/* Phone Layout */
+@media (max-width: 500px) {
+    .timer-section, .schedule-section {
+        padding: 20px;
+    }
+    
+    .timer-active-card, .timer-idle-card {
+        padding: 24px;
+        border-radius: 20px;
+    }
+    
+    .progress-ring-container {
+        width: 180px;
+        height: 180px;
+        margin-bottom: 24px;
+    }
+    
+    .progress-ring {
+        width: 180px;
+        height: 180px;
+    }
+    
+    .progress-ring circle {
+        r: 78;
+        cx: 90;
+        cy: 90;
+        stroke-width: 6px;
+    }
+    .progress-ring-circle-bg {
+        stroke-width: 6px;
+    }
+    
+    .countdown-text {
+        font-size: 2.2rem;
+    }
+    
+    .timer-task-title {
+        font-size: 1.2rem;
+        margin-bottom: 16px;
+    }
+    
+    .timer-btn {
+        padding: 12px 16px;
+        font-size: 0.9rem;
+    }
+    
+    .alarm-controls {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+}
+
+/* Watch Layout (Android Wear OS style, round/square screen < 260px) */
+body.wear-os .schedule-section,
+@media (max-width: 260px) {
+    .schedule-section {
+        display: none !important;
+    }
+}
+
+@media (max-width: 380px) {
+    body {
+        font-size: 14px;
+        background-color: #000;
+    }
+    
+    .app-container {
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+    }
+    
+    .timer-section {
+        flex: none;
+        padding: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .schedule-section {
+        flex: 1;
+        padding: 12px;
+        overflow-y: auto;
+    }
+    
+    .timer-section {
+        flex: 1;
+        padding: 8px;
+        border-bottom: none;
+        background: #000;
+    }
+    
+    /* Wear OS fit */
+    .timer-active-card, .timer-idle-card {
+        background: transparent;
+        border: none;
+        backdrop-filter: none;
+        padding: 8px;
+        width: 100%;
+        max-width: 100%;
+        box-shadow: none;
+        margin: 0;
+    }
+    
+    .timer-task-title {
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: #fff;
+    }
+    
+    .progress-ring-container {
+        width: 120px;
+        height: 120px;
+        margin: 4px auto 10px;
+    }
+    
+    .progress-ring {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .progress-ring circle {
+        r: 50;
+        cx: 60;
+        cy: 60;
+        stroke-width: 4px;
+    }
+    .progress-ring-circle-bg {
+        stroke-width: 4px;
+    }
+    
+    .countdown-text {
+        font-size: 1.5rem;
+    }
+    
+    /* Minimal controls for small watch screen */
+    .timer-adjust-controls {
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        width: 90%;
+        margin: 0 auto 6px;
+    }
+    .btn-adjust {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        border-radius: 8px;
+    }
+
+    .timer-controls {
+        flex-direction: column;
+        gap: 6px;
+        width: 90%;
+        margin: 0 auto;
+    }
+    
+    .timer-btn {
+        padding: 8px 10px;
+        font-size: 0.8rem;
+        border-radius: 8px;
+    }
+    
+    /* Alarm inside Watch */
+    .alarm-overlay {
+        padding: 10px;
+        background: #000;
+    }
+    
+    .alarm-icon-container {
+        width: 40px;
+        height: 40px;
+        margin-bottom: 8px;
+    }
+    
+    .alarm-task-name {
+        font-size: 1rem;
+        margin-bottom: 6px;
+    }
+    
+    .alarm-alert-text {
+        font-size: 0.8rem;
+        margin-bottom: 12px;
+    }
+    
+    .alarm-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 95%;
+    }
+    
+    .alarm-btn {
+        padding: 8px 10px;
+        font-size: 0.75rem;
+        border-radius: 8px;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes timerPulse {
+    0% {
+        filter: drop-shadow(0 0 2px rgba(0, 255, 208, 0.15));
+    }
+    50% {
+        filter: drop-shadow(0 0 12px rgba(0, 255, 208, 0.45));
+    }
+    100% {
+        filter: drop-shadow(0 0 2px rgba(0, 255, 208, 0.15));
+    }
+}
+
+@keyframes ring {
+    0% { transform: rotate(0); }
+    10% { transform: rotate(15deg); }
+    20% { transform: rotate(-10deg); }
+    30% { transform: rotate(10deg); }
+    40% { transform: rotate(-7deg); }
+    50% { transform: rotate(7deg); }
+    60% { transform: rotate(-4deg); }
+    70% { transform: rotate(4deg); }
+    80% { transform: rotate(-2deg); }
+    90% { transform: rotate(2deg); }
+    100% { transform: rotate(0); }
+}
+
+/* Drag and Drop Dragover Feedback */
+.schedule-group-section {
+    min-height: 40px;
+    transition: var(--transition-smooth);
+    border: 2px dashed transparent;
+    border-radius: 12px;
+    padding: 6px;
+}
+
+.schedule-group-section.dragover {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: var(--accent-cyan);
+}
+
+/* Sidebar Collapsible Project Sections */
+.sidebar-project-details {
+    margin-top: 10px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.01);
+    overflow: hidden;
+    transition: var(--transition-smooth);
+}
+
+.sidebar-project-details:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-project-summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--accent-cyan);
+    background-color: rgba(255, 255, 255, 0.02);
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+    border-bottom: 1px solid transparent;
+    transition: var(--transition-smooth);
+}
+
+.sidebar-project-summary::-webkit-details-marker {
+    display: none;
+}
+
+.sidebar-project-summary::before {
+    content: '▶';
+    font-size: 0.65rem;
+    display: inline-block;
+    transition: var(--transition-smooth);
+    margin-right: 10px;
+    color: var(--text-muted);
+}
+
+.sidebar-project-details[open] .sidebar-project-summary::before {
+    transform: rotate(90deg);
+}
+
+.sidebar-project-details[open] .sidebar-project-summary {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-project-title {
+    flex: 1;
+}
+
+.sidebar-project-container {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background-color: transparent;
+}
+
+/* Quick Timer Buttons */
+.task-card-quick-timer-btn {
+    font-size: 0.72rem !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid rgba(255, 255, 255, 0.03) !important;
+    font-weight: 600 !important;
+    flex: none !important;
+}
+
+.task-card-quick-timer-btn:hover {
+    background-color: var(--accent-cyan) !important;
+    color: #000 !important;
+    border-color: var(--accent-cyan) !important;
+    box-shadow: 0 0 8px rgba(0, 255, 208, 0.25);
+}

@@ -11,6 +11,8 @@ import android.net.Uri
 import android.widget.Toast
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import org.json.JSONObject
+import org.json.JSONArray
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -1000,6 +1002,62 @@ fun ObsidianTodoScreen(
         val floatingTasks = remember(tasks) { tasks.filter { it.category != "FOCUS BLOCKS" && !it.isCompleted } }
 
         if (selectedViewMode == "GRID") {
+            val webStateJson = remember(tasks, lastSyncDateHeader, activeTimerTaskName, activeTimerRemainingSeconds, activeTimerIsPaused) {
+                val stateObj = JSONObject()
+                stateObj.put("dateStr", lastSyncDateHeader)
+
+                val scheduleArray = JSONArray()
+                tasks.forEach { task ->
+                    val obj = JSONObject()
+                    obj.put("lineIndex", task.lineNumber)
+                    obj.put("originalLine", task.rawMarkdownLine.ifEmpty { task.text })
+                    obj.put("status", if (task.isCompleted) "completed" else "pending")
+                    obj.put("description", task.displayTitle.ifEmpty { task.text })
+                    obj.put("rawDesc", task.text)
+                    obj.put("isCalendar", false)
+                    obj.put("subheading", task.category)
+                    obj.put("isUntimed", task.category != "FOCUS BLOCKS")
+                    if (!task.project.isNullOrEmpty()) obj.put("project", task.project)
+
+                    var sHour: Int? = null
+                    var sMin: Int? = null
+                    var eHour: Int? = null
+                    var eMin: Int? = null
+
+                    if (!task.timeRange.isNullOrEmpty()) {
+                        val regex = Regex("""(\d{1,2}):(\d{2})\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(?:AM|PM|am|pm)?""")
+                        val match = regex.find(task.timeRange ?: "")
+                        if (match != null) {
+                            sHour = match.groupValues[1].toIntOrNull()
+                            sMin = match.groupValues[2].toIntOrNull()
+                            eHour = match.groupValues[3].toIntOrNull()
+                            eMin = match.groupValues[4].toIntOrNull()
+                        }
+                    }
+
+                    if (sHour != null) obj.put("startHour", sHour) else obj.put("startHour", JSONObject.NULL)
+                    if (sMin != null) obj.put("startMin", sMin) else obj.put("startMin", JSONObject.NULL)
+                    if (eHour != null) obj.put("endHour", eHour) else obj.put("endHour", JSONObject.NULL)
+                    if (eMin != null) obj.put("endMin", eMin) else obj.put("endMin", JSONObject.NULL)
+
+                    scheduleArray.put(obj)
+                }
+                stateObj.put("schedule", scheduleArray)
+
+                if (activeTimerTaskName.isNotEmpty()) {
+                    val timerObj = JSONObject()
+                    timerObj.put("taskName", activeTimerTaskName)
+                    timerObj.put("remainingSeconds", activeTimerRemainingSeconds)
+                    timerObj.put("totalSeconds", activeTimerTotalSeconds)
+                    timerObj.put("isPaused", activeTimerIsPaused)
+                    stateObj.put("activeTimer", timerObj)
+                } else {
+                    stateObj.put("activeTimer", JSONObject.NULL)
+                }
+
+                stateObj.toString()
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1017,19 +1075,17 @@ fun ObsidianTodoScreen(
                             settings.builtInZoomControls = false
                             settings.displayZoomControls = false
                             settings.setSupportZoom(true)
-                            webViewClient = WebViewClient()
-                            val ip = serverIp.ifEmpty { "10.0.0.75" }
-                            val port = serverPort.ifEmpty { "8090" }
-                            loadUrl("http://$ip:$port/")
+                            webViewClient = object : WebViewClient() {
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    view?.evaluateJavascript("if (window.updateState) { window.updateState($webStateJson); }", null)
+                                }
+                            }
+                            loadUrl("file:///android_asset/web/index.html")
                         }
                     },
                     update = { webView ->
-                        val ip = serverIp.ifEmpty { "10.0.0.75" }
-                        val port = serverPort.ifEmpty { "8090" }
-                        val targetUrl = "http://$ip:$port/"
-                        if (webView.url != targetUrl) {
-                            webView.loadUrl(targetUrl)
-                        }
+                        webView.evaluateJavascript("if (window.updateState) { window.updateState($webStateJson); }", null)
                     },
                     modifier = Modifier.fillMaxSize()
                 )
