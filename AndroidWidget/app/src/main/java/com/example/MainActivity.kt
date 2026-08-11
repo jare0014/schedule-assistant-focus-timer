@@ -6,7 +6,12 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.os.Build
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -131,6 +136,7 @@ fun ObsidianTodoScreen(
     // UI reactive states
     var isSyncing by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var selectedViewMode by remember { mutableStateOf("LIST") } // LIST vs GRID
     var lastSyncDateHeader by remember { mutableStateOf(prefs.lastSyncDateHeader) }
     var lastSyncTime by remember { mutableStateOf(prefs.lastSyncTime) }
     var logsList by remember { mutableStateOf(prefs.getLogs()) }
@@ -473,6 +479,29 @@ fun ObsidianTodoScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+
+                // View Mode Toggle Button (Grid vs List)
+                Button(
+                    onClick = {
+                        selectedViewMode = if (selectedViewMode == "GRID") "LIST" else "GRID"
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedViewMode == "GRID") ObsidianPurple.copy(alpha = 0.25f) else ObsidianSurface,
+                        contentColor = if (selectedViewMode == "GRID") ObsidianPurple else ObsidianTextPrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, if (selectedViewMode == "GRID") ObsidianPurple else ObsidianBorder),
+                    contentPadding = PaddingValues(horizontal = 10.dp),
+                    modifier = Modifier
+                        .height(40.dp)
+                        .testTag("grid_view_button")
+                ) {
+                    Text(
+                        text = if (selectedViewMode == "GRID") "📋 List" else "📅 Grid",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -918,7 +947,37 @@ fun ObsidianTodoScreen(
         val focusBlocks = remember(tasks) { tasks.filter { it.category == "FOCUS BLOCKS" && !it.isCompleted } }
         val floatingTasks = remember(tasks) { tasks.filter { it.category != "FOCUS BLOCKS" && !it.isCompleted } }
 
-        if (focusBlocks.isEmpty() && floatingTasks.isEmpty()) {
+        if (selectedViewMode == "GRID") {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, ObsidianBorder, RoundedCornerShape(12.dp))
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            webViewClient = WebViewClient()
+                            val ip = serverIp.ifEmpty { "10.0.0.75" }
+                            val port = serverPort.ifEmpty { "8090" }
+                            loadUrl("http://$ip:$port/")
+                        }
+                    },
+                    update = { webView ->
+                        val ip = serverIp.ifEmpty { "10.0.0.75" }
+                        val port = serverPort.ifEmpty { "8090" }
+                        val targetUrl = "http://$ip:$port/"
+                        if (webView.url != targetUrl) {
+                            webView.loadUrl(targetUrl)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        } else if (focusBlocks.isEmpty() && floatingTasks.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
