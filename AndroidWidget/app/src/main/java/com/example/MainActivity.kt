@@ -1026,13 +1026,30 @@ fun ObsidianTodoScreen(
                     var eMin: Int? = null
 
                     if (!task.timeRange.isNullOrEmpty()) {
-                        val regex = Regex("""(\d{1,2}):(\d{2})\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(?:AM|PM|am|pm)?""")
+                        val regex = Regex("""(\d{1,2}):(\d{2})\s*([aApP][mM])?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*([aApP][mM])?""")
                         val match = regex.find(task.timeRange ?: "")
                         if (match != null) {
-                            sHour = match.groupValues[1].toIntOrNull()
-                            sMin = match.groupValues[2].toIntOrNull()
-                            eHour = match.groupValues[3].toIntOrNull()
-                            eMin = match.groupValues[4].toIntOrNull()
+                            var sh = match.groupValues[1].toIntOrNull() ?: 0
+                            val sm = match.groupValues[2].toIntOrNull() ?: 0
+                            val sAmpm = match.groupValues[3].lowercase()
+
+                            var eh = match.groupValues[4].toIntOrNull() ?: 0
+                            val em = match.groupValues[5].toIntOrNull() ?: 0
+                            val eAmpm = match.groupValues[6].lowercase()
+
+                            if (sAmpm == "pm" && sh < 12) sh += 12
+                            if (sAmpm == "am" && sh == 12) sh = 0
+
+                            if (eAmpm == "pm" && eh < 12) eh += 12
+                            if (eAmpm == "am" && eh == 12) eh = 0
+
+                            if (sAmpm == "pm" && eAmpm.isEmpty() && eh < 12) eh += 12
+                            if (eAmpm == "pm" && sAmpm.isEmpty() && sh < 12) sh += 12
+
+                            sHour = sh
+                            sMin = sm
+                            eHour = eh
+                            eMin = em
                         }
                     }
 
@@ -1080,17 +1097,25 @@ fun ObsidianTodoScreen(
                                 @JavascriptInterface
                                 fun getInitialState(): String = webStateJson
                             }, "AndroidBridge")
+                            webChromeClient = object : android.webkit.WebChromeClient() {
+                                override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
+                                    android.util.Log.d("WebViewConsole", "${consoleMessage?.message()} -- line ${consoleMessage?.lineNumber()}")
+                                    return true
+                                }
+                            }
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
-                                    view?.evaluateJavascript("if (window.updateState) { window.updateState($webStateJson); }", null)
+                                    val safeScript = "if (window.updateState) { try { window.updateState(JSON.parse(${JSONObject.quote(webStateJson)})); } catch(e){ console.error(e); } }"
+                                    view?.evaluateJavascript(safeScript, null)
                                 }
                             }
                             loadUrl("file:///android_asset/web/index.html")
                         }
                     },
                     update = { webView ->
-                        webView.evaluateJavascript("if (window.updateState) { window.updateState($webStateJson); }", null)
+                        val safeScript = "if (window.updateState) { try { window.updateState(JSON.parse(${JSONObject.quote(webStateJson)})); } catch(e){ console.error(e); } }"
+                        webView.evaluateJavascript(safeScript, null)
                     },
                     modifier = Modifier.fillMaxSize()
                 )

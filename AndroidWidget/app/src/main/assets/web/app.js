@@ -177,8 +177,8 @@ function updateUI(state) {
         stopLocalAlarm();
     }
 
-    // 4. Render Schedule list if it has changed
-    if (JSON.stringify(state.schedule) !== JSON.stringify(lastState.schedule)) {
+    // 4. Render Schedule list if schedule exists
+    if (state.schedule && Array.isArray(state.schedule)) {
         renderSchedule(state.schedule);
     }
 
