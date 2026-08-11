@@ -71,11 +71,17 @@ function parseAllTasks(content) {
 // renderScheduleGridView — inlined from src/ScheduleGridView.js
 // ---------------------------------------------------------------------------
 async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
+    const existingWrapper = viewContainer.querySelector('.time-grid-wrapper');
+    const prevScrollTop = existingWrapper ? existingWrapper.scrollTop : null;
+    const existingDrawer = viewContainer.querySelector('.untimed-drawer');
+    const wasUntimedOpen = existingDrawer ? existingDrawer.open : false;
+
     const topLevelUntimed = tasks.filter(t => t.parentLineIndex === undefined && (t.isUntimed || (t.subheading && (t.subheading.includes("☁️") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed")))));
     const timedTasks = tasks.filter(t => t.parentLineIndex === undefined && !topLevelUntimed.includes(t));
 
     if (topLevelUntimed.length > 0) {
         const drawer = viewContainer.createEl('details', { cls: 'untimed-drawer' });
+        if (wasUntimedOpen) drawer.open = true;
         drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
         const content = drawer.createDiv({ cls: 'untimed-drawer-content' });
         topLevelUntimed.forEach(task => {
@@ -197,11 +203,20 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
         });
     });
 
-    setTimeout(() => {
+    let targetScroll = 0;
+    if (viewInstance && viewInstance.resetScrollToFocus) {
+        viewInstance.resetScrollToFocus = false;
         if (currentHour >= minHour && currentHour <= maxHour) {
-            gridWrapper.scrollTop = Math.max(0, ((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60) - 10);
-        } else gridWrapper.scrollTop = 0;
-    }, 100);
+            targetScroll = Math.max(0, (((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60)) - 10);
+        }
+    } else if (prevScrollTop !== null) {
+        targetScroll = prevScrollTop;
+    } else if (currentHour >= minHour && currentHour <= maxHour) {
+        targetScroll = Math.max(0, (((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60)) - 10);
+    }
+
+    gridWrapper.scrollTop = targetScroll;
+    requestAnimationFrame(() => { gridWrapper.scrollTop = targetScroll; });
 }
 
 
@@ -353,6 +368,7 @@ class TaskTimerView extends obsidian.ItemView {
 
             focusBtn.onclick = () => {
                 this.gridZoomLevel = 130;
+                this.resetScrollToFocus = true;
                 this.renderSchedule();
             };
         }

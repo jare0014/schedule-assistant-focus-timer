@@ -3,6 +3,11 @@
  */
 
 async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
+    const existingWrapper = viewContainer.querySelector('.time-grid-wrapper');
+    const prevScrollTop = existingWrapper ? existingWrapper.scrollTop : null;
+    const existingDrawer = viewContainer.querySelector('.untimed-drawer');
+    const wasUntimedOpen = existingDrawer ? existingDrawer.open : false;
+
     // Filter top-level untimed tasks (must not have a parent task)
     const topLevelUntimed = tasks.filter(t => 
         t.parentLineIndex === undefined && 
@@ -13,10 +18,10 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
         t.parentLineIndex === undefined && !topLevelUntimed.includes(t)
     );
 
-    // 1. Untimed Accordion Drawer at top (collapsed by default)
+    // 1. Untimed Accordion Drawer at top (collapsed by default unless previously opened)
     if (topLevelUntimed.length > 0) {
         const drawer = viewContainer.createEl('details', { cls: 'untimed-drawer' });
-        // Collapsed by default - no open attribute set
+        if (wasUntimedOpen) drawer.open = true;
 
         const summary = drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
         const content = drawer.createDiv({ cls: 'untimed-drawer-content' });
@@ -232,15 +237,20 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
         });
     });
 
-    setTimeout(() => {
+    let targetScroll = 0;
+    if (viewInstance && viewInstance.resetScrollToFocus) {
+        viewInstance.resetScrollToFocus = false;
         if (currentHour >= minHour && currentHour <= maxHour) {
-            const currentMinsFromMinHour = ((currentHour - minHour) * 60) + currentMin;
-            // Scroll to bring current time + next 2 hours directly into view
-            gridWrapper.scrollTop = Math.max(0, (currentMinsFromMinHour * (hourHeight / 60)) - 10);
-        } else {
-            gridWrapper.scrollTop = 0;
+            targetScroll = Math.max(0, (((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60)) - 10);
         }
-    }, 100);
+    } else if (prevScrollTop !== null) {
+        targetScroll = prevScrollTop;
+    } else if (currentHour >= minHour && currentHour <= maxHour) {
+        targetScroll = Math.max(0, (((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60)) - 10);
+    }
+
+    gridWrapper.scrollTop = targetScroll;
+    requestAnimationFrame(() => { gridWrapper.scrollTop = targetScroll; });
 }
 
 module.exports = { renderScheduleGridView };

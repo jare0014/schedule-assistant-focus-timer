@@ -191,7 +191,7 @@ const webZoomIn = document.getElementById('webZoomIn');
 const webZoomFocus = document.getElementById('webZoomFocus');
 if (webZoomOut) webZoomOut.onclick = () => { window.webZoomLevel = Math.max(40, (window.webZoomLevel || 60) - 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
 if (webZoomIn)  webZoomIn.onclick  = () => { window.webZoomLevel = Math.min(180, (window.webZoomLevel || 60) + 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
-if (webZoomFocus) webZoomFocus.onclick = () => { window.webZoomLevel = 130; if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
+if (webZoomFocus) webZoomFocus.onclick = () => { window.webZoomLevel = 130; window.webResetScrollToFocus = true; if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
 
 // Lightweight: update only the current-time indicator position in-place (no full re-render)
 function updateTimeIndicatorInPlace() {
@@ -232,6 +232,11 @@ function renderSchedule(tasks) {
 }
 
 function renderGridView(tasks) {
+    const prevGrid = scheduleList.querySelector('.time-grid-wrapper');
+    const prevScrollTop = prevGrid ? prevGrid.scrollTop : null;
+    const prevUntimedDrawer = scheduleList.querySelector('.untimed-drawer');
+    const wasUntimedOpen = prevUntimedDrawer ? prevUntimedDrawer.open : false;
+
     // Untimed = no valid startHour/endHour OR explicitly marked isUntimed, and no parent
     const topLevelUntimed = tasks.filter(t =>
         t.parentLineIndex === undefined &&
@@ -247,11 +252,11 @@ function renderGridView(tasks) {
         typeof t.endHour === 'number'
     );
 
-    // 1. Untimed Accordion Drawer at top (collapsed by default)
+    // 1. Untimed Accordion Drawer at top (collapsed by default unless previously opened)
     if (topLevelUntimed.length > 0) {
         const drawer = document.createElement('details');
         drawer.className = 'untimed-drawer';
-        // Collapsed by default - no open attribute
+        if (wasUntimedOpen) drawer.open = true;
 
         const summary = document.createElement('summary');
         summary.className = 'untimed-drawer-summary';
@@ -536,13 +541,23 @@ function renderGridView(tasks) {
     dayViewContainer.appendChild(gridWrapper);
     scheduleList.appendChild(dayViewContainer);
 
-    // Auto scroll grid to current time or first task
-    setTimeout(() => {
-        const scrollToMins = (currentHour >= minHour && currentHour <= maxHour)
-            ? ((currentHour - minHour) * 60 + currentMin)
-            : 0;
-        gridWrapper.scrollTop = Math.max(0, (scrollToMins - 60) * (hourHeight / 60));
-    }, 100);
+    let targetScroll = 0;
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
+    if (window.webResetScrollToFocus) {
+        window.webResetScrollToFocus = false;
+        if (currentHour >= minHour && currentHour <= maxHour) {
+            targetScroll = Math.max(0, (((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60)) - 10);
+        }
+    } else if (prevScrollTop !== null) {
+        targetScroll = prevScrollTop;
+    } else if (currentHour >= minHour && currentHour <= maxHour) {
+        targetScroll = Math.max(0, (((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60)) - 10);
+    }
+
+    gridWrapper.scrollTop = targetScroll;
+    requestAnimationFrame(() => { gridWrapper.scrollTop = targetScroll; });
 }
 
 function renderListView(tasks) {
