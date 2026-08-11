@@ -303,9 +303,27 @@ function renderGridView(tasks) {
     // 2. Day View Time Blocking Grid Container
     const dayViewContainer = document.createElement('div');
     dayViewContainer.className = 'timeblock-dayview-container';
+    dayViewContainer.style.display = 'flex';
+    dayViewContainer.style.flexDirection = 'column';
+    dayViewContainer.style.flex = '1';
+    dayViewContainer.style.height = '100%';
+    dayViewContainer.style.minHeight = '350px';
+    dayViewContainer.style.overflow = 'hidden';
 
     const gridWrapper = document.createElement('div');
     gridWrapper.className = 'time-grid-wrapper';
+    gridWrapper.style.display = 'flex';
+    gridWrapper.style.flex = '1';
+    gridWrapper.style.height = '100%';
+    gridWrapper.style.minHeight = '350px';
+    gridWrapper.style.overflowY = 'auto';
+
+    scheduleList.style.display = 'flex';
+    scheduleList.style.flexDirection = 'column';
+    scheduleList.style.flex = '1';
+    scheduleList.style.height = '100%';
+    scheduleList.style.minHeight = '350px';
+    scheduleList.style.overflow = 'hidden';
 
     // Calculate hour range (Default 5 AM to 10 PM)
     let minHour = 5;
