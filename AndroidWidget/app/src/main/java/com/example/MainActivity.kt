@@ -1025,9 +1025,10 @@ fun ObsidianTodoScreen(
                     var eHour: Int? = null
                     var eMin: Int? = null
 
-                    if (!task.timeRange.isNullOrEmpty()) {
+                    val timeSource = listOfNotNull(task.timeRange, task.displayTitle, task.text, task.rawMarkdownLine).firstOrNull { it.contains(":") } ?: ""
+                    if (timeSource.isNotEmpty()) {
                         val regex = Regex("""(\d{1,2}):(\d{2})\s*([aApP][mM])?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*([aApP][mM])?""")
-                        val match = regex.find(task.timeRange ?: "")
+                        val match = regex.find(timeSource)
                         if (match != null) {
                             var sh = match.groupValues[1].toIntOrNull() ?: 0
                             val sm = match.groupValues[2].toIntOrNull() ?: 0
@@ -1052,6 +1053,9 @@ fun ObsidianTodoScreen(
                             eMin = em
                         }
                     }
+
+                    val isUntimedTask = (sHour == null) && (task.category != "FOCUS BLOCKS")
+                    obj.put("isUntimed", isUntimedTask)
 
                     if (sHour != null) obj.put("startHour", sHour) else obj.put("startHour", JSONObject.NULL)
                     if (sMin != null) obj.put("startMin", sMin) else obj.put("startMin", JSONObject.NULL)

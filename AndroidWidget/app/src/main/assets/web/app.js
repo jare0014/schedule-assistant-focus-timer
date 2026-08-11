@@ -290,7 +290,7 @@ function renderGridView(tasks) {
     if (topLevelUntimed.length > 0) {
         const drawer = document.createElement('details');
         drawer.className = 'untimed-drawer';
-        if (wasUntimedOpen) drawer.open = true;
+        drawer.open = true; // Open by default so untimed backlog items are immediately visible
 
         const summary = document.createElement('summary');
         summary.className = 'untimed-drawer-summary';
