@@ -219,13 +219,15 @@ if (viewGridBtn && viewListBtn) {
     };
 }
 
+let currentScheduleTasks = [];
+
 // Bind zoom controls (static HTML buttons)
 const webZoomOut = document.getElementById('webZoomOut');
 const webZoomIn = document.getElementById('webZoomIn');
 const webZoomFocus = document.getElementById('webZoomFocus');
-if (webZoomOut) webZoomOut.onclick = () => { window.webZoomLevel = Math.max(40, (window.webZoomLevel || 60) - 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
-if (webZoomIn)  webZoomIn.onclick  = () => { window.webZoomLevel = Math.min(240, (window.webZoomLevel || 60) + 20); if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
-if (webZoomFocus) webZoomFocus.onclick = () => { window.webZoomLevel = 130; window.webResetScrollToFocus = true; if (lastState && lastState.schedule) renderSchedule(lastState.schedule); };
+if (webZoomOut) webZoomOut.onclick = () => { window.webZoomLevel = Math.max(40, (window.webZoomLevel || 60) - 20); renderSchedule(currentScheduleTasks); };
+if (webZoomIn)  webZoomIn.onclick  = () => { window.webZoomLevel = Math.min(240, (window.webZoomLevel || 60) + 20); renderSchedule(currentScheduleTasks); };
+if (webZoomFocus) webZoomFocus.onclick = () => { window.webZoomLevel = 130; window.webResetScrollToFocus = true; renderSchedule(currentScheduleTasks); };
 
 // Lightweight: update only the current-time indicator position in-place (no full re-render)
 function updateTimeIndicatorInPlace() {
@@ -252,17 +254,9 @@ setInterval(updateTimeIndicatorInPlace, 30000);
 // Render parsed timeline schedule
 function renderSchedule(tasks) {
     scheduleList.innerHTML = '';
-    
-    if (!tasks || tasks.length === 0) {
-        scheduleList.innerHTML = '<div class="timer-idle-desc" style="text-align: center; padding: 20px;">No upcoming tasks. Check daily note.</div>';
-        return;
-    }
-
-    if (currentViewMode === 'grid') {
-        renderGridView(tasks);
-    } else {
-        renderListView(tasks);
-    }
+    const safeTasks = Array.isArray(tasks) ? tasks : [];
+    currentScheduleTasks = safeTasks;
+    renderGridView(safeTasks);
 }
 
 function renderGridView(tasks) {
