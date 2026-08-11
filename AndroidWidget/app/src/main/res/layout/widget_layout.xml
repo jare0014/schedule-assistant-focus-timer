@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="10dp">
 
     <!-- Header Section -->
     <LinearLayout
@@ -12,12 +12,12 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="6dp">
 
         <ImageView
             android:id="@+id/widget_header_icon"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:src="@drawable/ic_checkbox_checked" />
 
         <TextView
@@ -25,84 +25,110 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="Focus Timer"
+            android:layout_marginStart="6dp"
+            android:text="Focus Schedule"
             android:textColor="#E4E4E7"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/widget_refresh_button"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:padding="6dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:padding="4dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_refresh"
             android:contentDescription="Refresh status" />
     </LinearLayout>
 
-    <!-- Active Timer Card (Always visible now) -->
+    <!-- Active Timer Card (Visible only when timer is running) -->
     <LinearLayout
         android:id="@+id/widget_timer_container"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
         android:background="@drawable/widget_timer_background"
-        android:padding="12dp"
-        android:gravity="center">
+        android:padding="8dp"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp"
+        android:visibility="gone">
 
-        <TextView
-            android:id="@+id/widget_timer_task_name"
-            android:layout_width="match_parent"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="No task selected"
-            android:textColor="#E4E4E7"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:maxLines="2"
-            android:ellipsize="end" />
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/widget_timer_time"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--:--"
-            android:textColor="#A882DD"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:layout_marginTop="8dp" />
+            <TextView
+                android:id="@+id/widget_timer_task_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Active Focus Session"
+                android:textColor="#E4E4E7"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/widget_timer_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="25:00"
+                android:textColor="#A882DD"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/widget_timer_controls"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginTop="8dp">
+            android:gravity="center_vertical">
 
             <ImageView
                 android:id="@+id/widget_timer_pause_btn"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:padding="8dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_pause"
                 android:contentDescription="Pause/Resume timer" />
 
             <ImageView
                 android:id="@+id/widget_timer_cancel_btn"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:padding="8dp"
-                android:layout_marginStart="16dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:layout_marginStart="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_cancel"
                 android:contentDescription="Cancel timer" />
         </LinearLayout>
     </LinearLayout>
+
+    <!-- Schedule ListView -->
+    <ListView
+        android:id="@+id/widget_todo_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:scrollbars="vertical" />
+
+    <!-- Empty Schedule View -->
+    <TextView
+        android:id="@+id/widget_empty_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:text="No tasks scheduled today"
+        android:textColor="#71717A"
+        android:textSize="12sp"
+        android:visibility="gone" />
 
     <!-- Footer Timestamp -->
     <TextView

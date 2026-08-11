@@ -24,8 +24,23 @@ class ObsidianWidgetFactory(private val context: Context) : RemoteViewsService.R
     }
 
     override fun onDataSetChanged() {
-        // Runs on a background binder thread. Read network or DB safely here.
-        tasksList = taskDao.getAllTasksDirect()
+        val raw = taskDao.getAllTasksDirect()
+        val timed = raw.filter { it.category == "FOCUS BLOCKS" }.sortedBy { it.lineNumber }
+        val untimed = raw.filter { it.category != "FOCUS BLOCKS" && it.parentLineNumber == null }.sortedBy { it.lineNumber }
+        
+        val resultList = mutableListOf<Task>()
+        val subtasksByParent = raw.filter { it.parentLineNumber != null }.groupBy { it.parentLineNumber!! }
+
+        timed.forEach { parent ->
+            resultList.add(parent)
+            val subtasks = subtasksByParent[parent.lineNumber]
+            if (subtasks != null) {
+                resultList.addAll(subtasks)
+            }
+        }
+        resultList.addAll(untimed)
+
+        tasksList = resultList
     }
 
     override fun onDestroy() {
@@ -41,40 +56,43 @@ class ObsidianWidgetFactory(private val context: Context) : RemoteViewsService.R
         val task = tasksList[position]
         val views = RemoteViews(context.packageName, R.layout.widget_todo_item)
 
-        val timeText = task.timeRange ?: "Untimed"
+        val isSubtask = (task.parentLineNumber != null)
+        val timeText = task.timeRange ?: if (isSubtask) "Subtask" else "Untimed"
+        
         views.setTextViewText(R.id.widget_item_time_badge, timeText)
-        views.setTextViewText(R.id.widget_item_text, task.displayTitle)
+        views.setTextViewText(
+            R.id.widget_item_text,
+            if (isSubtask) "   ↳ ${task.displayTitle}" else task.displayTitle
+        )
         
         val subtitleText = if (task.timeRange != null) {
-            "Scheduled Time Block • ${task.project ?: "General"}"
+            "Focus Block • ${task.project ?: "General"}"
+        } else if (isSubtask) {
+            "Subtask • ${task.project ?: "General"}"
         } else {
             "Untimed Backlog • ${task.project ?: "General"}"
         }
         views.setTextViewText(R.id.widget_item_subtitle, subtitleText)
 
-        // Category accent color
         val accentColor = if (task.timeRange != null) "#A882DD" else "#71717A"
         views.setInt(R.id.widget_item_accent_bar, "setBackgroundColor", android.graphics.Color.parseColor(accentColor))
         views.setInt(R.id.widget_item_time_badge, "setTextColor", android.graphics.Color.parseColor(accentColor))
 
         if (task.isCompleted) {
             views.setImageViewResource(R.id.widget_item_status_icon, R.drawable.ic_checkbox_checked)
-            views.setInt(R.id.widget_item_status_icon, "setColorFilter", android.graphics.Color.parseColor("#A882DD"))
+            views.setInt(R.id.widget_item_status_icon, "setColorFilter", android.graphics.Color.parseColor("#10B981"))
         } else {
             views.setImageViewResource(R.id.widget_item_status_icon, R.drawable.ic_checkbox_unchecked)
             views.setInt(R.id.widget_item_status_icon, "setColorFilter", android.graphics.Color.parseColor("#71717A"))
         }
 
-        // Set up click fill-in intent
-        // Checkbox toggles task status
-        val toggleIntent = Intent().apply {
+        val fillInIntent = Intent().apply {
             putExtra("action_type", "TOGGLE")
             putExtra("task_id", task.id)
             putExtra("is_completed", !task.isCompleted)
         }
-        views.setOnClickFillInIntent(R.id.widget_item_status_icon, toggleIntent)
+        views.setOnClickFillInIntent(R.id.widget_item_status_icon, fillInIntent)
 
-        // Text view launches the main application
         val launchIntent = Intent().apply {
             putExtra("action_type", "LAUNCH")
         }
