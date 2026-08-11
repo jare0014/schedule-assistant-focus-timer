@@ -24,6 +24,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -1003,127 +1005,24 @@ fun ObsidianTodoScreen(
         val floatingTasks = remember(tasks) { tasks.filter { it.category != "FOCUS BLOCKS" && !it.isCompleted } }
 
         if (selectedViewMode == "GRID") {
-            val webStateJson = remember(tasks, lastSyncDateHeader, activeTimerTaskName, activeTimerRemainingSeconds, activeTimerIsPaused) {
-                val stateObj = JSONObject()
-                stateObj.put("dateStr", lastSyncDateHeader)
-
-                val scheduleArray = JSONArray()
-                tasks.forEach { task ->
-                    val obj = JSONObject()
-                    obj.put("lineIndex", task.lineNumber)
-                    obj.put("originalLine", task.rawMarkdownLine.ifEmpty { task.text })
-                    obj.put("status", if (task.isCompleted) "completed" else "pending")
-                    obj.put("description", task.displayTitle.ifEmpty { task.text })
-                    obj.put("rawDesc", task.text)
-                    obj.put("isCalendar", false)
-                    obj.put("subheading", task.category)
-                    obj.put("isUntimed", task.category != "FOCUS BLOCKS")
-                    if (!task.project.isNullOrEmpty()) obj.put("project", task.project)
-
-                    var sHour: Int? = null
-                    var sMin: Int? = null
-                    var eHour: Int? = null
-                    var eMin: Int? = null
-
-                    val timeSource = listOfNotNull(task.timeRange, task.displayTitle, task.text, task.rawMarkdownLine).firstOrNull { it.contains(":") } ?: ""
-                    if (timeSource.isNotEmpty()) {
-                        val regex = Regex("""(\d{1,2}):(\d{2})\s*([aApP][mM])?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*([aApP][mM])?""")
-                        val match = regex.find(timeSource)
-                        if (match != null) {
-                            var sh = match.groupValues[1].toIntOrNull() ?: 0
-                            val sm = match.groupValues[2].toIntOrNull() ?: 0
-                            val sAmpm = match.groupValues[3].lowercase()
-
-                            var eh = match.groupValues[4].toIntOrNull() ?: 0
-                            val em = match.groupValues[5].toIntOrNull() ?: 0
-                            val eAmpm = match.groupValues[6].lowercase()
-
-                            if (sAmpm == "pm" && sh < 12) sh += 12
-                            if (sAmpm == "am" && sh == 12) sh = 0
-
-                            if (eAmpm == "pm" && eh < 12) eh += 12
-                            if (eAmpm == "am" && eh == 12) eh = 0
-
-                            if (sAmpm == "pm" && eAmpm.isEmpty() && eh < 12) eh += 12
-                            if (eAmpm == "pm" && sAmpm.isEmpty() && sh < 12) sh += 12
-
-                            sHour = sh
-                            sMin = sm
-                            eHour = eh
-                            eMin = em
-                        }
+            NativeTimelineGridView(
+                tasks = tasks,
+                onStartTimer = { task ->
+                    scope.launch(Dispatchers.IO) {
+                        repository.startTimer(task)
+                        scope.launch(Dispatchers.Main) { refreshPreferencesState() }
                     }
-
-                    val isUntimedTask = (sHour == null) && (task.category != "FOCUS BLOCKS")
-                    obj.put("isUntimed", isUntimedTask)
-
-                    if (sHour != null) obj.put("startHour", sHour) else obj.put("startHour", JSONObject.NULL)
-                    if (sMin != null) obj.put("startMin", sMin) else obj.put("startMin", JSONObject.NULL)
-                    if (eHour != null) obj.put("endHour", eHour) else obj.put("endHour", JSONObject.NULL)
-                    if (eMin != null) obj.put("endMin", eMin) else obj.put("endMin", JSONObject.NULL)
-
-                    scheduleArray.put(obj)
-                }
-                stateObj.put("schedule", scheduleArray)
-
-                if (activeTimerTaskName.isNotEmpty()) {
-                    val timerObj = JSONObject()
-                    timerObj.put("taskName", activeTimerTaskName)
-                    timerObj.put("remainingSeconds", activeTimerRemainingSeconds)
-                    timerObj.put("totalSeconds", activeTimerTotalSeconds)
-                    timerObj.put("isPaused", activeTimerIsPaused)
-                    stateObj.put("activeTimer", timerObj)
-                } else {
-                    stateObj.put("activeTimer", JSONObject.NULL)
-                }
-
-                stateObj.toString()
-            }
-
-            Box(
+                },
+                onToggleTask = { task ->
+                    scope.launch(Dispatchers.IO) {
+                        repository.toggleTask(task, !task.isCompleted)
+                        scope.launch(Dispatchers.Main) { refreshPreferencesState() }
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, ObsidianBorder, RoundedCornerShape(12.dp))
-            ) {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.loadWithOverviewMode = true
-                            settings.useWideViewPort = true
-                            settings.builtInZoomControls = false
-                            settings.displayZoomControls = false
-                            settings.setSupportZoom(true)
-                            addJavascriptInterface(object {
-                                @JavascriptInterface
-                                fun getInitialState(): String = webStateJson
-                            }, "AndroidBridge")
-                            webChromeClient = object : android.webkit.WebChromeClient() {
-                                override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
-                                    android.util.Log.d("WebViewConsole", "${consoleMessage?.message()} -- line ${consoleMessage?.lineNumber()}")
-                                    return true
-                                }
-                            }
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    val safeScript = "if (window.updateState) { try { window.updateState($webStateJson); } catch(e){ console.error(e); } }"
-                                    view?.evaluateJavascript(safeScript, null)
-                                }
-                            }
-                            loadUrl("file:///android_asset/web/index.html")
-                        }
-                    },
-                    update = { webView ->
-                        val safeScript = "if (window.updateState) { try { window.updateState($webStateJson); } catch(e){ console.error(e); } }"
-                        webView.evaluateJavascript(safeScript, null)
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            )
         } else if (focusBlocks.isEmpty() && floatingTasks.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -1899,5 +1798,311 @@ class DragDropState {
     var draggedTask by mutableStateOf<Task?>(null)
     var dragPosition by mutableStateOf(Offset.Zero)
     var isDragging by mutableStateOf(false)
+}
+
+@Composable
+fun NativeTimelineGridView(
+    tasks: List<Task>,
+    onStartTimer: (Task) -> Unit,
+    onToggleTask: (Task) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var zoomLevel by remember { mutableIntStateOf(60) }
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+
+    val timedTasks = remember(tasks) {
+        tasks.mapNotNull { task ->
+            val timeSource = listOfNotNull(task.timeRange, task.displayTitle, task.text, task.rawMarkdownLine).firstOrNull { it.contains(":") } ?: ""
+            if (timeSource.isNotEmpty()) {
+                val regex = Regex("""(\d{1,2}):(\d{2})\s*([aApP][mM])?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*([aApP][mM])?""")
+                val match = regex.find(timeSource)
+                if (match != null) {
+                    var sh = match.groupValues[1].toIntOrNull() ?: 0
+                    val sm = match.groupValues[2].toIntOrNull() ?: 0
+                    val sAmpm = match.groupValues[3].lowercase()
+
+                    var eh = match.groupValues[4].toIntOrNull() ?: 0
+                    val em = match.groupValues[5].toIntOrNull() ?: 0
+                    val eAmpm = match.groupValues[6].lowercase()
+
+                    if (sAmpm == "pm" && sh < 12) sh += 12
+                    if (sAmpm == "am" && sh == 12) sh = 0
+                    if (eAmpm == "pm" && eh < 12) eh += 12
+                    if (eAmpm == "am" && eh == 12) eh = 0
+
+                    if (sAmpm == "pm" && eAmpm.isEmpty() && eh < 12) eh += 12
+                    if (eAmpm == "pm" && sAmpm.isEmpty() && sh < 12) sh += 12
+
+                    val startMins = sh * 60 + sm
+                    val endMins = Math.max(startMins + 15, eh * 60 + em)
+                    return@mapNotNull Triple(task, startMins, endMins)
+                }
+            }
+            null
+        }
+    }
+
+    val untimedTasks = remember(tasks, timedTasks) {
+        val timedIds = timedTasks.map { it.first.id }.toSet()
+        tasks.filter { it.id !in timedIds && !it.isCompleted }
+    }
+
+    var minHour = 5
+    var maxHour = 22
+    timedTasks.forEach { (_, startMins, endMins) ->
+        val sH = startMins / 60
+        val eH = (endMins + 59) / 60
+        if (sH < minHour) minHour = Math.max(0, sH)
+        if (eH > maxHour) maxHour = Math.min(23, eH)
+    }
+
+    val hourHeightDp = zoomLevel.dp
+
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "TIMELINE GRID",
+                color = com.example.ui.theme.ObsidianPurple,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .background(com.example.ui.theme.ObsidianSurface, RoundedCornerShape(8.dp))
+                    .border(1.dp, com.example.ui.theme.ObsidianBorder, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                IconButton(
+                    onClick = { zoomLevel = Math.max(40, zoomLevel - 20) },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Text("🔍−", fontSize = 11.sp, color = com.example.ui.theme.ObsidianTextPrimary)
+                }
+                Text("${zoomLevel}px/h", fontSize = 11.sp, color = com.example.ui.theme.ObsidianTextMuted, fontWeight = FontWeight.Bold)
+                IconButton(
+                    onClick = { zoomLevel = Math.min(240, zoomLevel + 20) },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Text("🔍+", fontSize = 11.sp, color = com.example.ui.theme.ObsidianTextPrimary)
+                }
+                Button(
+                    onClick = {
+                        zoomLevel = 130
+                        val cal = java.util.Calendar.getInstance()
+                        val currentMins = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+                        val targetPx = kotlin.math.max(0f, (currentMins - minHour * 60) * (130f / 60f))
+                        scope.launch { scrollState.animateScrollTo(targetPx.toInt()) }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.ObsidianPurple.copy(alpha = 0.2f), contentColor = com.example.ui.theme.ObsidianPurple),
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(26.dp)
+                ) {
+                    Text("🎯 Focus", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        if (untimedTasks.isNotEmpty()) {
+            var untimedExpanded by remember { mutableStateOf(true) }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+                    .border(1.dp, com.example.ui.theme.ObsidianBorder, RoundedCornerShape(8.dp)),
+                colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ObsidianSurface)
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { untimedExpanded = !untimedExpanded }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "📦 Untimed Tasks (${untimedTasks.size})",
+                            color = com.example.ui.theme.ObsidianPurple,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(if (untimedExpanded) "▲" else "▼", color = com.example.ui.theme.ObsidianTextMuted, fontSize = 10.sp)
+                    }
+
+                    if (untimedExpanded) {
+                        Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            untimedTasks.forEach { task ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(com.example.ui.theme.ObsidianBg, RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = task.displayTitle.ifEmpty { task.text },
+                                        color = com.example.ui.theme.ObsidianTextPrimary,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = { onStartTimer(task) }, modifier = Modifier.size(24.dp)) {
+                                        Text("▶", color = ObsidianAccentGreen, fontSize = 10.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(com.example.ui.theme.ObsidianSurface)
+                .border(1.dp, com.example.ui.theme.ObsidianBorder, RoundedCornerShape(12.dp))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+            ) {
+                val totalHours = maxHour - minHour + 1
+                val totalCanvasHeight = hourHeightDp * totalHours
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalCanvasHeight)
+                ) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .width(54.dp)
+                                .fillMaxHeight()
+                                .background(Color.Black.copy(alpha = 0.3f))
+                        ) {
+                            for (h in minHour..maxHour) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(hourHeightDp),
+                                    contentAlignment = Alignment.TopEnd
+                                ) {
+                                    val displayH = if (h == 0) 12 else if (h > 12) h - 12 else h
+                                    val ampm = if (h >= 12) "PM" else "AM"
+                                    Text(
+                                        text = "$displayH $ampm",
+                                        color = com.example.ui.theme.ObsidianTextMuted,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(end = 6.dp, top = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        ) {
+                            for (i in 0 until totalHours) {
+                                val topOffset = hourHeightDp * i
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .offset(y = topOffset)
+                                        .background(com.example.ui.theme.ObsidianBorder)
+                                )
+                            }
+                        }
+                    }
+
+                    timedTasks.forEach { (task, startMins, endMins) ->
+                        val startOffsetMins = startMins - (minHour * 60)
+                        val durationMins = Math.max(15, endMins - startMins)
+
+                        val topDp = (startOffsetMins.toFloat() / 60f) * zoomLevel
+                        val cardHeightDp = Math.max(32f, (durationMins.toFloat() / 60f) * zoomLevel)
+
+                        Card(
+                            modifier = Modifier
+                                .padding(start = 60.dp, end = 8.dp)
+                                .fillMaxWidth()
+                                .height(cardHeightDp.dp)
+                                .offset(y = topDp.dp)
+                                .border(1.dp, com.example.ui.theme.ObsidianPurple, RoundedCornerShape(8.dp)),
+                            colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ObsidianPurple.copy(alpha = 0.25f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = task.displayTitle.ifEmpty { task.text },
+                                        color = com.example.ui.theme.ObsidianTextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${durationMins}m",
+                                        color = com.example.ui.theme.ObsidianTextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { onStartTimer(task) },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Text("▶", color = ObsidianAccentGreen, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    val cal = java.util.Calendar.getInstance()
+                    val currentH = cal.get(java.util.Calendar.HOUR_OF_DAY)
+                    val currentM = cal.get(java.util.Calendar.MINUTE)
+                    if (currentH in minHour..maxHour) {
+                        val currentOffsetMins = (currentH - minHour) * 60 + currentM
+                        val laserTopDp = (currentOffsetMins.toFloat() / 60f) * zoomLevel
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .offset(y = laserTopDp.dp)
+                                .background(Color(0xFFFF453A))
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
