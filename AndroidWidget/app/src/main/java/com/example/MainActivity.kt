@@ -1110,7 +1110,7 @@ fun ObsidianTodoScreen(
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
-                                    val safeScript = "if (window.updateState) { try { window.updateState(JSON.parse(${JSONObject.quote(webStateJson)})); } catch(e){ console.error(e); } }"
+                                    val safeScript = "if (window.updateState) { try { window.updateState($webStateJson); } catch(e){ console.error(e); } }"
                                     view?.evaluateJavascript(safeScript, null)
                                 }
                             }
@@ -1118,7 +1118,7 @@ fun ObsidianTodoScreen(
                         }
                     },
                     update = { webView ->
-                        val safeScript = "if (window.updateState) { try { window.updateState(JSON.parse(${JSONObject.quote(webStateJson)})); } catch(e){ console.error(e); } }"
+                        val safeScript = "if (window.updateState) { try { window.updateState($webStateJson); } catch(e){ console.error(e); } }"
                         webView.evaluateJavascript(safeScript, null)
                     },
                     modifier = Modifier.fillMaxSize()

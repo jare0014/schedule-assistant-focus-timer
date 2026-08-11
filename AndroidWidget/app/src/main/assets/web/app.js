@@ -79,7 +79,16 @@ function formatTime(seconds) {
 window.updateState = function(newState) {
     if (!newState) return;
     try {
-        updateUI(newState);
+        let stateObj = newState;
+        if (typeof stateObj === 'string') {
+            try { stateObj = JSON.parse(stateObj); } catch(e) {}
+        }
+        if (typeof stateObj === 'string') {
+            try { stateObj = JSON.parse(stateObj); } catch(e) {}
+        }
+        if (stateObj && typeof stateObj === 'object') {
+            updateUI(stateObj);
+        }
     } catch(e) {
         console.error("updateUI error:", e);
     }
@@ -91,8 +100,7 @@ function checkAndroidBridge() {
         try {
             const raw = window.AndroidBridge.getInitialState();
             if (raw) {
-                const state = JSON.parse(raw);
-                updateUI(state);
+                window.updateState(raw);
                 return true;
             }
         } catch(e) {
