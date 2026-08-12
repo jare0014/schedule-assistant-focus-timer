@@ -22,8 +22,8 @@
         android:paddingVertical="3dp"
         android:text="04:30 PM" />
 
-    <!-- Colored Accent Bar -->
-    <View
+    <!-- Colored Accent Bar (FrameLayout: base View not allowed in RemoteViews) -->
+    <FrameLayout
         android:id="@+id/widget_item_accent_bar"
         android:layout_width="3dp"
         android:layout_height="24dp"
