@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Widget list item — keep this layout as SIMPLE AS POSSIBLE.
+    RemoteViews has a strict allowlist of view types and attributes.
+    Rules applied here:
+      - No custom drawable backgrounds (use solid colors only)
+      - No paddingHorizontal/paddingVertical (API 26+ - use padding or paddingLeft/Right)
+      - No descendantFocusability (not supported in RemoteViews on all launchers)
+      - No layout_marginStart (use layout_marginLeft for broadest compat)
+      - FrameLayout for the accent bar (bare <View> is banned in RemoteViews)
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:background="@drawable/widget_timer_background"
+    android:background="#1E1A2E"
     android:padding="8dp"
-    android:layout_marginBottom="4dp"
-    android:descendantFocusability="blocksDescendants">
+    android:layout_marginBottom="4dp">
 
-    <!-- Time Badge -->
+    <!-- Time / label badge -->
     <TextView
         android:id="@+id/widget_item_time_badge"
         android:layout_width="wrap_content"
@@ -18,31 +27,30 @@
         android:textColor="#A882DD"
         android:textSize="11sp"
         android:textStyle="bold"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="3dp"
-        android:text="04:30 PM" />
+        android:padding="4dp"
+        android:text="Time" />
 
-    <!-- Colored Accent Bar (FrameLayout: base View not allowed in RemoteViews) -->
+    <!-- Colored accent bar — FrameLayout because bare <View> is banned -->
     <FrameLayout
         android:id="@+id/widget_item_accent_bar"
         android:layout_width="3dp"
         android:layout_height="24dp"
-        android:layout_marginStart="6dp"
+        android:layout_marginLeft="6dp"
         android:background="#A882DD" />
 
-    <!-- Task Title & Subtitle -->
+    <!-- Title + subtitle column -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginStart="8dp"
+        android:layout_marginLeft="8dp"
         android:orientation="vertical">
 
         <TextView
             android:id="@+id/widget_item_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Task Title"
+            android:text="Task"
             android:textColor="#E4E4E7"
             android:textSize="12sp"
             android:textStyle="bold"
@@ -53,19 +61,20 @@
             android:id="@+id/widget_item_subtitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="4:30 PM – 6:00 PM"
+            android:text="Subtitle"
             android:textColor="#A1A1AA"
             android:textSize="10sp"
             android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
 
-    <!-- Checkbox Icon -->
+    <!-- Checkbox icon -->
     <ImageView
         android:id="@+id/widget_item_status_icon"
         android:layout_width="22dp"
         android:layout_height="22dp"
-        android:layout_marginStart="6dp"
+        android:layout_marginLeft="6dp"
         android:padding="2dp"
         android:src="@drawable/ic_checkbox_unchecked" />
+
 </LinearLayout>
