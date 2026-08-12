@@ -215,9 +215,9 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
             else                   -> "Untimed Backlog • ${task.project ?: "General"}"
         })
 
-        iv.setInt(R.id.widget_item_accent_bar,  "setBackgroundColor",
+        iv.setInt(R.id.widget_item_accent_bar, "setColorFilter",
             android.graphics.Color.parseColor(accentColor))
-        iv.setInt(R.id.widget_item_time_badge,  "setTextColor",
+        iv.setTextColor(R.id.widget_item_time_badge,
             android.graphics.Color.parseColor(accentColor))
 
         if (task.isCompleted) {
