@@ -108,15 +108,13 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Schedule ListView -->
-    <ListView
-        android:id="@+id/widget_todo_list"
+    <!-- Schedule Task List (populated dynamically via addView) -->
+    <LinearLayout
+        android:id="@+id/widget_list_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:divider="@null"
-        android:dividerHeight="0dp"
-        android:scrollbars="vertical" />
+        android:orientation="vertical" />
 
     <!-- Empty Schedule View -->
     <TextView
