@@ -804,7 +804,7 @@ fun ObsidianTodoScreen(
                     
                     // Progress bar
                     val elapsedFraction = if (activeTimerTotalSeconds > 0) {
-                        (activeTimerTotalSeconds - activeTimerRemainingSeconds).toFloat() / activeTimerTotalSeconds
+                        ((activeTimerTotalSeconds - activeTimerRemainingSeconds).toFloat() / activeTimerTotalSeconds).coerceIn(0f, 1f)
                     } else 0f
                     
                     LinearProgressIndicator(

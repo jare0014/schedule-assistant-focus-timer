@@ -2,224 +2,6 @@ const obsidian = require('obsidian');
 
 const VIEW_TYPE_TASK_TIMER = 'task-timer-view';
 
-// ---------------------------------------------------------------------------
-// parseAllTasks — inlined from src/TaskParser.js (Obsidian cannot require external files)
-// ---------------------------------------------------------------------------
-function parseAllTasks(content) {
-    if (!content) return [];
-    const lines = content.split(/\r?\n/);
-    const tasks = [];
-    const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
-    let currentSubheading = "";
-    let hasPlannerHeader = false;
-    for (const l of lines) {
-        const lower = l.toLowerCase();
-        if (lower.includes("day planner") || lower.includes("schedule")) { hasPlannerHeader = true; break; }
-    }
-    let inPlanner = !hasPlannerHeader;
-    let currentProject = "";
-    let lastParentTask = null;
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const lowerLine = line.toLowerCase();
-        const isIndented = /^\s+/.test(line);
-        if (hasPlannerHeader && (lowerLine.includes("day planner") || lowerLine.includes("schedule")) && line.startsWith('## ')) { inPlanner = true; continue; }
-        if (hasPlannerHeader && inPlanner && line.startsWith('## ') && !lowerLine.includes("day planner") && !lowerLine.includes("schedule")) break;
-        if (inPlanner) {
-            if (line.startsWith('### ')) { currentSubheading = line.trim(); currentProject = ""; lastParentTask = null; continue; }
-            if (line.startsWith('##### ')) { currentProject = line.replace(/^#####\s+/, '').trim(); lastParentTask = null; continue; }
-            const summaryMatch = line.match(/<summary>(?:<b>)?(.*?)(?:<\/b>)?<\/summary>/i);
-            if (summaryMatch) currentProject = summaryMatch[1].trim();
-            if (line.includes("</details>")) currentProject = "";
-            const match = line.match(taskRegex);
-            if (match) {
-                const status = (match[1] === 'x' || match[1] === 'X') ? 'completed' : 'pending';
-                let startH = parseInt(match[2]), startM = parseInt(match[3]), startAmpm = match[4];
-                let endH = parseInt(match[5]), endM = parseInt(match[6]), endAmpm = match[7];
-                const rawDesc = match[8];
-                if (startAmpm) { const a = startAmpm.toLowerCase(); if (a === 'pm' && startH < 12) startH += 12; if (a === 'am' && startH === 12) startH = 0; }
-                if (endAmpm) { const a = endAmpm.toLowerCase(); if (a === 'pm' && endH < 12) endH += 12; if (a === 'am' && endH === 12) endH = 0; }
-                let description = rawDesc.replace(/`?BUTTON\[[^\]]+\]`?/g, '').replace(/\[src\]\(.*?\)/g, '').replace(/\s+src$/i, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/#\w+/g, '').replace(/\s+/g, ' ').trim();
-                const isCalendar = rawDesc.includes('[Calendar]');
-                let startMinutes = startH * 60 + startM, endMinutes = endH * 60 + endM;
-                if (startH < 5) startMinutes += 1440; if (endH < 5) endMinutes += 1440;
-                if (endMinutes < startMinutes) endMinutes += 1440;
-                const duration = endMinutes - startMinutes;
-                const taskObj = { lineIndex: i, originalLine: line, status, startHour: startH, startMin: startM, endHour: endH, endMin: endM, startMinutes, endMinutes, duration, description, isCalendar, subheading: currentSubheading, rawDesc, isUntimed: false, project: currentProject || description };
-                tasks.push(taskObj);
-                if (!isIndented) lastParentTask = taskObj;
-            } else {
-                const untimedRegex = /^\s*-\s+\[( |x|X)\]\s+(.*)$/;
-                const untimedMatch = line.match(untimedRegex);
-                if (untimedMatch && (!line.includes("BUTTON[") || line.includes("BUTTON[timer-"))) {
-                    const status = (untimedMatch[1] === 'x' || untimedMatch[1] === 'X') ? 'completed' : 'pending';
-                    const rawDesc = untimedMatch[2];
-                    let duration = null;
-                    const dm = rawDesc.match(/`?BUTTON\[timer-(\d+)\]`?/); if (dm) duration = parseInt(dm[1]);
-                    let description = rawDesc.replace(/`?BUTTON\[[^\]]+\]`?/g, '').replace(/\[src\]\(.*?\)/g, '').replace(/\s+src$/i, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/#\w+/g, '').replace(/\s+/g, ' ').trim();
-                    const taskObj = { lineIndex: i, originalLine: line, status, startHour: null, startMin: null, endHour: null, endMin: null, startMinutes: null, endMinutes: null, duration, description, isCalendar: false, subheading: currentSubheading, rawDesc, isUntimed: true, project: currentProject };
-                    if (isIndented && lastParentTask) { taskObj.parentLineIndex = lastParentTask.lineIndex; if (!taskObj.project) taskObj.project = lastParentTask.project || lastParentTask.description; }
-                    tasks.push(taskObj);
-                }
-            }
-        }
-    }
-    return tasks;
-}
-
-// ---------------------------------------------------------------------------
-// renderScheduleGridView — inlined from src/ScheduleGridView.js
-// ---------------------------------------------------------------------------
-async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
-    const existingWrapper = viewContainer.querySelector('.time-grid-wrapper');
-    const prevScrollTop = existingWrapper ? existingWrapper.scrollTop : null;
-    const existingDrawer = viewContainer.querySelector('.untimed-drawer');
-    const wasUntimedOpen = existingDrawer ? existingDrawer.open : false;
-
-    const topLevelUntimed = tasks.filter(t => t.parentLineIndex === undefined && (t.isUntimed || (t.subheading && (t.subheading.includes("☁️") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed")))));
-    const timedTasks = tasks.filter(t => t.parentLineIndex === undefined && !topLevelUntimed.includes(t));
-
-    if (topLevelUntimed.length > 0) {
-        const drawer = viewContainer.createEl('details', { cls: 'untimed-drawer' });
-        if (wasUntimedOpen) drawer.open = true;
-        drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
-        const content = drawer.createDiv({ cls: 'untimed-drawer-content' });
-        topLevelUntimed.forEach(task => {
-            const card = content.createDiv({ cls: `task-card${task.status === 'completed' ? ' completed' : ''}` });
-            const left = card.createDiv({ cls: 'task-card-left' });
-            left.createDiv({ cls: 'task-card-time', text: 'Untimed' });
-            left.createDiv({ cls: 'task-card-name', text: task.description });
-            const right = card.createDiv({ cls: 'task-card-controls' });
-            const cb = right.createEl('input', { type: 'checkbox' });
-            cb.checked = task.status === 'completed';
-            cb.onclick = async (e) => { e.stopPropagation(); await viewInstance.toggleTaskCompletion(task, cb.checked); };
-            if (task.status !== 'completed') { [5, 10, 15, 20].forEach(m => { const btn = right.createEl('button', { cls: 'task-card-quick-timer-btn', text: `${m}m` }); btn.onclick = () => viewInstance.startTimer(task, m); }); }
-        });
-    }
-
-    const dayViewContainer = viewContainer.createDiv({ cls: 'timeblock-dayview-container' });
-    const gridWrapper = dayViewContainer.createDiv({ cls: 'time-grid-wrapper' });
-    let minHour = 5, maxHour = 22;
-    timedTasks.forEach(t => {
-        if (typeof t.startHour === 'number' && t.startHour < minHour) minHour = Math.max(0, t.startHour);
-        if (typeof t.endHour === 'number' && t.endHour > maxHour) maxHour = Math.min(23, t.endHour);
-    });
-    const totalHours = maxHour - minHour + 1;
-    const hourHeight = (viewInstance && viewInstance.gridZoomLevel) || 60;
-
-    const ruler = gridWrapper.createDiv({ cls: 'time-ruler' });
-    for (let h = minHour; h <= maxHour; h++) {
-        const lbl = ruler.createDiv({ cls: 'time-ruler-hour' });
-        lbl.style.height = `${hourHeight}px`;
-        lbl.style.boxSizing = 'border-box';
-        const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
-        lbl.textContent = `${dh} ${h >= 12 ? 'PM' : 'AM'}`;
-    }
-
-    const canvas = gridWrapper.createDiv({ cls: 'time-grid-canvas' });
-    canvas.style.height = `${totalHours * hourHeight}px`;
-    for (let i = 0; i < totalHours; i++) {
-        const hl = canvas.createDiv({ cls: 'hour-grid-line' }); hl.style.top = `${i * hourHeight}px`;
-        if (i < totalHours - 1) { const hhl = canvas.createDiv({ cls: 'halfhour-grid-line' }); hhl.style.top = `${(i + 0.5) * hourHeight}px`; }
-    }
-
-    const now = new Date(), currentHour = now.getHours(), currentMin = now.getMinutes();
-    if (currentHour >= minHour && currentHour <= maxHour) {
-        const cTop = ((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60);
-        const ti = canvas.createDiv({ cls: 'current-time-indicator' }); ti.style.top = `${cTop}px`;
-        ti.createDiv({ cls: 'current-time-dot' });
-        ti.createDiv({ cls: 'current-time-badge', text: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
-    }
-
-    const sortedTasks = [...timedTasks].sort((a, b) => ((a.startHour ?? 0) * 60 + (a.startMin ?? 0)) - ((b.startHour ?? 0) * 60 + (b.startMin ?? 0)));
-
-    // Use real schedule times for column placement — subtask height expansion is visual only
-    sortedTasks.forEach(task => {
-        const ts = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
-        const te = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
-        task.calcStartMins = ts;
-        task.calcEndMins = Math.max(ts + 15, te);
-    });
-
-    const columns = [];
-    sortedTasks.forEach(task => {
-        let placed = false;
-        for (const col of columns) {
-            const overlaps = col.some(ex => task.calcStartMins < ex.calcEndMins && task.calcEndMins > ex.calcStartMins);
-            if (!overlaps) { col.push(task); placed = true; break; }
-        }
-        if (!placed) columns.push([task]);
-    });
-    const totalCols = columns.length || 1;
-
-    const fmtHM = (h, m) => { const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h); return `${dh}:${m < 10 ? '0' + m : m}${h >= 12 ? 'pm' : 'am'}`; };
-
-    columns.forEach((colTasks, colIndex) => {
-        colTasks.forEach(task => {
-            const startMins = task.calcStartMins - minHour * 60;
-            const durMins = task.calcEndMins - task.calcStartMins;
-            const topPx = Math.max(0, startMins * (hourHeight / 60));
-            let heightPx = Math.max(28, durMins * (hourHeight / 60));
-            const card = canvas.createDiv({ cls: `timeblock-card${task.status === 'completed' ? ' completed' : ''}` });
-            card.style.top = `${topPx}px`;
-            const wPct = 100 / totalCols;
-            card.style.left = `calc(${colIndex * wPct}% + 2px)`;
-            card.style.width = `calc(${wPct}% - 4px)`;
-
-            const cardHeader = card.createDiv({ cls: 'timeblock-card-header' });
-            cardHeader.createDiv({ cls: 'timeblock-card-title', text: task.description });
-            const controls = cardHeader.createDiv({ cls: 'timeblock-card-controls' });
-
-            const cb = controls.createEl('input', { type: 'checkbox' }); cb.checked = task.status === 'completed';
-            cb.onclick = async (e) => { e.stopPropagation(); await viewInstance.toggleTaskCompletion(task, cb.checked); };
-
-            const playBtn = controls.createEl('button', { cls: 'timeblock-play-btn', text: '▶', title: 'Start Focus Session' });
-            playBtn.onclick = (e) => { e.stopPropagation(); viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration)); };
-
-            const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block' });
-            delBtn.onclick = async (e) => { e.stopPropagation(); await viewInstance.deleteTaskBlock(task); };
-
-            const cardTime = card.createDiv({ cls: 'timeblock-card-time' });
-            cardTime.createSpan({ text: `${fmtHM(task.startHour, task.startMin)} – ${fmtHM(task.endHour, task.endMin)}` });
-            cardTime.createSpan({ cls: 'timeblock-duration-badge', text: `${durMins}m` });
-
-            const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
-            if (subtasks.length > 0) {
-                const sc = card.createDiv({ cls: 'timeblock-subtasks-container' });
-                subtasks.forEach(st => {
-                    const se = sc.createDiv({ cls: `timeblock-subtask-item${st.status === 'completed' ? ' completed' : ''}` });
-                    const scb = se.createEl('input', { type: 'checkbox' }); scb.checked = st.status === 'completed';
-                    scb.onclick = async (e) => { e.stopPropagation(); await viewInstance.toggleTaskCompletion(st, scb.checked); };
-                    se.createDiv({ cls: 'timeblock-subtask-title', text: st.description });
-                    if (st.status !== 'completed') {
-                        const spb = se.createEl('button', { cls: 'timeblock-subtask-play-btn', text: '▶', title: 'Start Subtask Timer' });
-                        spb.onclick = (e) => { e.stopPropagation(); viewInstance.startTimer(st, st.duration || 15); };
-                    }
-                });
-                const minH = 48 + subtasks.length * 28; if (heightPx < minH) heightPx = minH;
-            }
-            card.style.height = `${heightPx}px`;
-            card.onclick = () => viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
-        });
-    });
-
-    let targetScroll = 0;
-    if (viewInstance && viewInstance.resetScrollToFocus) {
-        viewInstance.resetScrollToFocus = false;
-        if (currentHour >= minHour && currentHour <= maxHour) {
-            targetScroll = Math.max(0, (((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60)) - 10);
-        }
-    } else if (prevScrollTop !== null) {
-        targetScroll = prevScrollTop;
-    } else if (currentHour >= minHour && currentHour <= maxHour) {
-        targetScroll = Math.max(0, (((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60)) - 10);
-    }
-
-    gridWrapper.scrollTop = targetScroll;
-    requestAnimationFrame(() => { gridWrapper.scrollTop = targetScroll; });
-}
-
-
 function normalizeTimeRangeSpaces(line) {
     if (!line) return line;
     const regex = /^((\s*-\s+\[[ xX/]\]\s+)?\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*)(.*)$/i;
@@ -242,6 +24,16 @@ class TaskTimerView extends obsidian.ItemView {
     constructor(leaf, plugin) {
         super(leaf);
         this.plugin = plugin;
+        this.currentTimer = null;
+        this.timerInterval = null;
+        this.isAlarming = false;
+        
+        // Audio synthesis state
+        this.audioCtx = null;
+        this.alarmInterval = null;
+        this.titleInterval = null;
+        this.originalTitle = "";
+        this.hasObserver = false;
     }
 
     getViewType() {
@@ -249,55 +41,55 @@ class TaskTimerView extends obsidian.ItemView {
     }
 
     getDisplayText() {
-        return "Focus Timer & Schedule";
+        return "Schedule Assistant with Focus Timer";
     }
 
     getIcon() {
-        return "clock";
+        return "alarm-clock";
     }
 
     async onOpen() {
+        this.originalTitle = document.title;
         this.renderSchedule();
         
-        // Auto refresh schedule display every minute to keep active indicators up to date
-        this.registerInterval(window.setInterval(() => {
-            if (this.app.workspace.layoutReady) {
-                this.renderSchedule();
-            }
-        }, 60000));
+        // Register vault modify event to refresh schedule view in real-time
+        this.registerEvent(
+            this.app.vault.on('modify', (file) => {
+                const dailyFile = this.getDailyNoteFile();
+                if (dailyFile && file.path === dailyFile.path) {
+                    if (!this.currentTimer && !this.isAlarming) {
+                        this.renderSchedule();
+                    }
+                }
+            })
+        );
     }
 
     async onClose() {
-        // Cleanup if needed
-    }
-
-    renderSchedule() {
-        const container = this.containerEl ? (this.containerEl.children[1] || this.contentEl) : null;
-        if (!container) return;
-        container.empty();
-        container.addClass('task-timer-view-container');
-
-        if (this.currentTimer || this.plugin.activeTimer) {
-            this.renderTimer();
-        } else {
-            this.renderScheduleTimeline(container);
+        if (this.currentTimer) {
+            await this.plugin.logUpdate(false);
+            this.currentTimer = null;
         }
+        this.clearTimer();
+        this.stopAlarm();
     }
 
     getDailyNoteFile() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const todayDateStr = `${year}-${month}-${day}`;
-        const files = this.app.vault.getFiles();
-        let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
-        if (noteFile) return noteFile;
-        noteFile = files.find(f => f.path && f.path.includes(todayDateStr));
-        if (noteFile) return noteFile;
-        const activeFile = this.app.workspace.getActiveFile();
-        if (activeFile && activeFile.basename === todayDateStr) return activeFile;
-        return null;
+        return this.plugin.getDailyNoteFile();
+    }
+
+    async renderSchedule() {
+        const container = this.contentEl;
+        container.empty();
+
+        const viewContainer = container.createDiv({ cls: 'task-timer-view-container' });
+        
+        if (this.currentTimer) {
+            this.renderTimer();
+            return;
+        }
+
+        await this.renderScheduleTimeline(viewContainer);
     }
 
     renderIdleView(viewContainer) {
@@ -308,73 +100,15 @@ class TaskTimerView extends obsidian.ItemView {
         idleContainer.createDiv({ cls: 'timer-idle-desc', text: "Select a task from your Day Planner inside today's daily note to start a focus timer." });
     }
 
-    async renderScheduleGridView(viewContainer, tasks) {
-        return renderScheduleGridView(this, viewContainer, tasks);
-    }
-
     async renderScheduleTimeline(viewContainer) {
-        // 1. Header with date, view toggle, and Generate Schedule button
+        // 1. Header with date and Generate Schedule button
         const header = viewContainer.createDiv({ cls: 'task-timer-header' });
         
         const now = new Date();
         const dateStr = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
         header.createEl('h3', { text: dateStr });
-
-        if (!this.scheduleViewMode) {
-            this.scheduleViewMode = 'grid';
-        }
-
-        if (!this.gridZoomLevel) {
-            this.gridZoomLevel = 60;
-        }
-
-        const controlsContainer = header.createDiv({ cls: 'task-timer-header-controls' });
-
-        const viewToggle = controlsContainer.createDiv({ cls: 'view-mode-toggle' });
-        const gridBtn = viewToggle.createEl('button', { 
-            cls: `view-mode-btn${this.scheduleViewMode === 'grid' ? ' active' : ''}`, 
-            text: '📅 Grid' 
-        });
-        const listBtn = viewToggle.createEl('button', { 
-            cls: `view-mode-btn${this.scheduleViewMode === 'list' ? ' active' : ''}`, 
-            text: '📋 List' 
-        });
-
-        gridBtn.onclick = () => {
-            this.scheduleViewMode = 'grid';
-            this.renderSchedule();
-        };
-        listBtn.onclick = () => {
-            this.scheduleViewMode = 'list';
-            this.renderSchedule();
-        };
-
-        if (this.scheduleViewMode === 'grid') {
-            const zoomGroup = controlsContainer.createDiv({ cls: 'timescale-zoom-group' });
-            
-            const zoomOutBtn = zoomGroup.createEl('button', { cls: 'zoom-btn', text: '🔍−', title: 'Zoom Out (Compact)' });
-            zoomGroup.createEl('span', { cls: 'zoom-label', text: `${this.gridZoomLevel}px/h` });
-            const zoomInBtn = zoomGroup.createEl('button', { cls: 'zoom-btn', text: '🔍+', title: 'Zoom In (Expanded)' });
-            const focusBtn = zoomGroup.createEl('button', { cls: 'zoom-btn', text: '🎯 Focus', title: 'Focus Next 3 Hours (Expanded)' });
-
-            zoomOutBtn.onclick = () => {
-                this.gridZoomLevel = Math.max(40, this.gridZoomLevel - 20);
-                this.renderSchedule();
-            };
-
-            zoomInBtn.onclick = () => {
-                this.gridZoomLevel = Math.min(240, this.gridZoomLevel + 20);
-                this.renderSchedule();
-            };
-
-            focusBtn.onclick = () => {
-                this.gridZoomLevel = 130;
-                this.resetScrollToFocus = true;
-                this.renderSchedule();
-            };
-        }
         
-        const genBtn = controlsContainer.createEl('button', { cls: 'auto-block-btn', text: 'Generate Schedule' });
+        const genBtn = header.createEl('button', { cls: 'auto-block-btn', text: 'Generate Schedule' });
         genBtn.onclick = () => {
             this.plugin.runTaskLoader();
         };
@@ -394,15 +128,10 @@ class TaskTimerView extends obsidian.ItemView {
             return;
         }
 
-        // 3. Parse tasks from daily note
-        const tasks = this.plugin.parseAllTasks(content);
+        // 3. Parse tasks (filter out completed tasks)
+        const tasks = this.plugin.parseAllTasks(content).filter(t => t.status !== 'completed');
         if (tasks.length === 0) {
             this.renderIdleView(viewContainer);
-            return;
-        }
-
-        if (this.scheduleViewMode === 'grid') {
-            await this.renderScheduleGridView(viewContainer, tasks);
             return;
         }
 
@@ -656,78 +385,21 @@ class TaskTimerView extends obsidian.ItemView {
                 return;
             }
             const originalLine = lines[lineIndex];
-
-            // Toggle the parent task line
+            
             if (complete) {
                 lines[lineIndex] = originalLine.replace('- [ ]', '- [x]').replace('- [/]', '- [x]');
             } else {
                 lines[lineIndex] = originalLine.replace('- [x]', '- [ ]');
             }
 
-            // Cascade to subtasks: find all immediately-indented child task lines after the parent
-            const parentIndent = originalLine.match(/^(\s*)/)[1].length;
-            for (let i = lineIndex + 1; i < lines.length; i++) {
-                const childLine = lines[i];
-                if (!childLine.trim()) continue; // skip blank lines
-                const childIndent = childLine.match(/^(\s*)/)[1].length;
-                if (childIndent <= parentIndent) break; // back to same/higher level — stop
-                if (childLine.includes('- [ ]') || childLine.includes('- [x]') || childLine.includes('- [/]')) {
-                    if (complete) {
-                        lines[i] = childLine.replace('- [ ]', '- [x]').replace('- [/]', '- [x]');
-                    } else {
-                        lines[i] = childLine.replace('- [x]', '- [ ]');
-                    }
-                }
-            }
-
-            // Sync API for parent task
+            // Sync API
             await this.plugin.toggleTaskStatusByLineText(originalLine, complete);
-
+            
             // Save daily note
             await this.app.vault.modify(dailyFile, lines.join('\n'));
             this.renderSchedule();
         } catch(e) {
             console.error("Failed to toggle task completion:", e);
-        }
-    }
-
-    async deleteTaskBlock(task) {
-        const dailyFile = this.getDailyNoteFile();
-        if (!dailyFile) return;
-
-        try {
-            const content = await this.app.vault.read(dailyFile);
-            const lines = content.split(/\r?\n/);
-            let lineIndex = task.lineIndex;
-
-            // Fallback: find by description if lineIndex is stale
-            if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].toLowerCase().includes(task.description.toLowerCase().trim())) {
-                lineIndex = lines.findIndex(l => l.toLowerCase().includes(task.description.toLowerCase().trim()) && (l.includes('- [ ]') || l.includes('- [x]') || l.includes('- [/]')));
-            }
-            if (lineIndex === -1) {
-                new obsidian.Notice("Could not find task in daily note!");
-                return;
-            }
-
-            // Determine range: parent line + all immediately-indented subtask lines
-            const parentIndent = lines[lineIndex].match(/^(\s*)/)[1].length;
-            let endIndex = lineIndex + 1;
-            while (endIndex < lines.length) {
-                const childLine = lines[endIndex];
-                if (!childLine.trim()) { endIndex++; continue; } // keep scanning over blank lines within block
-                const childIndent = childLine.match(/^(\s*)/)[1].length;
-                if (childIndent <= parentIndent) break;
-                endIndex++;
-            }
-
-            // Splice out the parent + subtasks block
-            lines.splice(lineIndex, endIndex - lineIndex);
-
-            await this.app.vault.modify(dailyFile, lines.join('\n'));
-            new obsidian.Notice(`Removed: ${task.description}`);
-            this.renderSchedule();
-        } catch(e) {
-            console.error("Failed to delete task block:", e);
         }
     }
 
@@ -896,7 +568,6 @@ class TaskTimerView extends obsidian.ItemView {
             totalSeconds: totalSeconds,
             isPaused: false
         };
-        this.plugin.activeTimer = this.currentTimer;
 
         this.renderTimer();
         
@@ -910,7 +581,6 @@ class TaskTimerView extends obsidian.ItemView {
                     const expiredTask = this.currentTimer.task;
                     const expiredTaskName = this.currentTimer.taskName;
                     this.currentTimer = null;
-                    this.plugin.activeTimer = null;
                     await this.plugin.logUpdate(true); // Log completed
                     this.triggerAlarm(expiredTask || expiredTaskName);
                 }
@@ -923,7 +593,6 @@ class TaskTimerView extends obsidian.ItemView {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
-        this.plugin.activeTimer = null;
     }
 
     async completeTimer() {
@@ -950,35 +619,6 @@ class TaskTimerView extends obsidian.ItemView {
         
         this.renderSchedule();
         new obsidian.Notice(`Cancelled session for "${taskName}".`, 3000);
-    }    async getNextScheduledTask() {
-        if (!this.currentTimer) return null;
-        const dailyFile = this.getDailyNoteFile();
-        if (!dailyFile) return null;
-        try {
-            const content = await this.app.vault.read(dailyFile);
-            const allTasks = this.plugin.parseAllTasks(content).filter(t => t.status !== 'completed');
-            const currentTask = this.currentTimer.task;
-            if (!currentTask) return null;
-            
-            let referenceMinutes = currentTask.startMinutes;
-            if (referenceMinutes === undefined) {
-                const now = new Date();
-                referenceMinutes = now.getHours() * 60 + now.getMinutes();
-            }
-            
-            // Sort by start minutes
-            allTasks.sort((a, b) => a.startMinutes - b.startMinutes);
-            
-            // Find the task that starts after the reference time
-            for (const task of allTasks) {
-                if (task.startMinutes > referenceMinutes && task.lineIndex !== currentTask.lineIndex) {
-                    return task;
-                }
-            }
-        } catch (e) {
-            console.error("Failed to parse next scheduled task:", e);
-        }
-        return null;
     }
 
     renderTimer() {
@@ -1012,25 +652,8 @@ class TaskTimerView extends obsidian.ItemView {
 
         const cancelBtn = controls.createEl('button', { cls: 'timer-btn warning', text: 'Cancel' });
         cancelBtn.onclick = () => this.cancelTimer();
-
-        // Render Next Scheduled Task Display
-        const nextTaskEl = timerContainer.createDiv({ 
-            cls: 'timer-next-task-container', 
-            style: 'margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 15px; font-size: 13px; color: var(--text-muted); text-align: center;' 
-        });
-        nextTaskEl.textContent = "Loading next task...";
-
-        this.getNextScheduledTask().then(nextTask => {
-            if (nextTask) {
-                const startH12 = nextTask.startHour % 12 === 0 ? 12 : nextTask.startHour % 12;
-                const startMStr = String(nextTask.startMin).padStart(2, '0');
-                const startAmpm = nextTask.startHour >= 12 ? 'PM' : 'AM';
-                nextTaskEl.innerHTML = `⏭️ <strong>Next:</strong> ${nextTask.description} <span style="color: var(--text-accent); font-family: monospace;">(${startH12}:${startMStr} ${startAmpm})</span>`;
-            } else {
-                nextTaskEl.innerHTML = `⏭️ <strong>Next:</strong> None scheduled`;
-            }
-        });
     }
+
     async adjustActiveTimer(minutes) {
         if (!this.currentTimer) return;
 
@@ -1123,9 +746,7 @@ class TaskTimerView extends obsidian.ItemView {
         const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         
         this.timeTextEl.setText(timeStr);
-        try {
-            document.title = `(${timeStr}) ${this.currentTimer.taskName} - Obsidian`;
-        } catch(e) {}
+        document.title = `(${timeStr}) ${this.currentTimer.taskName} - Obsidian`;
     }
 
     async togglePause() {
@@ -1350,16 +971,6 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                     .setValue(this.plugin.settings.autoApply || false)
                     .onChange(async (value) => {
                         this.plugin.settings.autoApply = value;
-                        await this.plugin.saveSettings();
-                    }));
-
-            new obsidian.Setting(containerEl)
-                .setName('Auto-Run Schedule Assistant at 5:00 AM')
-                .setDesc('Automatically fetch tasks from Todoist, Google Calendar, & Google Tasks at 5:00 AM upon waking and auto-apply the schedule directly to today\'s daily note.')
-                .addToggle(toggle => toggle
-                    .setValue(this.plugin.settings.autoRun5AM !== false)
-                    .onChange(async (value) => {
-                        this.plugin.settings.autoRun5AM = value;
                         await this.plugin.saveSettings();
                     }));
 
@@ -1637,8 +1248,8 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
 
             // LLM Model (Dropdown with Custom option)
             const provider = this.plugin.settings.llmProvider;
-            const geminiOptions = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.0-flash'];
-            const ollamaOptions = ['qwen2.5-coder:7b', 'qwen2.5:7b', 'gemma3:4b', 'llama3', 'mistral'];
+            const geminiOptions = ['gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+            const ollamaOptions = ['qwen2.5:7b', 'gemma3:4b', 'llama3', 'mistral'];
             
             let modelDropdownValue = this.plugin.settings.llmModel;
             const currentOptions = provider === 'gemini' ? geminiOptions : ollamaOptions;
@@ -1654,15 +1265,13 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
                     if (provider === 'gemini') {
                         dropdown
                             .addOption('gemini-3.5-flash', 'Gemini 3.5 Flash')
-                            .addOption('gemini-3.1-flash-lite', 'Gemini 3.1 Flash-Lite')
-                            .addOption('gemini-2.5-flash', 'Gemini 2.5 Flash')
                             .addOption('gemini-2.5-pro', 'Gemini 2.5 Pro')
                             .addOption('gemini-1.5-pro', 'Gemini 1.5 Pro')
+                            .addOption('gemini-2.5-flash', 'Gemini 2.5 Flash')
                             .addOption('gemini-2.0-flash', 'Gemini 2.0 Flash')
                             .addOption('custom', 'Custom...');
                     } else {
                         dropdown
-                            .addOption('qwen2.5-coder:7b', 'Qwen 2.5 Coder 7B')
                             .addOption('qwen2.5:7b', 'Qwen 2.5 7B')
                             .addOption('gemma3:4b', 'Gemma 3 4B')
                             .addOption('llama3', 'Llama 3')
@@ -1761,13 +1370,9 @@ class TaskTimerSettingTab extends obsidian.PluginSettingTab {
             containerEl.createEl('p', { text: 'Failed to display settings: ' + err.message, cls: 'theme-warning' });
         }
     }
-}
-
-const DEFAULT_SETTINGS = {
+}const DEFAULT_SETTINGS = {
     defaultDuration: '20',
     autoApply: false,
-    autoRun5AM: true,
-    lastAutoRun5AMDate: '',
     todoistToken: '',
     geminiApiKey: '',
     geminiApiKeyId: '',
@@ -1896,14 +1501,6 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
         // Add settings tab
         this.addSettingTab(new TaskTimerSettingTab(this.app, this));
-
-        // Register 5:00 AM auto-run schedule check
-        this.app.workspace.onLayoutReady(() => {
-            this.check5AMAutoRun();
-        });
-        this.registerInterval(window.setInterval(() => {
-            this.check5AMAutoRun();
-        }, 5 * 60 * 1000)); // Check every 5 minutes
 
         // Add generate schedule command
         this.addCommand({
@@ -2152,7 +1749,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         new obsidian.Notice("Opening browser to authorize Google Account...");
     }
 
-    async runTaskLoader(autoApply = false, dateToMarkOnSuccess = null) {
+    async runTaskLoader(autoApply = false) {
         const fs = require('fs');
         const path = require('path');
         const { spawn } = require('child_process');
@@ -2238,16 +1835,12 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             } catch (e) {}
         });
         
-        child.on('close', async (code) => {
+        child.on('close', (code) => {
             progressModal.setCompleted();
             try {
                 fs.appendFileSync(runLogPath, `=== Process Exited with Code ${code} ===\n`, 'utf8');
             } catch (e) {}
             if (code === 0) {
-                if (dateToMarkOnSuccess) {
-                    this.settings.lastAutoRun5AMDate = dateToMarkOnSuccess;
-                    await this.saveSettings();
-                }
                 new obsidian.Notice("Schedule generated and applied successfully!");
                 console.log("Scheduler output:\n", stdout);
             } else {
@@ -2284,75 +1877,24 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
     }
 
-    async check5AMAutoRun() {
-        if (!this.settings.autoRun5AM) return;
-        const now = new Date();
-        const hour = now.getHours();
-        if (hour >= 5) {
-            const dateStr = now.toISOString().split('T')[0];
-            if (this.settings.lastAutoRun5AMDate !== dateStr) {
-                console.log(`[Schedule Assistant] Auto-triggering 5:00 AM daily schedule for ${dateStr} in auto-apply mode...`);
-                new obsidian.Notice(`[Schedule Assistant] Auto-generating 5:00 AM daily schedule for ${dateStr}...`);
-                this.runTaskLoader(true, dateStr).catch(e => {
-                    console.error("[Schedule Assistant] 5:00 AM auto-run failed:", e);
-                });
-            }
-        }
-    }
-
-    getDailyNoteFile() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const todayDateStr = `${year}-${month}-${day}`;
-
-        const files = this.app.vault.getFiles();
-        
-        let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
-        if (noteFile) return noteFile;
-
-        noteFile = files.find(f => f.path.includes(todayDateStr));
-        if (noteFile) return noteFile;
-
-        const activeFile = this.app.workspace.getActiveFile();
-        if (activeFile && activeFile.basename === todayDateStr) {
-            return activeFile;
-        }
-
-        return null;
-    }
-
     parseAllTasks(content) {
-        if (!content) return [];
         const lines = content.split(/\r?\n/);
         const tasks = [];
         const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         let currentSubheading = "";
-        
-        let hasPlannerHeader = false;
-        for (const l of lines) {
-            const lower = l.toLowerCase();
-            if (lower.includes("day planner") || lower.includes("schedule")) {
-                hasPlannerHeader = true;
-                break;
-            }
-        }
-        let inPlanner = !hasPlannerHeader;
-
+        let inPlanner = false;
         let currentProject = "";
         let lastParentTask = null;
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            const lowerLine = line.toLowerCase();
             const isIndented = /^\s+/.test(line);
 
-            if (hasPlannerHeader && (lowerLine.includes("day planner") || lowerLine.includes("schedule")) && line.startsWith('## ')) {
+            if (line.includes("## 📅Day Planner")) {
                 inPlanner = true;
                 continue;
             }
-            if (hasPlannerHeader && inPlanner && line.startsWith('## ') && !lowerLine.includes("day planner") && !lowerLine.includes("schedule")) {
+            if (inPlanner && line.startsWith('## ') && !line.includes("## 📅Day Planner")) {
                 break;
             }
             if (inPlanner) {
@@ -2431,7 +1973,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                         subheading: currentSubheading,
                         rawDesc: rawDesc,
                         isUntimed: false,
-                        project: currentProject || (description ? description : null)
+                        project: currentProject
                     };
 
                     tasks.push(taskObj);
@@ -2479,9 +2021,6 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
                         if (isIndented && lastParentTask) {
                             taskObj.parentLineIndex = lastParentTask.lineIndex;
-                            if (!taskObj.project) {
-                                taskObj.project = lastParentTask.project || lastParentTask.description;
-                            }
                         }
 
                         tasks.push(taskObj);
@@ -2757,22 +2296,6 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     }
                 }
 
-                // Serve files from the Obsidian vault (e.g., Markdown files queried by the mobile app in Markdown sync mode)
-                const relativePath = decodeURIComponent(pathname);
-                if (!relativePath.includes('..')) {
-                    const fullVaultFilePath = path.join(vaultPath, relativePath);
-                    if (req.method === 'GET' && fs.existsSync(fullVaultFilePath) && fs.statSync(fullVaultFilePath).isFile()) {
-                        let contentType = 'text/plain; charset=utf-8';
-                        if (relativePath.endsWith('.md')) {
-                            contentType = 'text/markdown; charset=utf-8';
-                        }
-                        setCorsHeaders();
-                        res.writeHead(200, { 'Content-Type': contentType });
-                        res.end(fs.readFileSync(fullVaultFilePath));
-                        return;
-                    }
-                }
-
                 if (req.method === 'GET' && pathname === '/api/status') {
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
                     let activeTimer = null;
@@ -2823,9 +2346,7 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                             duration: t.duration,
                             description: t.description,
                             subheading: t.subheading ? t.subheading.replace(/^###\s+/, '') : "Agenda",
-                            project: t.project || null,
-                            isUntimed: t.isUntimed || false,
-                            parentLineIndex: t.parentLineIndex !== undefined ? t.parentLineIndex : undefined
+                            project: t.project || null
                         }))
                     }));
                     return;
@@ -3112,41 +2633,6 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     setCorsHeaders();
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: "Task not found or daily note not available." }));
-                    return;
-                }
-
-                if (req.method === 'POST' && pathname === '/api/task/delete') {
-                    const body = await readBody();
-                    const dailyFile = this.getDailyNoteFile();
-                    if (dailyFile) {
-                        const content = await this.app.vault.read(dailyFile);
-                        const lines = content.split(/\r?\n/);
-                        let lineIndex = body.lineIndex;
-                        if (lineIndex === undefined || lineIndex >= lines.length) {
-                            lineIndex = lines.findIndex(l => l.toLowerCase().includes((body.description || '').toLowerCase()) && (l.includes('- [ ]') || l.includes('- [x]')));
-                        }
-                        if (lineIndex !== -1) {
-                            const parentIndent = lines[lineIndex].match(/^(\s*)/)[1].length;
-                            let endIndex = lineIndex + 1;
-                            while (endIndex < lines.length) {
-                                const child = lines[endIndex];
-                                if (!child.trim()) { endIndex++; continue; }
-                                if (child.match(/^(\s*)/)[1].length <= parentIndent) break;
-                                endIndex++;
-                            }
-                            lines.splice(lineIndex, endIndex - lineIndex);
-                            await this.app.vault.modify(dailyFile, lines.join('\n'));
-                            const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                            if (leaves.length > 0) leaves[0].view.renderSchedule();
-                            setCorsHeaders();
-                            res.writeHead(200, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ success: true }));
-                            return;
-                        }
-                    }
-                    setCorsHeaders();
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Task not found or daily note unavailable.' }));
                     return;
                 }
 
@@ -4076,7 +3562,6 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         if (folderContainer) return; // Already organized
         
         const targetPluginIds = [
-            'always-on-memory-agent',
             'schedule-assistant-focus-timer',
             'omni-logger',
             'google-keep-sync',

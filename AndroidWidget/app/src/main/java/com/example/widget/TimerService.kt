@@ -421,7 +421,7 @@ class TimerService : Service() {
                 .addOnFailureListener { e ->
                     Log.e("TimerService", "Failed to sync timer state to watch: ${e.message}")
                 }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e("TimerService", "Error syncing timer state to watch: ${e.message}")
         }
     }

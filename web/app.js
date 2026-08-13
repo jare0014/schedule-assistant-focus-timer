@@ -56,13 +56,20 @@ function setProgress(percent) {
     if (!progressCircle) return;
     
     // Read dynamic radius based on SVG layout (handles responsive watch vs phone size)
-    const radius = progressCircle.r.baseVal.value;
+    let radius = 98;
+    try {
+        if (progressCircle.r && progressCircle.r.baseVal && typeof progressCircle.r.baseVal.value === 'number') {
+            radius = progressCircle.r.baseVal.value || 98;
+        }
+    } catch(e) {
+        radius = 98;
+    }
     const circumference = radius * 2 * Math.PI;
     
     progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
     
     // Bounds check
-    const cleanPercent = Math.min(Math.max(percent, 0), 100);
+    const cleanPercent = Math.min(Math.max(isNaN(percent) ? 0 : percent, 0), 100);
     const offset = circumference - (cleanPercent / 100) * circumference;
     
     progressCircle.style.strokeDashoffset = offset;
@@ -155,7 +162,9 @@ function updateUI(state) {
         countdownText.textContent = formatTime(state.activeTimer.remainingSeconds);
         
         // Progress Ring Math
-        const percent = (state.activeTimer.remainingSeconds / state.activeTimer.totalSeconds) * 100;
+        const totalSecs = (state.activeTimer && state.activeTimer.totalSeconds > 0) ? state.activeTimer.totalSeconds : 1;
+        const remainingSecs = Math.max(0, state.activeTimer.remainingSeconds || 0);
+        const percent = (remainingSecs / totalSecs) * 100;
         setProgress(percent);
         
         // Pause state controls
