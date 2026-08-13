@@ -58,14 +58,14 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        val pendingResult = goAsync()
+        val pendingResult = try { goAsync() } catch (e: Exception) { null }
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 updateWidgetSync(context, appWidgetManager, appWidgetIds)
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                pendingResult.finish()
+                pendingResult?.finish()
             }
         }
     }
@@ -259,50 +259,50 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
 
         when (action) {
             ACTION_REFRESH -> {
-                val pr = goAsync()
+                val pr = try { goAsync() } catch (e: Exception) { null }
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         ObsidianSyncRepository(context).syncTasks()
                         refreshWidget(context)
                     } catch (e: Exception) { e.printStackTrace() }
-                    finally { pr.finish() }
+                    finally { pr?.finish() }
                 }
             }
             ACTION_PAUSE_TIMER -> {
-                val pr = goAsync()
+                val pr = try { goAsync() } catch (e: Exception) { null }
                 CoroutineScope(Dispatchers.IO).launch {
                     try { ObsidianSyncRepository(context).pauseTimer();  refreshWidget(context) }
                     catch (e: Exception) { e.printStackTrace() }
-                    finally { pr.finish() }
+                    finally { pr?.finish() }
                 }
             }
             ACTION_RESUME_TIMER -> {
-                val pr = goAsync()
+                val pr = try { goAsync() } catch (e: Exception) { null }
                 CoroutineScope(Dispatchers.IO).launch {
                     try { ObsidianSyncRepository(context).resumeTimer(); refreshWidget(context) }
                     catch (e: Exception) { e.printStackTrace() }
-                    finally { pr.finish() }
+                    finally { pr?.finish() }
                 }
             }
             ACTION_CANCEL_TIMER -> {
-                val pr = goAsync()
+                val pr = try { goAsync() } catch (e: Exception) { null }
                 CoroutineScope(Dispatchers.IO).launch {
                     try { ObsidianSyncRepository(context).cancelTimer(); refreshWidget(context) }
                     catch (e: Exception) { e.printStackTrace() }
-                    finally { pr.finish() }
+                    finally { pr?.finish() }
                 }
             }
             ACTION_TOGGLE_TASK -> {
                 val taskId      = intent.getStringExtra("task_id")      ?: return
                 val isCompleted = intent.getBooleanExtra("is_completed", false)
-                val pr = goAsync()
+                val pr = try { goAsync() } catch (e: Exception) { null }
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         val task = AppDatabase.getDatabase(context).taskDao().getTaskById(taskId)
                         if (task != null) ObsidianSyncRepository(context).toggleTask(task, isCompleted)
                         refreshWidget(context)
                     } catch (e: Exception) { e.printStackTrace() }
-                    finally { pr.finish() }
+                    finally { pr?.finish() }
                 }
             }
         }
