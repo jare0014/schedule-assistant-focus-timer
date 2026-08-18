@@ -1218,12 +1218,15 @@ class TaskTimerView extends obsidian.ItemView {
         await this.plugin.logStart(taskName, durationMinutes);
         
         const totalSeconds = durationMinutes * 60;
+        const now = Date.now();
         this.currentTimer = {
             task: typeof task === 'object' ? task : { description: taskName, duration: durationMinutes },
             taskName: taskName,
             remainingSeconds: totalSeconds,
             totalSeconds: totalSeconds,
-            isPaused: false
+            targetEndTime: now + (totalSeconds * 1000),
+            isPaused: false,
+            pausedRemainingMs: null
         };
         this.plugin.activeTimer = this.currentTimer;
 
@@ -1231,20 +1234,22 @@ class TaskTimerView extends obsidian.ItemView {
         
         this.timerInterval = setInterval(async () => {
             if (this.currentTimer && !this.currentTimer.isPaused) {
-                this.currentTimer.remainingSeconds--;
+                const now = Date.now();
+                const remainingMs = Math.max(0, this.currentTimer.targetEndTime - now);
+                this.currentTimer.remainingSeconds = Math.ceil(remainingMs / 1000);
                 this.updateTimerDisplay();
 
-                if (this.currentTimer.remainingSeconds <= 0) {
-                    this.clearTimer();
+                if (remainingMs <= 0) {
                     const expiredTask = this.currentTimer.task;
                     const expiredTaskName = this.currentTimer.taskName;
+                    this.clearTimer();
                     this.currentTimer = null;
                     this.plugin.activeTimer = null;
                     await this.plugin.logUpdate(true); // Log completed
                     this.triggerAlarm(expiredTask || expiredTaskName);
                 }
             }
-        }, 1000);
+        }, 500);
     }
 
     clearTimer() {
@@ -1366,6 +1371,7 @@ class TaskTimerView extends obsidian.ItemView {
         const timer = this.currentTimer;
         timer.remainingSeconds = Math.max(0, timer.remainingSeconds + minutes * 60);
         timer.totalSeconds = Math.max(0, timer.totalSeconds + minutes * 60);
+        timer.targetEndTime = Date.now() + (timer.remainingSeconds * 1000);
 
         const dailyFile = this.getDailyNoteFile();
         if (dailyFile) {
@@ -1462,11 +1468,16 @@ class TaskTimerView extends obsidian.ItemView {
         this.currentTimer.isPaused = !this.currentTimer.isPaused;
         
         if (this.currentTimer.isPaused) {
+            this.currentTimer.pausedRemainingMs = Math.max(0, this.currentTimer.targetEndTime - Date.now());
+            this.currentTimer.remainingSeconds = Math.ceil(this.currentTimer.pausedRemainingMs / 1000);
             this.pauseBtn.setText('Resume');
             const circle = this.contentEl.querySelector('.timer-circle-container');
             if (circle) circle.removeClass('pulsing');
             await this.plugin.logPause();
         } else {
+            const remainingMs = this.currentTimer.pausedRemainingMs || (this.currentTimer.remainingSeconds * 1000);
+            this.currentTimer.targetEndTime = Date.now() + remainingMs;
+            this.currentTimer.pausedRemainingMs = null;
             this.pauseBtn.setText('Pause');
             const circle = this.contentEl.querySelector('.timer-circle-container');
             if (circle) circle.addClass('pulsing');
