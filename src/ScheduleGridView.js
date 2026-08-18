@@ -1,5 +1,5 @@
 /**
- * ScheduleGridView.js - Renders Google Calendar style Day View grid, ruler, zoom, and subtasks.
+ * ScheduleGridView.js - Renders Google Calendar style Day View grid, ruler, zoom, subtasks, and Drag-and-Drop.
  */
 
 async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
@@ -26,8 +26,49 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
         const summary = drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
         const content = drawer.createDiv({ cls: 'untimed-drawer-content' });
 
+        // Drawer Drop Target (dragging timed block here moves it to Untimed Micro-Tasks)
+        drawer.ondragover = (e) => {
+            e.preventDefault();
+            drawer.addClass('dragover');
+        };
+        drawer.ondragleave = (e) => {
+            if (!drawer.contains(e.relatedTarget)) {
+                drawer.removeClass('dragover');
+            }
+        };
+        drawer.ondrop = async (e) => {
+            e.preventDefault();
+            drawer.removeClass('dragover');
+            try {
+                const raw = e.dataTransfer.getData("text/plain");
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                if (!data.isUntimed) {
+                    await viewInstance.handleTaskDrop(data, "### ☁️ Floating Micro-Tasks");
+                }
+            } catch (err) {
+                console.error("Untimed drawer drop error:", err);
+            }
+        };
+
         topLevelUntimed.forEach(task => {
             const card = content.createDiv({ cls: `task-card${task.status === 'completed' ? ' completed' : ''}` });
+            
+            // Draggable untimed card to drop onto grid
+            card.setAttribute('draggable', 'true');
+            card.ondragstart = (e) => {
+                card.addClass('dragging');
+                e.dataTransfer.setData("text/plain", JSON.stringify({
+                    lineIndex: task.lineIndex,
+                    description: task.description,
+                    isUntimed: true,
+                    duration: task.duration || 30
+                }));
+            };
+            card.ondragend = () => {
+                card.removeClass('dragging');
+            };
+
             const left = card.createDiv({ cls: 'task-card-left' });
             left.createDiv({ cls: 'task-card-time', text: 'Untimed' });
             left.createDiv({ cls: 'task-card-name', text: task.description });
@@ -43,7 +84,10 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
             if (task.status !== 'completed') {
                 [5, 10, 15, 20].forEach(m => {
                     const btn = right.createEl('button', { cls: 'task-card-quick-timer-btn', text: `${m}m` });
-                    btn.onclick = () => viewInstance.startTimer(task, m);
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        viewInstance.startTimer(task, m);
+                    };
                 });
             }
         });
@@ -102,35 +146,89 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
         badge.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
+    // Grid Drop Target & Live Ghost Preview
+    let dropPreview = null;
+
+    canvas.ondragover = (e) => {
+        e.preventDefault();
+        canvas.addClass('dragover');
+        const rect = canvas.getBoundingClientRect();
+        const yInCanvas = Math.max(0, e.clientY - rect.top);
+        const minsFromMinHour = (yInCanvas / hourHeight) * 60;
+        const snappedMinsFromMin = Math.max(0, Math.round(minsFromMinHour / 15) * 15);
+        const targetStartMins = minHour * 60 + snappedMinsFromMin;
+
+        if (!dropPreview) {
+            dropPreview = canvas.createDiv({ cls: 'grid-drop-preview-indicator' });
+        }
+        const topPx = snappedMinsFromMin * (hourHeight / 60);
+        dropPreview.style.top = `${topPx}px`;
+
+        const startH = Math.floor(targetStartMins / 60);
+        const startM = targetStartMins % 60;
+        const fmtHM = (h, m) => { 
+            const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h); 
+            return `${dh}:${m < 10 ? '0' + m : m}${h >= 12 ? 'pm' : 'am'}`; 
+        };
+        dropPreview.textContent = `📍 Move to ${fmtHM(startH, startM)}`;
+    };
+
+    canvas.ondragleave = (e) => {
+        if (!canvas.contains(e.relatedTarget)) {
+            canvas.removeClass('dragover');
+            if (dropPreview) {
+                dropPreview.remove();
+                dropPreview = null;
+            }
+        }
+    };
+
+    canvas.ondrop = async (e) => {
+        e.preventDefault();
+        canvas.removeClass('dragover');
+        if (dropPreview) {
+            dropPreview.remove();
+            dropPreview = null;
+        }
+        try {
+            const raw = e.dataTransfer.getData("text/plain");
+            if (!raw) return;
+            const data = JSON.parse(raw);
+
+            const rect = canvas.getBoundingClientRect();
+            const yInCanvas = Math.max(0, e.clientY - rect.top);
+            const minsFromMinHour = (yInCanvas / hourHeight) * 60;
+            const snappedMinsFromMin = Math.max(0, Math.round(minsFromMinHour / 15) * 15);
+            const newStartMins = minHour * 60 + snappedMinsFromMin;
+            const duration = data.duration || 30;
+            const newEndMins = newStartMins + duration;
+
+            await viewInstance.rescheduleTaskOnGrid(data, newStartMins, newEndMins);
+        } catch (err) {
+            console.error("Grid ondrop failed:", err);
+        }
+    };
+
     const sortedTasks = [...timedTasks].sort((a, b) => {
         const aStart = (a.startHour ?? 0) * 60 + (a.startMin ?? 0);
         const bStart = (b.startHour ?? 0) * 60 + (b.startMin ?? 0);
         return aStart - bStart;
     });
 
-    // Calculate needed duration for subtasks to prevent card overlap
     sortedTasks.forEach(task => {
         const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
         const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
         
-        const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
-        let neededMins = Math.max(15, taskEnd - taskStart);
-        if (subtasks.length > 0) {
-            const minPxNeeded = 54 + (subtasks.length * 30);
-            const minMinsNeeded = Math.ceil(minPxNeeded / (hourHeight / 60));
-            neededMins = Math.max(neededMins, minMinsNeeded);
-        }
-
         task.calcStartMins = taskStart;
-        task.calcEndMins = taskStart + neededMins;
+        task.calcEndMins = Math.max(taskStart + 15, taskEnd);
     });
 
     const columns = [];
     sortedTasks.forEach(task => {
         let placed = false;
         for (let col of columns) {
-            const lastInCol = col[col.length - 1];
-            if (lastInCol.calcEndMins <= task.calcStartMins) {
+            const overlaps = col.some(ex => task.calcStartMins < ex.calcEndMins && task.calcEndMins > ex.calcStartMins);
+            if (!overlaps) {
                 col.push(task);
                 placed = true;
                 break;
@@ -142,6 +240,10 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
     });
 
     const totalCols = columns.length || 1;
+    const fmtHM = (h, m) => { 
+        const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h); 
+        return `${dh}:${m < 10 ? '0' + m : m}${h >= 12 ? 'pm' : 'am'}`; 
+    };
 
     columns.forEach((colTasks, colIndex) => {
         colTasks.forEach(task => {
@@ -158,6 +260,29 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
             const leftPercent = colIndex * widthPercent;
             card.style.left = `calc(${leftPercent}% + 2px)`;
             card.style.width = `calc(${widthPercent}% - 4px)`;
+
+            // Enable Dragging on Grid Cards
+            card.setAttribute('draggable', 'true');
+            card.ondragstart = (e) => {
+                card.addClass('dragging');
+                e.dataTransfer.setData("text/plain", JSON.stringify({
+                    lineIndex: task.lineIndex,
+                    description: task.description,
+                    isUntimed: false,
+                    duration: durationMins,
+                    startHour: task.startHour,
+                    startMin: task.startMin,
+                    endHour: task.endHour,
+                    endMin: task.endMin
+                }));
+            };
+            card.ondragend = () => {
+                card.removeClass('dragging');
+                if (dropPreview) {
+                    dropPreview.remove();
+                    dropPreview = null;
+                }
+            };
 
             const cardHeader = card.createDiv({ cls: 'timeblock-card-header' });
             cardHeader.createDiv({ cls: 'timeblock-card-title', text: task.description });
@@ -183,12 +308,7 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
             };
 
             const cardTime = card.createDiv({ cls: 'timeblock-card-time' });
-            const formatHourMin = (h, m) => {
-                const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
-                const ampm = h >= 12 ? 'pm' : 'am';
-                return `${dh}:${m < 10 ? '0' + m : m}${ampm}`;
-            };
-            const timeStr = `${formatHourMin(task.startHour, task.startMin)} – ${formatHourMin(task.endHour, task.endMin)}`;
+            const timeStr = `${fmtHM(task.startHour, task.startMin)} – ${fmtHM(task.endHour, task.endMin)}`;
             cardTime.createSpan({ text: timeStr });
             cardTime.createSpan({ cls: 'timeblock-duration-badge', text: `${durationMins}m` });
 
@@ -231,7 +351,8 @@ async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
 
             card.style.height = `${heightPx}px`;
 
-            card.onclick = () => {
+            card.onclick = (e) => {
+                if (card.hasClass('dragging')) return;
                 viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
             };
         });

@@ -70,136 +70,363 @@ function parseAllTasks(content) {
 // ---------------------------------------------------------------------------
 // renderScheduleGridView — inlined from src/ScheduleGridView.js
 // ---------------------------------------------------------------------------
+/**
+ * ScheduleGridView.js - Renders Google Calendar style Day View grid, ruler, zoom, subtasks, and Drag-and-Drop.
+ */
+
 async function renderScheduleGridView(viewInstance, viewContainer, tasks) {
     const existingWrapper = viewContainer.querySelector('.time-grid-wrapper');
     const prevScrollTop = existingWrapper ? existingWrapper.scrollTop : null;
     const existingDrawer = viewContainer.querySelector('.untimed-drawer');
     const wasUntimedOpen = existingDrawer ? existingDrawer.open : false;
 
-    const topLevelUntimed = tasks.filter(t => t.parentLineIndex === undefined && (t.isUntimed || (t.subheading && (t.subheading.includes("☁️") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed")))));
-    const timedTasks = tasks.filter(t => t.parentLineIndex === undefined && !topLevelUntimed.includes(t));
+    // Filter top-level untimed tasks (must not have a parent task)
+    const topLevelUntimed = tasks.filter(t => 
+        t.parentLineIndex === undefined && 
+        (t.isUntimed || (t.subheading && (t.subheading.includes("☁️") || t.subheading.toLowerCase().includes("micro-task") || t.subheading.toLowerCase().includes("untimed"))))
+    );
+    // Filter top-level timed tasks for grid placement
+    const timedTasks = tasks.filter(t => 
+        t.parentLineIndex === undefined && !topLevelUntimed.includes(t)
+    );
 
+    // 1. Untimed Accordion Drawer at top (collapsed by default unless previously opened)
     if (topLevelUntimed.length > 0) {
         const drawer = viewContainer.createEl('details', { cls: 'untimed-drawer' });
         if (wasUntimedOpen) drawer.open = true;
-        drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
+
+        const summary = drawer.createEl('summary', { cls: 'untimed-drawer-summary', text: `📦 Untimed & Backlog Tasks (${topLevelUntimed.length})` });
         const content = drawer.createDiv({ cls: 'untimed-drawer-content' });
+
+        // Drawer Drop Target (dragging timed block here moves it to Untimed Micro-Tasks)
+        drawer.ondragover = (e) => {
+            e.preventDefault();
+            drawer.addClass('dragover');
+        };
+        drawer.ondragleave = (e) => {
+            if (!drawer.contains(e.relatedTarget)) {
+                drawer.removeClass('dragover');
+            }
+        };
+        drawer.ondrop = async (e) => {
+            e.preventDefault();
+            drawer.removeClass('dragover');
+            try {
+                const raw = e.dataTransfer.getData("text/plain");
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                if (!data.isUntimed) {
+                    await viewInstance.handleTaskDrop(data, "### ☁️ Floating Micro-Tasks");
+                }
+            } catch (err) {
+                console.error("Untimed drawer drop error:", err);
+            }
+        };
+
         topLevelUntimed.forEach(task => {
             const card = content.createDiv({ cls: `task-card${task.status === 'completed' ? ' completed' : ''}` });
+            
+            // Draggable untimed card to drop onto grid
+            card.setAttribute('draggable', 'true');
+            card.ondragstart = (e) => {
+                card.addClass('dragging');
+                e.dataTransfer.setData("text/plain", JSON.stringify({
+                    lineIndex: task.lineIndex,
+                    description: task.description,
+                    isUntimed: true,
+                    duration: task.duration || 30
+                }));
+            };
+            card.ondragend = () => {
+                card.removeClass('dragging');
+            };
+
             const left = card.createDiv({ cls: 'task-card-left' });
             left.createDiv({ cls: 'task-card-time', text: 'Untimed' });
             left.createDiv({ cls: 'task-card-name', text: task.description });
+
             const right = card.createDiv({ cls: 'task-card-controls' });
             const cb = right.createEl('input', { type: 'checkbox' });
             cb.checked = task.status === 'completed';
-            cb.onclick = async (e) => { e.stopPropagation(); await viewInstance.toggleTaskCompletion(task, cb.checked); };
-            if (task.status !== 'completed') { [5, 10, 15, 20].forEach(m => { const btn = right.createEl('button', { cls: 'task-card-quick-timer-btn', text: `${m}m` }); btn.onclick = () => viewInstance.startTimer(task, m); }); }
+            cb.onclick = async (e) => {
+                e.stopPropagation();
+                await viewInstance.toggleTaskCompletion(task, cb.checked);
+            };
+
+            if (task.status !== 'completed') {
+                [5, 10, 15, 20].forEach(m => {
+                    const btn = right.createEl('button', { cls: 'task-card-quick-timer-btn', text: `${m}m` });
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        viewInstance.startTimer(task, m);
+                    };
+                });
+            }
         });
     }
 
+    // Day View Grid Container
     const dayViewContainer = viewContainer.createDiv({ cls: 'timeblock-dayview-container' });
     const gridWrapper = dayViewContainer.createDiv({ cls: 'time-grid-wrapper' });
-    let minHour = 5, maxHour = 22;
+
+    let minHour = 5;
+    let maxHour = 22;
+
     timedTasks.forEach(t => {
         if (typeof t.startHour === 'number' && t.startHour < minHour) minHour = Math.max(0, t.startHour);
         if (typeof t.endHour === 'number' && t.endHour > maxHour) maxHour = Math.min(23, t.endHour);
     });
+
     const totalHours = maxHour - minHour + 1;
     const hourHeight = (viewInstance && viewInstance.gridZoomLevel) || 60;
 
+    // Time ruler height matches zoomed hour scale
     const ruler = gridWrapper.createDiv({ cls: 'time-ruler' });
     for (let h = minHour; h <= maxHour; h++) {
-        const lbl = ruler.createDiv({ cls: 'time-ruler-hour' });
-        lbl.style.height = `${hourHeight}px`;
-        lbl.style.boxSizing = 'border-box';
-        const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
-        lbl.textContent = `${dh} ${h >= 12 ? 'PM' : 'AM'}`;
+        const hourLabel = ruler.createDiv({ cls: 'time-ruler-hour' });
+        hourLabel.style.height = `${hourHeight}px`;
+        hourLabel.style.boxSizing = 'border-box';
+        const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        hourLabel.textContent = `${displayH} ${ampm}`;
     }
 
     const canvas = gridWrapper.createDiv({ cls: 'time-grid-canvas' });
     canvas.style.height = `${totalHours * hourHeight}px`;
+
     for (let i = 0; i < totalHours; i++) {
-        const hl = canvas.createDiv({ cls: 'hour-grid-line' }); hl.style.top = `${i * hourHeight}px`;
-        if (i < totalHours - 1) { const hhl = canvas.createDiv({ cls: 'halfhour-grid-line' }); hhl.style.top = `${(i + 0.5) * hourHeight}px`; }
+        const hourLine = canvas.createDiv({ cls: 'hour-grid-line' });
+        hourLine.style.top = `${i * hourHeight}px`;
+        if (i < totalHours - 1) {
+            const halfHourLine = canvas.createDiv({ cls: 'halfhour-grid-line' });
+            halfHourLine.style.top = `${(i + 0.5) * hourHeight}px`;
+        }
     }
 
-    const now = new Date(), currentHour = now.getHours(), currentMin = now.getMinutes();
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
     if (currentHour >= minHour && currentHour <= maxHour) {
-        const cTop = ((currentHour - minHour) * 60 + currentMin) * (hourHeight / 60);
-        const ti = canvas.createDiv({ cls: 'current-time-indicator' }); ti.style.top = `${cTop}px`;
-        ti.createDiv({ cls: 'current-time-dot' });
-        ti.createDiv({ cls: 'current-time-badge', text: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+        const currentMinsFromMinHour = ((currentHour - minHour) * 60) + currentMin;
+        const currentTop = currentMinsFromMinHour * (hourHeight / 60);
+
+        const timeIndicator = canvas.createDiv({ cls: 'current-time-indicator' });
+        timeIndicator.style.top = `${currentTop}px`;
+
+        timeIndicator.createDiv({ cls: 'current-time-dot' });
+        const badge = timeIndicator.createDiv({ cls: 'current-time-badge' });
+        badge.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    const sortedTasks = [...timedTasks].sort((a, b) => ((a.startHour ?? 0) * 60 + (a.startMin ?? 0)) - ((b.startHour ?? 0) * 60 + (b.startMin ?? 0)));
+    // Grid Drop Target & Live Ghost Preview
+    let dropPreview = null;
 
-    // Use real schedule times for column placement — subtask height expansion is visual only
+    canvas.ondragover = (e) => {
+        e.preventDefault();
+        canvas.addClass('dragover');
+        const rect = canvas.getBoundingClientRect();
+        const yInCanvas = Math.max(0, e.clientY - rect.top);
+        const minsFromMinHour = (yInCanvas / hourHeight) * 60;
+        const snappedMinsFromMin = Math.max(0, Math.round(minsFromMinHour / 15) * 15);
+        const targetStartMins = minHour * 60 + snappedMinsFromMin;
+
+        if (!dropPreview) {
+            dropPreview = canvas.createDiv({ cls: 'grid-drop-preview-indicator' });
+        }
+        const topPx = snappedMinsFromMin * (hourHeight / 60);
+        dropPreview.style.top = `${topPx}px`;
+
+        const startH = Math.floor(targetStartMins / 60);
+        const startM = targetStartMins % 60;
+        const fmtHM = (h, m) => { 
+            const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h); 
+            return `${dh}:${m < 10 ? '0' + m : m}${h >= 12 ? 'pm' : 'am'}`; 
+        };
+        dropPreview.textContent = `📍 Move to ${fmtHM(startH, startM)}`;
+    };
+
+    canvas.ondragleave = (e) => {
+        if (!canvas.contains(e.relatedTarget)) {
+            canvas.removeClass('dragover');
+            if (dropPreview) {
+                dropPreview.remove();
+                dropPreview = null;
+            }
+        }
+    };
+
+    canvas.ondrop = async (e) => {
+        e.preventDefault();
+        canvas.removeClass('dragover');
+        if (dropPreview) {
+            dropPreview.remove();
+            dropPreview = null;
+        }
+        try {
+            const raw = e.dataTransfer.getData("text/plain");
+            if (!raw) return;
+            const data = JSON.parse(raw);
+
+            const rect = canvas.getBoundingClientRect();
+            const yInCanvas = Math.max(0, e.clientY - rect.top);
+            const minsFromMinHour = (yInCanvas / hourHeight) * 60;
+            const snappedMinsFromMin = Math.max(0, Math.round(minsFromMinHour / 15) * 15);
+            const newStartMins = minHour * 60 + snappedMinsFromMin;
+            const duration = data.duration || 30;
+            const newEndMins = newStartMins + duration;
+
+            await viewInstance.rescheduleTaskOnGrid(data, newStartMins, newEndMins);
+        } catch (err) {
+            console.error("Grid ondrop failed:", err);
+        }
+    };
+
+    const sortedTasks = [...timedTasks].sort((a, b) => {
+        const aStart = (a.startHour ?? 0) * 60 + (a.startMin ?? 0);
+        const bStart = (b.startHour ?? 0) * 60 + (b.startMin ?? 0);
+        return aStart - bStart;
+    });
+
     sortedTasks.forEach(task => {
-        const ts = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
-        const te = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
-        task.calcStartMins = ts;
-        task.calcEndMins = Math.max(ts + 15, te);
+        const taskStart = (task.startHour ?? 0) * 60 + (task.startMin ?? 0);
+        const taskEnd = (task.endHour ?? (task.startHour + 1)) * 60 + (task.endMin ?? 0);
+        
+        task.calcStartMins = taskStart;
+        task.calcEndMins = Math.max(taskStart + 15, taskEnd);
     });
 
     const columns = [];
     sortedTasks.forEach(task => {
         let placed = false;
-        for (const col of columns) {
+        for (let col of columns) {
             const overlaps = col.some(ex => task.calcStartMins < ex.calcEndMins && task.calcEndMins > ex.calcStartMins);
-            if (!overlaps) { col.push(task); placed = true; break; }
+            if (!overlaps) {
+                col.push(task);
+                placed = true;
+                break;
+            }
         }
-        if (!placed) columns.push([task]);
+        if (!placed) {
+            columns.push([task]);
+        }
     });
-    const totalCols = columns.length || 1;
 
-    const fmtHM = (h, m) => { const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h); return `${dh}:${m < 10 ? '0' + m : m}${h >= 12 ? 'pm' : 'am'}`; };
+    const totalCols = columns.length || 1;
+    const fmtHM = (h, m) => { 
+        const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h); 
+        return `${dh}:${m < 10 ? '0' + m : m}${h >= 12 ? 'pm' : 'am'}`; 
+    };
 
     columns.forEach((colTasks, colIndex) => {
         colTasks.forEach(task => {
-            const startMins = task.calcStartMins - minHour * 60;
-            const durMins = task.calcEndMins - task.calcStartMins;
-            const topPx = Math.max(0, startMins * (hourHeight / 60));
-            let heightPx = Math.max(28, durMins * (hourHeight / 60));
+            const startMinsFromMinHour = task.calcStartMins - (minHour * 60);
+            const durationMins = task.calcEndMins - task.calcStartMins;
+
+            const topPx = Math.max(0, startMinsFromMinHour * (hourHeight / 60));
+            let heightPx = Math.max(28, durationMins * (hourHeight / 60));
+
             const card = canvas.createDiv({ cls: `timeblock-card${task.status === 'completed' ? ' completed' : ''}` });
             card.style.top = `${topPx}px`;
-            const wPct = 100 / totalCols;
-            card.style.left = `calc(${colIndex * wPct}% + 2px)`;
-            card.style.width = `calc(${wPct}% - 4px)`;
+
+            const widthPercent = 100 / totalCols;
+            const leftPercent = colIndex * widthPercent;
+            card.style.left = `calc(${leftPercent}% + 2px)`;
+            card.style.width = `calc(${widthPercent}% - 4px)`;
+
+            // Enable Dragging on Grid Cards
+            card.setAttribute('draggable', 'true');
+            card.ondragstart = (e) => {
+                card.addClass('dragging');
+                e.dataTransfer.setData("text/plain", JSON.stringify({
+                    lineIndex: task.lineIndex,
+                    description: task.description,
+                    isUntimed: false,
+                    duration: durationMins,
+                    startHour: task.startHour,
+                    startMin: task.startMin,
+                    endHour: task.endHour,
+                    endMin: task.endMin
+                }));
+            };
+            card.ondragend = () => {
+                card.removeClass('dragging');
+                if (dropPreview) {
+                    dropPreview.remove();
+                    dropPreview = null;
+                }
+            };
 
             const cardHeader = card.createDiv({ cls: 'timeblock-card-header' });
             cardHeader.createDiv({ cls: 'timeblock-card-title', text: task.description });
-            const controls = cardHeader.createDiv({ cls: 'timeblock-card-controls' });
 
-            const cb = controls.createEl('input', { type: 'checkbox' }); cb.checked = task.status === 'completed';
-            cb.onclick = async (e) => { e.stopPropagation(); await viewInstance.toggleTaskCompletion(task, cb.checked); };
+            const controls = cardHeader.createDiv({ cls: 'timeblock-card-controls' });
+            const cb = controls.createEl('input', { type: 'checkbox' });
+            cb.checked = task.status === 'completed';
+            cb.onclick = async (e) => {
+                e.stopPropagation();
+                await viewInstance.toggleTaskCompletion(task, cb.checked);
+            };
 
             const playBtn = controls.createEl('button', { cls: 'timeblock-play-btn', text: '▶', title: 'Start Focus Session' });
-            playBtn.onclick = (e) => { e.stopPropagation(); viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration)); };
+            playBtn.onclick = (e) => {
+                e.stopPropagation();
+                viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+            };
 
-            const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block' });
-            delBtn.onclick = async (e) => { e.stopPropagation(); await viewInstance.deleteTaskBlock(task); };
+            const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
+            delBtn.onclick = async (e) => {
+                e.stopPropagation();
+                await viewInstance.deleteTaskBlock(task);
+            };
 
             const cardTime = card.createDiv({ cls: 'timeblock-card-time' });
-            cardTime.createSpan({ text: `${fmtHM(task.startHour, task.startMin)} – ${fmtHM(task.endHour, task.endMin)}` });
-            cardTime.createSpan({ cls: 'timeblock-duration-badge', text: `${durMins}m` });
+            const timeStr = `${fmtHM(task.startHour, task.startMin)} – ${fmtHM(task.endHour, task.endMin)}`;
+            cardTime.createSpan({ text: timeStr });
+            cardTime.createSpan({ cls: 'timeblock-duration-badge', text: `${durationMins}m` });
 
+            // Render nested subtasks if any exist for this task
             const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
             if (subtasks.length > 0) {
-                const sc = card.createDiv({ cls: 'timeblock-subtasks-container' });
-                subtasks.forEach(st => {
-                    const se = sc.createDiv({ cls: `timeblock-subtask-item${st.status === 'completed' ? ' completed' : ''}` });
-                    const scb = se.createEl('input', { type: 'checkbox' }); scb.checked = st.status === 'completed';
-                    scb.onclick = async (e) => { e.stopPropagation(); await viewInstance.toggleTaskCompletion(st, scb.checked); };
-                    se.createDiv({ cls: 'timeblock-subtask-title', text: st.description });
-                    if (st.status !== 'completed') {
-                        const spb = se.createEl('button', { cls: 'timeblock-subtask-play-btn', text: '▶', title: 'Start Subtask Timer' });
-                        spb.onclick = (e) => { e.stopPropagation(); viewInstance.startTimer(st, st.duration || 15); };
+                const subtasksContainer = card.createDiv({ cls: 'timeblock-subtasks-container' });
+                subtasks.forEach(subtask => {
+                    const subtaskEl = subtasksContainer.createDiv({ 
+                        cls: `timeblock-subtask-item${subtask.status === 'completed' ? ' completed' : ''}` 
+                    });
+                    
+                    const subCb = subtaskEl.createEl('input', { type: 'checkbox' });
+                    subCb.checked = subtask.status === 'completed';
+                    subCb.onclick = async (e) => {
+                        e.stopPropagation();
+                        await viewInstance.toggleTaskCompletion(subtask, subCb.checked);
+                    };
+
+                    subtaskEl.createDiv({ cls: 'timeblock-subtask-title', text: subtask.description });
+
+                    if (subtask.status !== 'completed') {
+                        const subPlayBtn = subtaskEl.createEl('button', { 
+                            cls: 'timeblock-subtask-play-btn', 
+                            text: '▶', 
+                            title: 'Start Subtask Timer' 
+                        });
+                        subPlayBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            viewInstance.startTimer(subtask, subtask.duration || 15);
+                        };
                     }
                 });
-                const minH = 48 + subtasks.length * 28; if (heightPx < minH) heightPx = minH;
+
+                const minRequiredHeight = 48 + (subtasks.length * 28);
+                if (heightPx < minRequiredHeight) {
+                    heightPx = minRequiredHeight;
+                }
             }
+
             card.style.height = `${heightPx}px`;
-            card.onclick = () => viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+
+            card.onclick = (e) => {
+                if (card.hasClass('dragging')) return;
+                viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+            };
         });
     });
 
@@ -854,6 +1081,108 @@ class TaskTimerView extends obsidian.ItemView {
             console.error("Failed to drag and drop task:", e);
         }
     }
+
+    async rescheduleTaskOnGrid(draggedTask, newStartMins, newEndMins) {
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return;
+
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            const lines = content.split(/\r?\n/);
+
+            // 1. Locate the task line
+            let lineIndex = draggedTask.lineIndex;
+            if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].toLowerCase().includes(draggedTask.description.toLowerCase().trim())) {
+                lineIndex = lines.findIndex(l => l.toLowerCase().includes(draggedTask.description.toLowerCase().trim()) && (l.includes('- [ ]') || l.includes('- [x]') || l.includes('- [/]')));
+            }
+
+            if (lineIndex === -1) {
+                new obsidian.Notice("Could not find task in daily note!");
+                return;
+            }
+
+            // 2. Identify the full block (parent line + all indented subtask lines)
+            const parentIndent = lines[lineIndex].match(/^(\s*)/)[1].length;
+            let endIndex = lineIndex + 1;
+            while (endIndex < lines.length) {
+                const childLine = lines[endIndex];
+                if (!childLine.trim()) { endIndex++; continue; }
+                const childIndent = childLine.match(/^(\s*)/)[1].length;
+                if (childIndent <= parentIndent) break;
+                endIndex++;
+            }
+
+            // Extract the block lines
+            const blockLines = lines.slice(lineIndex, endIndex);
+
+            // Remove the block from its current location
+            lines.splice(lineIndex, endIndex - lineIndex);
+
+            // 3. Format the new time range
+            const startH = String(Math.floor(newStartMins / 60) % 24).padStart(2, '0');
+            const startM = String(newStartMins % 60).padStart(2, '0');
+            const endH = String(Math.floor(newEndMins / 60) % 24).padStart(2, '0');
+            const endM = String(newEndMins % 60).padStart(2, '0');
+            const newTimeRange = `${startH}:${startM} - ${endH}:${endM}`;
+
+            // 4. Update the parent task line with new time range
+            let parentLine = blockLines[0];
+            const timeRangeRegex = /\b\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\s*[\-–—~]\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\b/;
+
+            if (timeRangeRegex.test(parentLine)) {
+                parentLine = parentLine.replace(timeRangeRegex, newTimeRange);
+            } else {
+                parentLine = parentLine.replace(/^(\s*-\s+\[[ xX/]\]\s+)(.*)$/, `$1${newTimeRange} $2`);
+            }
+            parentLine = normalizeTimeRangeSpaces(parentLine);
+            blockLines[0] = parentLine;
+
+            // 5. Find insertion point under Focus Blocks
+            let focusHeadingIndex = lines.findIndex(l => l.toLowerCase().includes("focus blocks") || l.toLowerCase().includes("day planner"));
+            if (focusHeadingIndex === -1) {
+                focusHeadingIndex = lines.findIndex(l => l.startsWith('## ') && (l.toLowerCase().includes("planner") || l.toLowerCase().includes("schedule")));
+            }
+
+            if (focusHeadingIndex === -1) {
+                lines.push(...blockLines);
+            } else {
+                let insertIndex = focusHeadingIndex + 1;
+                let inserted = false;
+                while (insertIndex < lines.length) {
+                    const curLine = lines[insertIndex];
+                    if (curLine.startsWith('## ') || curLine.startsWith('---')) {
+                        break;
+                    }
+                    if (curLine.startsWith('### ') && !curLine.toLowerCase().includes("focus block")) {
+                        break;
+                    }
+
+                    const match = curLine.match(/^\s*-\s+\[[ xX/]\]\s+(\d{1,2}):(\d{2})/);
+                    if (match) {
+                        const blockStart = parseInt(match[1]) * 60 + parseInt(match[2]);
+                        if (newStartMins < blockStart) {
+                            lines.splice(insertIndex, 0, ...blockLines);
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    insertIndex++;
+                }
+
+                if (!inserted) {
+                    lines.splice(insertIndex, 0, ...blockLines);
+                }
+            }
+
+            await this.app.vault.modify(dailyFile, lines.join('\n'));
+            new obsidian.Notice(`Rescheduled: ${draggedTask.description} (${newTimeRange})`);
+            this.renderSchedule();
+        } catch (e) {
+            console.error("Failed to reschedule task on grid:", e);
+            new obsidian.Notice("Failed to reschedule task!");
+        }
+    }
+
 
     async endActiveTask(task) {
         const dailyFile = this.getDailyNoteFile();
