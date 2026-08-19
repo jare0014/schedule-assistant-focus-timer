@@ -1,11 +1,11 @@
 {
-  "ts": "2026-07-16T12:37:31.228Z",
+  "ts": "2026-08-09T17:18:28.296Z",
   "source": "auto-on-generation-start",
   "contexts": [
     {
       "ctxId": "main",
       "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
-      "totalBtns": 141,
+      "totalBtns": 82,
       "inputBoxFound": true,
       "inputBoxBtns": [
         {
@@ -16,11 +16,11 @@
           "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-815"
+            "data-tooltip-id": "P0-1"
           },
           "visible": true,
           "rect": {
-            "x": 795,
+            "x": 585,
             "y": 1815,
             "w": 28,
             "h": 28
@@ -30,33 +30,33 @@
           "aria": "",
           "title": "",
           "cls": "",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-819\" aria-label=\"Select model, current: Gemini 3.5 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 tex",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
           "hasSvg": true,
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
         {
-          "aria": "Select model, current: Gemini 3.5 Flash (High)",
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
           "title": "",
           "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.5 Flash (High)</span><div data-tooltip-id=\"P0-818\" class=\"flex shrink-0 pt-",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-819"
+            "data-tooltip-id": "P0-5"
           },
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
@@ -70,24 +70,23 @@
           "dataAttrs": {
             "data-tooltip-id": "input-send-button-record-tooltip"
           },
-          "visible": false,
+          "visible": true,
           "rect": {
-            "x": 0,
-            "y": 0,
-            "w": 0,
-            "h": 0
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
           }
         },
         {
-          "aria": "Send message",
+          "aria": "Cancel (Ctrl+D)",
           "title": "",
-          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:opacity-90 cursor-pointer tex",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
           "text": "",
-          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 text-primary-foreground\"><path d=\"M665.08-450H180v-60H665.08L437.23-737.85L48",
-          "hasSvg": true,
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
           "dataAttrs": {
-            "data-testid": "send-button",
-            "data-tooltip-id": "input-send-button-send-tooltip"
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
           },
           "visible": true,
           "rect": {
@@ -605,7 +604,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": -175,
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -621,7 +620,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 179,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -637,7 +636,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 350,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -653,7 +652,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 639,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -669,7 +668,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 871,
+            "x": 660,
             "y": 40,
             "w": 20,
             "h": 20
@@ -685,7 +684,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1108,
+            "x": 897,
             "y": 40,
             "w": 20,
             "h": 20
@@ -701,7 +700,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1525,
+            "x": 1314,
             "y": 40,
             "w": 20,
             "h": 20
@@ -717,7 +716,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1709,
+            "x": 1498,
             "y": 40,
             "w": 20,
             "h": 20
@@ -733,7 +732,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1884,
+            "x": 1673,
             "y": 40,
             "w": 20,
             "h": 20
@@ -742,9 +741,9 @@
       ]
     },
     {
-      "ctxId": 3,
+      "ctxId": 15,
       "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
-      "totalBtns": 141,
+      "totalBtns": 82,
       "inputBoxFound": true,
       "inputBoxBtns": [
         {
@@ -755,11 +754,11 @@
           "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-815"
+            "data-tooltip-id": "P0-1"
           },
           "visible": true,
           "rect": {
-            "x": 795,
+            "x": 585,
             "y": 1815,
             "w": 28,
             "h": 28
@@ -769,33 +768,33 @@
           "aria": "",
           "title": "",
           "cls": "",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-819\" aria-label=\"Select model, current: Gemini 3.5 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 tex",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
           "hasSvg": true,
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
         {
-          "aria": "Select model, current: Gemini 3.5 Flash (High)",
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
           "title": "",
           "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.5 Flash (High)</span><div data-tooltip-id=\"P0-818\" class=\"flex shrink-0 pt-",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-819"
+            "data-tooltip-id": "P0-5"
           },
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
@@ -809,24 +808,23 @@
           "dataAttrs": {
             "data-tooltip-id": "input-send-button-record-tooltip"
           },
-          "visible": false,
+          "visible": true,
           "rect": {
-            "x": 0,
-            "y": 0,
-            "w": 0,
-            "h": 0
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
           }
         },
         {
-          "aria": "Send message",
+          "aria": "Cancel (Ctrl+D)",
           "title": "",
-          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:opacity-90 cursor-pointer tex",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
           "text": "",
-          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 text-primary-foreground\"><path d=\"M665.08-450H180v-60H665.08L437.23-737.85L48",
-          "hasSvg": true,
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
           "dataAttrs": {
-            "data-testid": "send-button",
-            "data-tooltip-id": "input-send-button-send-tooltip"
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
           },
           "visible": true,
           "rect": {
@@ -1344,7 +1342,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": -175,
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1360,7 +1358,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 179,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1376,7 +1374,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 350,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1392,7 +1390,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 639,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1408,7 +1406,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 871,
+            "x": 660,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1424,7 +1422,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1108,
+            "x": 897,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1440,7 +1438,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1525,
+            "x": 1314,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1456,7 +1454,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1709,
+            "x": 1498,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1472,7 +1470,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1884,
+            "x": 1673,
             "y": 40,
             "w": 20,
             "h": 20
@@ -1481,9 +1479,9 @@
       ]
     },
     {
-      "ctxId": 2,
+      "ctxId": 14,
       "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
-      "totalBtns": 141,
+      "totalBtns": 82,
       "inputBoxFound": true,
       "inputBoxBtns": [
         {
@@ -1494,11 +1492,11 @@
           "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-815"
+            "data-tooltip-id": "P0-1"
           },
           "visible": true,
           "rect": {
-            "x": 795,
+            "x": 585,
             "y": 1815,
             "w": 28,
             "h": 28
@@ -1508,33 +1506,33 @@
           "aria": "",
           "title": "",
           "cls": "",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-819\" aria-label=\"Select model, current: Gemini 3.5 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 tex",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
           "hasSvg": true,
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
         {
-          "aria": "Select model, current: Gemini 3.5 Flash (High)",
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
           "title": "",
           "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.5 Flash (High)</span><div data-tooltip-id=\"P0-818\" class=\"flex shrink-0 pt-",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-819"
+            "data-tooltip-id": "P0-5"
           },
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
@@ -1548,24 +1546,23 @@
           "dataAttrs": {
             "data-tooltip-id": "input-send-button-record-tooltip"
           },
-          "visible": false,
+          "visible": true,
           "rect": {
-            "x": 0,
-            "y": 0,
-            "w": 0,
-            "h": 0
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
           }
         },
         {
-          "aria": "Send message",
+          "aria": "Cancel (Ctrl+D)",
           "title": "",
-          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:opacity-90 cursor-pointer tex",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
           "text": "",
-          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 text-primary-foreground\"><path d=\"M665.08-450H180v-60H665.08L437.23-737.85L48",
-          "hasSvg": true,
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
           "dataAttrs": {
-            "data-testid": "send-button",
-            "data-tooltip-id": "input-send-button-send-tooltip"
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
           },
           "visible": true,
           "rect": {
@@ -2083,7 +2080,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": -175,
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2099,7 +2096,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 179,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2115,7 +2112,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 350,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2131,7 +2128,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 639,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2147,7 +2144,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 871,
+            "x": 660,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2163,7 +2160,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1108,
+            "x": 897,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2179,7 +2176,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1525,
+            "x": 1314,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2195,7 +2192,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1709,
+            "x": 1498,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2211,7 +2208,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1884,
+            "x": 1673,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2220,9 +2217,9 @@
       ]
     },
     {
-      "ctxId": 1,
+      "ctxId": 13,
       "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
-      "totalBtns": 141,
+      "totalBtns": 82,
       "inputBoxFound": true,
       "inputBoxBtns": [
         {
@@ -2233,11 +2230,11 @@
           "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-815"
+            "data-tooltip-id": "P0-1"
           },
           "visible": true,
           "rect": {
-            "x": 795,
+            "x": 585,
             "y": 1815,
             "w": 28,
             "h": 28
@@ -2247,33 +2244,33 @@
           "aria": "",
           "title": "",
           "cls": "",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-819\" aria-label=\"Select model, current: Gemini 3.5 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 tex",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
           "hasSvg": true,
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
         {
-          "aria": "Select model, current: Gemini 3.5 Flash (High)",
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
           "title": "",
           "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.5 Flash (High)</span><div data-tooltip-id=\"P0-818\" class=\"flex shrink-0 pt-",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-819"
+            "data-tooltip-id": "P0-5"
           },
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
@@ -2287,24 +2284,23 @@
           "dataAttrs": {
             "data-tooltip-id": "input-send-button-record-tooltip"
           },
-          "visible": false,
+          "visible": true,
           "rect": {
-            "x": 0,
-            "y": 0,
-            "w": 0,
-            "h": 0
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
           }
         },
         {
-          "aria": "Send message",
+          "aria": "Cancel (Ctrl+D)",
           "title": "",
-          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:opacity-90 cursor-pointer tex",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
           "text": "",
-          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 text-primary-foreground\"><path d=\"M665.08-450H180v-60H665.08L437.23-737.85L48",
-          "hasSvg": true,
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
           "dataAttrs": {
-            "data-testid": "send-button",
-            "data-tooltip-id": "input-send-button-send-tooltip"
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
           },
           "visible": true,
           "rect": {
@@ -2822,7 +2818,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": -175,
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2838,7 +2834,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 179,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2854,7 +2850,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 350,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2870,7 +2866,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 639,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2886,7 +2882,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 871,
+            "x": 660,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2902,7 +2898,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1108,
+            "x": 897,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2918,7 +2914,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1525,
+            "x": 1314,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2934,7 +2930,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1709,
+            "x": 1498,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2950,7 +2946,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1884,
+            "x": 1673,
             "y": 40,
             "w": 20,
             "h": 20
@@ -2959,9 +2955,9 @@
       ]
     },
     {
-      "ctxId": 6,
+      "ctxId": 12,
       "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
-      "totalBtns": 141,
+      "totalBtns": 82,
       "inputBoxFound": true,
       "inputBoxBtns": [
         {
@@ -2972,11 +2968,11 @@
           "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-815"
+            "data-tooltip-id": "P0-1"
           },
           "visible": true,
           "rect": {
-            "x": 795,
+            "x": 585,
             "y": 1815,
             "w": 28,
             "h": 28
@@ -2986,33 +2982,33 @@
           "aria": "",
           "title": "",
           "cls": "",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-819\" aria-label=\"Select model, current: Gemini 3.5 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 tex",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
           "hasSvg": true,
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
         {
-          "aria": "Select model, current: Gemini 3.5 Flash (High)",
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
           "title": "",
           "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.5 Flash (High)</span><div data-tooltip-id=\"P0-818\" class=\"flex shrink-0 pt-",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-819"
+            "data-tooltip-id": "P0-5"
           },
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
@@ -3026,24 +3022,23 @@
           "dataAttrs": {
             "data-tooltip-id": "input-send-button-record-tooltip"
           },
-          "visible": false,
+          "visible": true,
           "rect": {
-            "x": 0,
-            "y": 0,
-            "w": 0,
-            "h": 0
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
           }
         },
         {
-          "aria": "Send message",
+          "aria": "Cancel (Ctrl+D)",
           "title": "",
-          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:opacity-90 cursor-pointer tex",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
           "text": "",
-          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 text-primary-foreground\"><path d=\"M665.08-450H180v-60H665.08L437.23-737.85L48",
-          "hasSvg": true,
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
           "dataAttrs": {
-            "data-testid": "send-button",
-            "data-tooltip-id": "input-send-button-send-tooltip"
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
           },
           "visible": true,
           "rect": {
@@ -3561,7 +3556,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": -175,
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3577,7 +3572,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 179,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3593,7 +3588,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 350,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3609,7 +3604,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 639,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3625,7 +3620,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 871,
+            "x": 660,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3641,7 +3636,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1108,
+            "x": 897,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3657,7 +3652,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1525,
+            "x": 1314,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3673,7 +3668,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1709,
+            "x": 1498,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3689,7 +3684,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1884,
+            "x": 1673,
             "y": 40,
             "w": 20,
             "h": 20
@@ -3698,9 +3693,9 @@
       ]
     },
     {
-      "ctxId": 7,
+      "ctxId": 11,
       "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
-      "totalBtns": 141,
+      "totalBtns": 82,
       "inputBoxFound": true,
       "inputBoxBtns": [
         {
@@ -3711,11 +3706,11 @@
           "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-815"
+            "data-tooltip-id": "P0-1"
           },
           "visible": true,
           "rect": {
-            "x": 795,
+            "x": 585,
             "y": 1815,
             "w": 28,
             "h": 28
@@ -3725,33 +3720,33 @@
           "aria": "",
           "title": "",
           "cls": "",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-819\" aria-label=\"Select model, current: Gemini 3.5 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 tex",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
           "hasSvg": true,
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
         {
-          "aria": "Select model, current: Gemini 3.5 Flash (High)",
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
           "title": "",
           "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.5 Flash (High)</span><div data-tooltip-id=\"P0-818\" class=\"flex shrink-0 pt-",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-819"
+            "data-tooltip-id": "P0-5"
           },
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
@@ -3765,24 +3760,23 @@
           "dataAttrs": {
             "data-tooltip-id": "input-send-button-record-tooltip"
           },
-          "visible": false,
+          "visible": true,
           "rect": {
-            "x": 0,
-            "y": 0,
-            "w": 0,
-            "h": 0
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
           }
         },
         {
-          "aria": "Send message",
+          "aria": "Cancel (Ctrl+D)",
           "title": "",
-          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:opacity-90 cursor-pointer tex",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
           "text": "",
-          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 text-primary-foreground\"><path d=\"M665.08-450H180v-60H665.08L437.23-737.85L48",
-          "hasSvg": true,
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
           "dataAttrs": {
-            "data-testid": "send-button",
-            "data-tooltip-id": "input-send-button-send-tooltip"
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
           },
           "visible": true,
           "rect": {
@@ -4300,7 +4294,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": -175,
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4316,7 +4310,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 179,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4332,7 +4326,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 350,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4348,7 +4342,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 639,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4364,7 +4358,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 871,
+            "x": 660,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4380,7 +4374,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1108,
+            "x": 897,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4396,7 +4390,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1525,
+            "x": 1314,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4412,7 +4406,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1709,
+            "x": 1498,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4428,7 +4422,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1884,
+            "x": 1673,
             "y": 40,
             "w": 20,
             "h": 20
@@ -4437,9 +4431,9 @@
       ]
     },
     {
-      "ctxId": 8,
+      "ctxId": 10,
       "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
-      "totalBtns": 141,
+      "totalBtns": 82,
       "inputBoxFound": true,
       "inputBoxBtns": [
         {
@@ -4450,11 +4444,11 @@
           "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-815"
+            "data-tooltip-id": "P0-1"
           },
           "visible": true,
           "rect": {
-            "x": 795,
+            "x": 585,
             "y": 1815,
             "w": 28,
             "h": 28
@@ -4464,33 +4458,33 @@
           "aria": "",
           "title": "",
           "cls": "",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-819\" aria-label=\"Select model, current: Gemini 3.5 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 tex",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
           "hasSvg": true,
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
         {
-          "aria": "Select model, current: Gemini 3.5 Flash (High)",
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
           "title": "",
           "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.5 Flash (High)</span><div data-tooltip-id=\"P0-818\" class=\"flex shrink-0 pt-",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-819"
+            "data-tooltip-id": "P0-5"
           },
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
@@ -4504,24 +4498,23 @@
           "dataAttrs": {
             "data-tooltip-id": "input-send-button-record-tooltip"
           },
-          "visible": false,
+          "visible": true,
           "rect": {
-            "x": 0,
-            "y": 0,
-            "w": 0,
-            "h": 0
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
           }
         },
         {
-          "aria": "Send message",
+          "aria": "Cancel (Ctrl+D)",
           "title": "",
-          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:opacity-90 cursor-pointer tex",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
           "text": "",
-          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 text-primary-foreground\"><path d=\"M665.08-450H180v-60H665.08L437.23-737.85L48",
-          "hasSvg": true,
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
           "dataAttrs": {
-            "data-testid": "send-button",
-            "data-tooltip-id": "input-send-button-send-tooltip"
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
           },
           "visible": true,
           "rect": {
@@ -5039,7 +5032,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": -175,
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5055,7 +5048,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 179,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5071,7 +5064,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 350,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5087,7 +5080,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 639,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5103,7 +5096,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 871,
+            "x": 660,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5119,7 +5112,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1108,
+            "x": 897,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5135,7 +5128,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1525,
+            "x": 1314,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5151,7 +5144,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1709,
+            "x": 1498,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5167,7 +5160,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1884,
+            "x": 1673,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5178,7 +5171,7 @@
     {
       "ctxId": 9,
       "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
-      "totalBtns": 141,
+      "totalBtns": 82,
       "inputBoxFound": true,
       "inputBoxBtns": [
         {
@@ -5189,11 +5182,11 @@
           "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-815"
+            "data-tooltip-id": "P0-1"
           },
           "visible": true,
           "rect": {
-            "x": 795,
+            "x": 585,
             "y": 1815,
             "w": 28,
             "h": 28
@@ -5203,33 +5196,33 @@
           "aria": "",
           "title": "",
           "cls": "",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-819\" aria-label=\"Select model, current: Gemini 3.5 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 tex",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
           "hasSvg": true,
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
         {
-          "aria": "Select model, current: Gemini 3.5 Flash (High)",
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
           "title": "",
           "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
-          "text": "Gemini 3.5 Flash (High)",
-          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.5 Flash (High)</span><div data-tooltip-id=\"P0-818\" class=\"flex shrink-0 pt-",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
           "hasSvg": true,
           "dataAttrs": {
-            "data-tooltip-id": "P0-819"
+            "data-tooltip-id": "P0-5"
           },
           "visible": true,
           "rect": {
-            "x": 824,
+            "x": 614,
             "y": 1815,
-            "w": 160,
+            "w": 142,
             "h": 28
           }
         },
@@ -5243,24 +5236,23 @@
           "dataAttrs": {
             "data-tooltip-id": "input-send-button-record-tooltip"
           },
-          "visible": false,
+          "visible": true,
           "rect": {
-            "x": 0,
-            "y": 0,
-            "w": 0,
-            "h": 0
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
           }
         },
         {
-          "aria": "Send message",
+          "aria": "Cancel (Ctrl+D)",
           "title": "",
-          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:opacity-90 cursor-pointer tex",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
           "text": "",
-          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 text-primary-foreground\"><path d=\"M665.08-450H180v-60H665.08L437.23-737.85L48",
-          "hasSvg": true,
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
           "dataAttrs": {
-            "data-testid": "send-button",
-            "data-tooltip-id": "input-send-button-send-tooltip"
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
           },
           "visible": true,
           "rect": {
@@ -5778,7 +5770,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": -175,
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5794,7 +5786,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 179,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5810,7 +5802,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 350,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5826,7 +5818,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 639,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5836,6 +5828,264 @@
           "aria": "Close (Ctrl+F4)",
           "title": "",
           "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 660,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 897,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1314,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1498,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1673,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        }
+      ]
+    },
+    {
+      "ctxId": 8,
+      "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
+      "totalBtns": 82,
+      "inputBoxFound": true,
+      "inputBoxBtns": [
+        {
+          "aria": "Add context",
+          "title": "",
+          "cls": "p-1.5 rounded-full text-secondary-foreground hover:bg-secondary cursor-pointer",
+          "text": "",
+          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
+          "hasSvg": true,
+          "dataAttrs": {
+            "data-tooltip-id": "P0-1"
+          },
+          "visible": true,
+          "rect": {
+            "x": 585,
+            "y": 1815,
+            "w": 28,
+            "h": 28
+          }
+        },
+        {
+          "aria": "",
+          "title": "",
+          "cls": "",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
+          "hasSvg": true,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 614,
+            "y": 1815,
+            "w": 142,
+            "h": 28
+          }
+        },
+        {
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
+          "title": "",
+          "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
+          "hasSvg": true,
+          "dataAttrs": {
+            "data-tooltip-id": "P0-5"
+          },
+          "visible": true,
+          "rect": {
+            "x": 614,
+            "y": 1815,
+            "w": 142,
+            "h": 28
+          }
+        },
+        {
+          "aria": "Record voice memo",
+          "title": "",
+          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:bg-secondary cursor-pointer b",
+          "text": "",
+          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 translate-y-px\"><path d=\"M409.04-449.04Q380-478.08 380-520V-760q0-41.92 29.04",
+          "hasSvg": true,
+          "dataAttrs": {
+            "data-tooltip-id": "input-send-button-record-tooltip"
+          },
+          "visible": true,
+          "rect": {
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
+          }
+        },
+        {
+          "aria": "Cancel (Ctrl+D)",
+          "title": "",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
+          "text": "",
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
+          "dataAttrs": {
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
+          },
+          "visible": true,
+          "rect": {
+            "x": 1036,
+            "y": 1815,
+            "w": 28,
+            "h": 28
+          }
+        }
+      ],
+      "buttons": [
+        {
+          "aria": "Customize Layout...",
+          "title": "",
+          "cls": "action-label codicon codicon-configure-layout-icon",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 718,
+            "y": 7,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Open in Cider",
+          "title": "",
+          "cls": "action-label disabled codicon codicon-code",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Reload Window",
+          "title": "",
+          "cls": "action-label disabled codicon codicon-refresh",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Quick Open",
+          "title": "",
+          "cls": "action-label codicon codicon-search",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 814,
+            "y": 7,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Open Browser (Preview)",
+          "title": "",
+          "cls": "action-label codicon codicon-chrome",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 847,
+            "y": 7,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Editor-Specific Settings",
+          "title": "",
+          "cls": "action-label codicon codicon-gear",
           "text": "",
           "innerHTML": "",
           "hasSvg": false,
@@ -5843,6 +6093,422 @@
           "visible": true,
           "rect": {
             "x": 871,
+            "y": 7,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Profile",
+          "title": "",
+          "cls": "action-item icon antigravity-profile",
+          "text": "",
+          "innerHTML": "<div class=\"antigravity-icon\" style=\"width: 14px; height: 14px; padding-right: 2px; display: none;\"><svg viewBox=\"0 0 84 77\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><mask id=\"mask0_15_47\" style",
+          "hasSvg": true,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 895,
+            "y": 5,
+            "w": 43,
+            "h": 26
+          }
+        },
+        {
+          "aria": "Views and More Actions...",
+          "title": "",
+          "cls": "action-label codicon codicon-toolbar-more",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 178,
+            "y": 42,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Open Editors Section",
+          "title": "",
+          "cls": "pane-header",
+          "text": "Open Editors",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-open-editors-view-icon\" custom-hover=\"true\" aria-label=\"Open Editors\" style=\"color: v",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 70,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "New Untitled Text File",
+          "title": "",
+          "cls": "action-label codicon codicon-new-file",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Save All",
+          "title": "",
+          "cls": "action-label codicon codicon-save-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Close All Editors",
+          "title": "",
+          "cls": "action-label codicon codicon-close-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Explorer Section: schedule-assistant-focus-timer",
+          "title": "",
+          "cls": "pane-header",
+          "text": "schedule-assistant-focus-timer",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-explorer-view-icon\" custom-hover=\"true\" aria-label=\"schedule-assistant-focus-timer\" s",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 92,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "New File...",
+          "title": "",
+          "cls": "action-label codicon codicon-new-file",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "New Folder...",
+          "title": "",
+          "cls": "action-label codicon codicon-new-folder",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Refresh Explorer",
+          "title": "",
+          "cls": "action-label codicon codicon-refresh",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Collapse Folders in Explorer",
+          "title": "",
+          "cls": "action-label codicon codicon-collapse-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Outline Section",
+          "title": "",
+          "cls": "pane-header",
+          "text": "Outline",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-outline-view-icon\" custom-hover=\"true\" aria-label=\"Outline\" style=\"color: var(--vscod",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 114,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Collapse All",
+          "title": "",
+          "cls": "action-label codicon codicon-collapse-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "More Actions...",
+          "title": "",
+          "cls": "action-label codicon codicon-toolbar-more",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Timeline Section",
+          "title": "",
+          "cls": "pane-header timeline-view",
+          "text": "Timeline",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-timeline-view-icon\" custom-hover=\"true\" aria-label=\"Timeline\" style=\"color: var(--vsc",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 136,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Pin the Current Timeline",
+          "title": "",
+          "cls": "action-label codicon codicon-timeline-pin",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Refresh",
+          "title": "",
+          "cls": "action-label codicon codicon-timeline-refresh",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Filter Timeline",
+          "title": "",
+          "cls": "action-label codicon codicon-timeline-filter",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "More Actions...",
+          "title": "",
+          "cls": "action-label codicon codicon-toolbar-more",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Java Projects Section",
+          "title": "",
+          "cls": "pane-header",
+          "text": "Java Projects",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-project\" custom-hover=\"true\" aria-label=\"Java Projects\" style=\"color: var(--vscode-si",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 158,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Create Java Project...",
+          "title": "",
+          "cls": "action-label codicon codicon-add",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Export Jar...",
+          "title": "",
+          "cls": "action-label codicon codicon-export",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Build All",
+          "title": "",
+          "cls": "action-label codicon codicon-tools",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Collapse All",
+          "title": "",
+          "cls": "action-label disabled codicon codicon-collapse-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "More Actions...",
+          "title": "",
+          "cls": "action-label codicon codicon-toolbar-more",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": -386,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5858,7 +6524,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1108,
+            "x": -32,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5874,7 +6540,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1525,
+            "x": 258,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5890,7 +6556,7 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1709,
+            "x": 428,
             "y": 40,
             "w": 20,
             "h": 20
@@ -5906,7 +6572,809 @@
           "dataAttrs": {},
           "visible": true,
           "rect": {
-            "x": 1884,
+            "x": 660,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 897,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1314,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1498,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1673,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        }
+      ]
+    },
+    {
+      "ctxId": 19,
+      "frameUrl": "vscode-file://vscode-app/c:/Users/jare0/AppData/Local/Programs/Antigravity%20IDE/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
+      "totalBtns": 82,
+      "inputBoxFound": true,
+      "inputBoxBtns": [
+        {
+          "aria": "Add context",
+          "title": "",
+          "cls": "p-1.5 rounded-full text-secondary-foreground hover:bg-secondary cursor-pointer",
+          "text": "",
+          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4\"><path d=\"M450-450H220v-60H450V-740h60v230H740v60H510v230H450V-450Z\"></path><",
+          "hasSvg": true,
+          "dataAttrs": {
+            "data-tooltip-id": "P0-1"
+          },
+          "visible": true,
+          "rect": {
+            "x": 585,
+            "y": 1815,
+            "w": 28,
+            "h": 28
+          }
+        },
+        {
+          "aria": "",
+          "title": "",
+          "cls": "",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<button type=\"button\" data-tooltip-id=\"P0-5\" aria-label=\"Select model, current: Gemini 3.6 Flash (High)\" class=\"flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-",
+          "hasSvg": true,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 614,
+            "y": 1815,
+            "w": 142,
+            "h": 28
+          }
+        },
+        {
+          "aria": "Select model, current: Gemini 3.6 Flash (High)",
+          "title": "",
+          "cls": "flex min-w-0 max-w-full cursor-pointer items-center h-7 gap-1 rounded-lg pr-1 pl-2 text-xs outline-n",
+          "text": "Gemini 3.6 Flash (High)",
+          "innerHTML": "<span class=\"min-w-0 select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs text-secondary-foreground\">Gemini 3.6 Flash (High)</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" hei",
+          "hasSvg": true,
+          "dataAttrs": {
+            "data-tooltip-id": "P0-5"
+          },
+          "visible": true,
+          "rect": {
+            "x": 614,
+            "y": 1815,
+            "w": 142,
+            "h": 28
+          }
+        },
+        {
+          "aria": "Record voice memo",
+          "title": "",
+          "cls": "flex items-center p-1.5 rounded-full transition-all duration-150 hover:bg-secondary cursor-pointer b",
+          "text": "",
+          "innerHTML": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 -960 960 960\" fill=\"currentColor\" class=\"w-4 h-4 translate-y-px\"><path d=\"M409.04-449.04Q380-478.08 380-520V-760q0-41.92 29.04",
+          "hasSvg": true,
+          "dataAttrs": {
+            "data-tooltip-id": "input-send-button-record-tooltip"
+          },
+          "visible": true,
+          "rect": {
+            "x": 1004,
+            "y": 1815,
+            "w": 28,
+            "h": 28
+          }
+        },
+        {
+          "aria": "Cancel (Ctrl+D)",
+          "title": "",
+          "cls": "bg-secondary hover:opacity-90 w-7 h-7 rounded-full cursor-pointer flex items-center justify-center t",
+          "text": "",
+          "innerHTML": "<div class=\"bg-red-500 w-[0.625rem] h-[0.625rem] rounded-[1px]\"></div>",
+          "hasSvg": false,
+          "dataAttrs": {
+            "data-tooltip-id": "input-send-button-cancel-tooltip"
+          },
+          "visible": true,
+          "rect": {
+            "x": 1036,
+            "y": 1815,
+            "w": 28,
+            "h": 28
+          }
+        }
+      ],
+      "buttons": [
+        {
+          "aria": "Customize Layout...",
+          "title": "",
+          "cls": "action-label codicon codicon-configure-layout-icon",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 718,
+            "y": 7,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Open in Cider",
+          "title": "",
+          "cls": "action-label disabled codicon codicon-code",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Reload Window",
+          "title": "",
+          "cls": "action-label disabled codicon codicon-refresh",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Quick Open",
+          "title": "",
+          "cls": "action-label codicon codicon-search",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 814,
+            "y": 7,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Open Browser (Preview)",
+          "title": "",
+          "cls": "action-label codicon codicon-chrome",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 847,
+            "y": 7,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Editor-Specific Settings",
+          "title": "",
+          "cls": "action-label codicon codicon-gear",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 871,
+            "y": 7,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Profile",
+          "title": "",
+          "cls": "action-item icon antigravity-profile",
+          "text": "",
+          "innerHTML": "<div class=\"antigravity-icon\" style=\"width: 14px; height: 14px; padding-right: 2px; display: none;\"><svg viewBox=\"0 0 84 77\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><mask id=\"mask0_15_47\" style",
+          "hasSvg": true,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 895,
+            "y": 5,
+            "w": 43,
+            "h": 26
+          }
+        },
+        {
+          "aria": "Views and More Actions...",
+          "title": "",
+          "cls": "action-label codicon codicon-toolbar-more",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 178,
+            "y": 42,
+            "w": 22,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Open Editors Section",
+          "title": "",
+          "cls": "pane-header",
+          "text": "Open Editors",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-open-editors-view-icon\" custom-hover=\"true\" aria-label=\"Open Editors\" style=\"color: v",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 70,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "New Untitled Text File",
+          "title": "",
+          "cls": "action-label codicon codicon-new-file",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Save All",
+          "title": "",
+          "cls": "action-label codicon codicon-save-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Close All Editors",
+          "title": "",
+          "cls": "action-label codicon codicon-close-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Explorer Section: schedule-assistant-focus-timer",
+          "title": "",
+          "cls": "pane-header",
+          "text": "schedule-assistant-focus-timer",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-explorer-view-icon\" custom-hover=\"true\" aria-label=\"schedule-assistant-focus-timer\" s",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 92,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "New File...",
+          "title": "",
+          "cls": "action-label codicon codicon-new-file",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "New Folder...",
+          "title": "",
+          "cls": "action-label codicon codicon-new-folder",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Refresh Explorer",
+          "title": "",
+          "cls": "action-label codicon codicon-refresh",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Collapse Folders in Explorer",
+          "title": "",
+          "cls": "action-label codicon codicon-collapse-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Outline Section",
+          "title": "",
+          "cls": "pane-header",
+          "text": "Outline",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-outline-view-icon\" custom-hover=\"true\" aria-label=\"Outline\" style=\"color: var(--vscod",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 114,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Collapse All",
+          "title": "",
+          "cls": "action-label codicon codicon-collapse-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "More Actions...",
+          "title": "",
+          "cls": "action-label codicon codicon-toolbar-more",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Timeline Section",
+          "title": "",
+          "cls": "pane-header timeline-view",
+          "text": "Timeline",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-timeline-view-icon\" custom-hover=\"true\" aria-label=\"Timeline\" style=\"color: var(--vsc",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 136,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Pin the Current Timeline",
+          "title": "",
+          "cls": "action-label codicon codicon-timeline-pin",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Refresh",
+          "title": "",
+          "cls": "action-label codicon codicon-timeline-refresh",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Filter Timeline",
+          "title": "",
+          "cls": "action-label codicon codicon-timeline-filter",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "More Actions...",
+          "title": "",
+          "cls": "action-label codicon codicon-toolbar-more",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Java Projects Section",
+          "title": "",
+          "cls": "pane-header",
+          "text": "Java Projects",
+          "innerHTML": "<div class=\"twisty-container codicon-view-pane-container-collapsed codicon\"></div><div class=\"icon codicon codicon-project\" custom-hover=\"true\" aria-label=\"Java Projects\" style=\"color: var(--vscode-si",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 42,
+            "y": 158,
+            "w": 170,
+            "h": 22
+          }
+        },
+        {
+          "aria": "Create Java Project...",
+          "title": "",
+          "cls": "action-label codicon codicon-add",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Export Jar...",
+          "title": "",
+          "cls": "action-label codicon codicon-export",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Build All",
+          "title": "",
+          "cls": "action-label codicon codicon-tools",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Collapse All",
+          "title": "",
+          "cls": "action-label disabled codicon codicon-collapse-all",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "More Actions...",
+          "title": "",
+          "cls": "action-label codicon codicon-toolbar-more",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": false,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": -386,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": -32,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 258,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 428,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 660,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 897,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1314,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1498,
+            "y": 40,
+            "w": 20,
+            "h": 20
+          }
+        },
+        {
+          "aria": "Close (Ctrl+F4)",
+          "title": "",
+          "cls": "action-label codicon codicon-close",
+          "text": "",
+          "innerHTML": "",
+          "hasSvg": false,
+          "dataAttrs": {},
+          "visible": true,
+          "rect": {
+            "x": 1673,
             "y": 40,
             "w": 20,
             "h": 20

@@ -1029,8 +1029,30 @@ async function adjustTime(minutes) {
 checkStatus();
 setInterval(checkStatus, 5000);
 
+// Local smooth 1s timer countdown tick based on wall-clock targetEndTime
+setInterval(() => {
+    if (lastState && lastState.activeTimer && !lastState.activeTimer.isPaused) {
+        let remaining = lastState.activeTimer.remainingSeconds;
+        if (lastState.activeTimer.targetEndTime) {
+            const remainingMs = Math.max(0, lastState.activeTimer.targetEndTime - Date.now());
+            remaining = Math.ceil(remainingMs / 1000);
+            lastState.activeTimer.remainingSeconds = remaining;
+        } else if (remaining > 0) {
+            remaining--;
+            lastState.activeTimer.remainingSeconds = remaining;
+        }
+        if (countdownText) {
+            countdownText.textContent = formatTime(remaining);
+        }
+        const totalSecs = (lastState.activeTimer.totalSeconds > 0) ? lastState.activeTimer.totalSeconds : 1;
+        const percent = (remaining / totalSecs) * 100;
+        setProgress(percent);
+    }
+}, 1000);
+
 // Global state update entrypoint for embedded Android web view or native bridge
 window.updateState = function(newState) {
     if (!newState) return;
     updateUI(newState);
 };
+

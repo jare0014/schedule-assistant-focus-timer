@@ -229,10 +229,23 @@ fun ObsidianTodoScreen(
         while (true) {
             currentTimeString = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             
-            // Local countdown tick
-            if (activeTimerRemainingSeconds > 0 && !activeTimerIsPaused) {
-                activeTimerRemainingSeconds--
-                prefs.activeTimerRemainingSeconds = activeTimerRemainingSeconds
+            // Real-time wall-clock countdown calculation
+            if (prefs.activeTimerTaskName.isNotEmpty()) {
+                if (prefs.activeTimerIsPaused) {
+                    activeTimerRemainingSeconds = prefs.activeTimerRemainingSeconds
+                } else {
+                    val targetEnd = prefs.activeTimerTargetEndTime
+                    if (targetEnd > 0L) {
+                        val remainingMs = (targetEnd - System.currentTimeMillis()).coerceAtLeast(0L)
+                        activeTimerRemainingSeconds = kotlin.math.ceil(remainingMs / 1000.0).toInt()
+                        prefs.activeTimerRemainingSeconds = activeTimerRemainingSeconds
+                    } else if (activeTimerRemainingSeconds > 0) {
+                        activeTimerRemainingSeconds--
+                        prefs.activeTimerRemainingSeconds = activeTimerRemainingSeconds
+                    }
+                }
+            } else {
+                activeTimerRemainingSeconds = 0
             }
             
             pollCounter++

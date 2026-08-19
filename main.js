@@ -1232,6 +1232,9 @@ class TaskTimerView extends obsidian.ItemView {
 
         this.renderTimer();
         
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+        }
         this.timerInterval = setInterval(async () => {
             if (this.currentTimer && !this.currentTimer.isPaused) {
                 const now = Date.now();
@@ -1257,7 +1260,9 @@ class TaskTimerView extends obsidian.ItemView {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
-        this.plugin.activeTimer = null;
+        if (this.plugin) {
+            this.plugin.activeTimer = null;
+        }
     }
 
     async completeTimer() {
@@ -1453,8 +1458,14 @@ class TaskTimerView extends obsidian.ItemView {
     updateTimerDisplay() {
         if (!this.currentTimer || !this.timeTextEl) return;
         
-        const mins = Math.floor(this.currentTimer.remainingSeconds / 60);
-        const secs = this.currentTimer.remainingSeconds % 60;
+        let remainingSeconds = this.currentTimer.remainingSeconds;
+        if (!this.currentTimer.isPaused && this.currentTimer.targetEndTime) {
+            remainingSeconds = Math.max(0, Math.ceil((this.currentTimer.targetEndTime - Date.now()) / 1000));
+            this.currentTimer.remainingSeconds = remainingSeconds;
+        }
+
+        const mins = Math.floor(remainingSeconds / 60);
+        const secs = remainingSeconds % 60;
         const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         
         this.timeTextEl.setText(timeStr);
@@ -1475,7 +1486,9 @@ class TaskTimerView extends obsidian.ItemView {
             if (circle) circle.removeClass('pulsing');
             await this.plugin.logPause();
         } else {
-            const remainingMs = this.currentTimer.pausedRemainingMs || (this.currentTimer.remainingSeconds * 1000);
+            const remainingMs = (this.currentTimer.pausedRemainingMs !== null && this.currentTimer.pausedRemainingMs !== undefined)
+                ? this.currentTimer.pausedRemainingMs
+                : (this.currentTimer.remainingSeconds * 1000);
             this.currentTimer.targetEndTime = Date.now() + remainingMs;
             this.currentTimer.pausedRemainingMs = null;
             this.pauseBtn.setText('Pause');
@@ -1483,6 +1496,10 @@ class TaskTimerView extends obsidian.ItemView {
             if (circle) circle.addClass('pulsing');
             await this.plugin.logResume();
         }
+        if (this.plugin) {
+            this.plugin.activeTimer = this.currentTimer;
+        }
+        this.updateTimerDisplay();
     }
 
     triggerAlarm(task) {
@@ -3115,12 +3132,27 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
 
                 if (req.method === 'GET' && pathname === '/api/status') {
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    let activeTimer = null;
+                    let activeTimer = this.activeTimer || null;
                     let isAlarming = false;
                     if (leaves.length > 0) {
                         const view = leaves[0].view;
-                        activeTimer = view.currentTimer;
+                        if (view.currentTimer) {
+                            activeTimer = view.currentTimer;
+                        }
                         isAlarming = view.isAlarming;
+                    }
+
+                    let dynamicRemaining = 0;
+                    if (activeTimer) {
+                        if (activeTimer.isPaused) {
+                            dynamicRemaining = activeTimer.remainingSeconds || Math.ceil((activeTimer.pausedRemainingMs || 0) / 1000);
+                        } else if (activeTimer.targetEndTime) {
+                            const remainingMs = Math.max(0, activeTimer.targetEndTime - Date.now());
+                            dynamicRemaining = Math.ceil(remainingMs / 1000);
+                            activeTimer.remainingSeconds = dynamicRemaining;
+                        } else {
+                            dynamicRemaining = activeTimer.remainingSeconds || 0;
+                        }
                     }
 
                     const dailyFile = this.getDailyNoteFile();
@@ -3144,10 +3176,12 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
                     res.end(JSON.stringify({
                         hasDailyNote,
                         dateStr,
+                        serverNow: Date.now(),
                         activeTimer: activeTimer ? {
                             taskName: activeTimer.taskName,
-                            remainingSeconds: activeTimer.remainingSeconds,
+                            remainingSeconds: dynamicRemaining,
                             totalSeconds: activeTimer.totalSeconds,
+                            targetEndTime: activeTimer.targetEndTime || null,
                             isPaused: activeTimer.isPaused,
                             status: activeTimer.task ? activeTimer.task.status : 'pending',
                             lineIndex: activeTimer.task ? activeTimer.task.lineIndex : null

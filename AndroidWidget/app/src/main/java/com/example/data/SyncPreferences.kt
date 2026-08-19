@@ -59,6 +59,10 @@ class SyncPreferences(private val context: Context) {
         get() = prefs.getInt("active_timer_line_index", -1)
         set(value) = prefs.edit().putInt("active_timer_line_index", value).apply()
 
+    var activeTimerTargetEndTime: Long
+        get() = prefs.getLong("active_timer_target_end_time", 0L)
+        set(value) = prefs.edit().putLong("active_timer_target_end_time", value).apply()
+
     var isAlarming: Boolean
         get() = prefs.getBoolean("is_alarming", false)
         set(value) = prefs.edit().putBoolean("is_alarming", value).apply()

@@ -596,9 +596,21 @@ class ObsidianSyncRepository(private val context: Context) {
             if (obj.has("activeTimer") && !obj.isNull("activeTimer")) {
                 val timerObj = obj.getJSONObject("activeTimer")
                 prefs.activeTimerTaskName = timerObj.optString("taskName", "")
-                prefs.activeTimerRemainingSeconds = timerObj.optInt("remainingSeconds", 0)
+                val remainingSecs = timerObj.optInt("remainingSeconds", 0)
+                prefs.activeTimerRemainingSeconds = remainingSecs
                 prefs.activeTimerTotalSeconds = timerObj.optInt("totalSeconds", 0)
-                prefs.activeTimerIsPaused = timerObj.optBoolean("isPaused", false)
+                val isPaused = timerObj.optBoolean("isPaused", false)
+                prefs.activeTimerIsPaused = isPaused
+                
+                val targetEnd = timerObj.optLong("targetEndTime", 0L)
+                if (targetEnd > 0L && !isPaused) {
+                    prefs.activeTimerTargetEndTime = targetEnd
+                } else if (!isPaused && remainingSecs > 0) {
+                    prefs.activeTimerTargetEndTime = System.currentTimeMillis() + (remainingSecs * 1000L)
+                } else {
+                    prefs.activeTimerTargetEndTime = 0L
+                }
+
                 val rawLineIdx = timerObj.optInt("lineIndex", -1)
                 prefs.activeTimerLineIndex = if (rawLineIdx >= 0) rawLineIdx + 1 else -1
             } else {
@@ -620,6 +632,7 @@ class ObsidianSyncRepository(private val context: Context) {
         prefs.activeTimerRemainingSeconds = 0
         prefs.activeTimerTotalSeconds = 0
         prefs.activeTimerIsPaused = false
+        prefs.activeTimerTargetEndTime = 0L
         prefs.activeTimerLineIndex = -1
         prefs.isAlarming = false
     }

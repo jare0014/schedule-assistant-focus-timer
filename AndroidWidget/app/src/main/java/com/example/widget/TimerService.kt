@@ -175,17 +175,22 @@ class TimerService : Service() {
                 }
 
                 if (!prefs.activeTimerIsPaused && !prefs.isAlarming) {
-                    var remaining = prefs.activeTimerRemainingSeconds
-                    if (remaining > 0) {
-                        remaining--
-                        prefs.activeTimerRemainingSeconds = remaining
-                        
-                        // Update widget every second (screen interactivity checked inside updateWidget)
-                        updateWidget(applicationContext)
-                        
-                        updateNotificationOnly()
-                        syncTimerStateToWatch()
+                    val targetEnd = prefs.activeTimerTargetEndTime
+                    val remaining = if (targetEnd > 0L) {
+                        val diffMs = (targetEnd - System.currentTimeMillis()).coerceAtLeast(0L)
+                        kotlin.math.ceil(diffMs / 1000.0).toInt()
                     } else {
+                        (prefs.activeTimerRemainingSeconds - 1).coerceAtLeast(0)
+                    }
+                    prefs.activeTimerRemainingSeconds = remaining
+                    
+                    // Update widget every second (screen interactivity checked inside updateWidget)
+                    updateWidget(applicationContext)
+                    
+                    updateNotificationOnly()
+                    syncTimerStateToWatch()
+
+                    if (remaining <= 0) {
                         // Timer expired! Trigger Alarm!
                         triggerAlarm()
                     }
