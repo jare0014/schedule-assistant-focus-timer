@@ -2524,17 +2524,28 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
         }
         
         // Retrieve secrets securely from Obsidian SecretStorage
-        let geminiApiKey = await this.app.secretStorage.getSecret(this.settings.geminiApiKeyId || 'schedule-assistant-gemini-api-key') || '';
-        if (!geminiApiKey) {
-            geminiApiKey = await this.app.secretStorage.getSecret('timeblocker-gemini-api-key') || '';
+        let geminiApiKey = '';
+        for (const k of [this.settings.geminiApiKeyId || 'schedule-assistant-gemini-api-key', 'timeblocker-gemini-api-key', 'omni-logger-gemini-api-key', 'gemini-api-key', 'geminiApiKey', 'gemini']) {
+            try {
+                const val = await this.app.secretStorage.getSecret(k);
+                if (val && val.trim()) { geminiApiKey = val.trim(); break; }
+            } catch(e) {}
         }
-        let todoistToken = await this.app.secretStorage.getSecret(this.settings.todoistTokenId || 'schedule-assistant-todoist-token') || '';
-        if (!todoistToken) {
-            todoistToken = await this.app.secretStorage.getSecret('timeblocker-todoist-token') || '';
+        
+        let todoistToken = '';
+        for (const k of [this.settings.todoistTokenId || 'schedule-assistant-todoist-token', 'timeblocker-todoist-token', 'todoist-token', 'todoistToken', 'todoist', 'todoist_token']) {
+            try {
+                const val = await this.app.secretStorage.getSecret(k);
+                if (val && val.trim()) { todoistToken = val.trim(); break; }
+            } catch(e) {}
         }
-        let googleCredentials = await this.app.secretStorage.getSecret(this.settings.googleCredentialsId || 'schedule-assistant-google-credentials') || '';
-        if (!googleCredentials) {
-            googleCredentials = await this.app.secretStorage.getSecret('timeblocker-google-credentials') || '';
+        
+        let googleCredentials = '';
+        for (const k of [this.settings.googleCredentialsId || 'schedule-assistant-google-credentials', 'timeblocker-google-credentials', 'google-credentials']) {
+            try {
+                const val = await this.app.secretStorage.getSecret(k);
+                if (val && val.trim()) { googleCredentials = val.trim(); break; }
+            } catch(e) {}
         }
         
         const env = Object.assign({}, process.env, {
