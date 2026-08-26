@@ -126,6 +126,7 @@ dv.table(["Date", "Notes"], rows);
 
 ## ToDo
 - [ ] Modular TypeScript refactor for Schedule Assistant (break down monolithic 4,700+ line main.js into clean src/ modules: views, api server, task parser, timer controller, auth, and styling) (Added: 2026-08-19)
+- [x] Fix Web port blank view issue caused by duplicate `const now` / `currentHour` / `currentMin` identifier declarations in `renderGridView()` (`app.js`). Bind HTTP server explicitly to `0.0.0.0:8090` and surface live connection status badge. (Added: 2026-08-26, Completed: 2026-08-26)
 - [x] Fix focus timer countdown drift and background throttling by syncing absolute wall-clock targetEndTime across Obsidian desktop, Web UI, and Android widget (Completed: 2026-08-19)
 - [x] Implement interactive drag-and-drop focus block rearrangement, live snap preview, and untimed drawer integration in Schedule Grid View (Completed: 2026-08-18)
 - [x] Webport day planner with interactive timeblock layout, schedule generation, and real-time bidirectional sync (Completed: 2026-08-18 via Web Schedule Grid & Timer app)
