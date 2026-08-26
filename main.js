@@ -3627,8 +3627,8 @@ module.exports = class TaskTimerPlugin extends obsidian.Plugin {
             }
         });
 
-        this.server.listen(port, () => {
-            console.log(`Focus Timer Server running on port ${port}`);
+        this.server.listen(port, '0.0.0.0', () => {
+            console.log(`Focus Timer Server running on 0.0.0.0:${port}`);
             new obsidian.Notice(`Focus Timer Server started on port ${port}`);
         });
     }

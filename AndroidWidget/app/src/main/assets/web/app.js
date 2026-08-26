@@ -605,9 +605,6 @@ function renderGridView(tasks) {
     scheduleList.appendChild(dayViewContainer);
 
     let targetScroll = 0;
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMin = now.getMinutes();
     if (window.webResetScrollToFocus) {
         window.webResetScrollToFocus = false;
         if (currentHour >= minHour && currentHour <= maxHour) {
