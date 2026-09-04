@@ -19,3 +19,5 @@ local.properties
 .venv/
 venv/
 *Dev Log.md
+node_modules/
+schedule-assistant-focus-timer/

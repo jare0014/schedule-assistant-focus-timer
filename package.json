@@ -1,0 +1,20 @@
+{
+  "name": "schedule-assistant-focus-timer",
+  "version": "1.0.0",
+  "description": "Displays a timeblocked schedule view with focus timers, flashing alarms, and Web Audio sirens.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "keywords": ["obsidian", "obsidian-plugin", "schedule", "focus-timer", "timeblocker"],
+  "author": "Alex Jarecki",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "esbuild": "0.21.4",
+    "obsidian": "latest",
+    "tslib": "2.6.2",
+    "typescript": "5.4.5"
+  }
+}
