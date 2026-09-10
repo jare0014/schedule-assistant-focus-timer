@@ -3,6 +3,7 @@
  */
 
 import { TaskItem } from '../types';
+import { Notice, TFile } from 'obsidian';
 
 export async function renderScheduleGridView(viewInstance: any, viewContainer: HTMLElement, tasks: TaskItem[]): Promise<void> {
     const existingWrapper = viewContainer.querySelector('.time-grid-wrapper') as HTMLElement | null;
@@ -94,6 +95,11 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
             }
         });
     }
+
+    // 2. Weekly Routine & Habit Matrix Drawer
+    const existingMatrixDrawer = viewContainer.querySelector('.habit-matrix-drawer') as HTMLDetailsElement | null;
+    const wasMatrixOpen = existingMatrixDrawer ? existingMatrixDrawer.open : false;
+    await renderHabitMatrixDrawer(viewInstance, viewContainer, wasMatrixOpen);
 
     // Day View Grid Container
     const dayViewContainer = viewContainer.createDiv({ cls: 'timeblock-dayview-container' });
@@ -375,4 +381,157 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
 
     gridWrapper.scrollTop = targetScroll;
     requestAnimationFrame(() => { gridWrapper.scrollTop = targetScroll; });
+}
+
+/**
+ * Renders an interactive collapsible weekly routine and habit matrix directly in the Schedule Assistant Grid View.
+ */
+async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLElement, wasOpen: boolean): Promise<void> {
+    const app = viewInstance.app;
+    if (!app || !app.vault) return;
+
+    const moment = (window as any).moment;
+    if (!moment) return;
+
+    const currentMoment = moment();
+    const weekStr = currentMoment.format("YYYY-[W]WW");
+    const dayName = currentMoment.format("dddd");
+    const filePath = `02_Journal/02_Weekly/${weekStr}.md`;
+
+    const tFile = app.vault.getAbstractFileByPath(filePath) as TFile;
+    if (!tFile) return;
+
+    let text = "";
+    try {
+        text = await app.vault.read(tFile);
+    } catch (e) {
+        return;
+    }
+
+    const drawer = viewContainer.createEl('details', { cls: 'habit-matrix-drawer' });
+    drawer.style.margin = "4px 0 10px 0";
+    drawer.style.border = "1px solid var(--background-modifier-border)";
+    drawer.style.borderRadius = "6px";
+    drawer.style.padding = "6px 10px";
+    drawer.style.backgroundColor = "var(--background-secondary)";
+
+    const isMatrixStoredOpen = localStorage.getItem("schedule-assistant-matrix-drawer-open") === "true";
+    if (wasOpen || isMatrixStoredOpen) drawer.open = true;
+
+    drawer.ontoggle = () => {
+        localStorage.setItem("schedule-assistant-matrix-drawer-open", String(drawer.open));
+    };
+
+    const summary = drawer.createEl('summary', { cls: 'habit-matrix-summary' });
+    summary.style.cursor = "pointer";
+    summary.style.fontWeight = "600";
+    summary.style.color = "var(--text-accent)";
+    summary.style.display = "flex";
+    summary.style.alignItems = "center";
+    summary.style.justifyContent = "space-between";
+
+    const titleSpan = summary.createSpan();
+    titleSpan.setText(`☀️ Routine & Habit Matrix (${weekStr})`);
+
+    const dayBadge = summary.createSpan();
+    dayBadge.setText(`Today: ${dayName}`);
+    dayBadge.style.fontSize = "0.8em";
+    dayBadge.style.color = "var(--text-muted)";
+
+    const content = drawer.createDiv({ cls: 'habit-matrix-content' });
+    content.style.marginTop = "8px";
+    content.style.maxHeight = "340px";
+    content.style.overflowY = "auto";
+
+    const sectionsToRender = [
+        { name: "Mornings", label: "☀️ Morning Routine & Exercises", regex: /(##\s*Mornings[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
+        { name: "Work", label: "💼 Work Checklist", regex: /(##\s*Work[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
+        { name: "House", label: "🏡 House & Chores", regex: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i }
+    ];
+
+    for (const sec of sectionsToRender) {
+        const secMatch = text.match(sec.regex);
+        if (!secMatch) continue;
+
+        const tableLines = secMatch[2].trim().split(/\r?\n/).filter((l: string) => l.trim().startsWith("|"));
+        if (tableLines.length < 3) continue;
+
+        const rawHeaders = tableLines[0].split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
+        const dataRows = tableLines.slice(2).map((line: string) => {
+            return line.split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
+        });
+
+        const secHeading = content.createDiv({ style: "font-weight: 600; font-size: 0.9em; margin: 8px 0 4px 0; color: var(--text-normal);" });
+        secHeading.setText(sec.label);
+
+        const table = content.createEl("table", { style: "width: 100%; border-collapse: collapse; font-size: 0.85em; margin-bottom: 8px;" });
+        const thead = table.createEl("thead");
+        const hRow = thead.createEl("tr");
+        rawHeaders.forEach((h: string, colIdx: number) => {
+            const th = hRow.createEl("th", { style: `padding: 4px; border-bottom: 1px solid var(--background-modifier-border); text-align: ${colIdx === 0 ? "left" : "center"};` });
+            const isToday = h.toLowerCase() === dayName.toLowerCase();
+            if (isToday) {
+                th.setText(`👉 ${h}`);
+                th.style.color = "var(--text-accent)";
+                th.style.fontWeight = "bold";
+                th.style.backgroundColor = "var(--background-modifier-hover)";
+            } else {
+                th.setText(h);
+            }
+        });
+
+        const tbody = table.createEl("tbody");
+        dataRows.forEach((row: string[], rowIdx: number) => {
+            const tr = tbody.createEl("tr", { style: "border-bottom: 1px solid var(--background-modifier-border-hover);" });
+            row.forEach((cellText: string, colIdx: number) => {
+                const td = tr.createEl("td", { style: `padding: 4px; text-align: ${colIdx === 0 ? "left" : "center"};` });
+                const isToday = rawHeaders[colIdx] && rawHeaders[colIdx].toLowerCase() === dayName.toLowerCase();
+                if (isToday) {
+                    td.style.backgroundColor = "var(--background-modifier-hover)";
+                }
+
+                if (colIdx === 0) {
+                    td.setText(cellText.replace(/<br>/gi, " ").replace(/\*/g, ""));
+                } else if (cellText.includes("N/A") || cellText === "—") {
+                    td.createSpan({ text: "—", style: "color: var(--text-faint);" });
+                } else {
+                    const isChecked = cellText.includes("[x]") || cellText.includes("[X]");
+                    const cb = td.createEl("input", { type: "checkbox" });
+                    cb.checked = isChecked;
+                    cb.style.cursor = "pointer";
+                    cb.style.verticalAlign = "middle";
+
+                    cb.onchange = async () => {
+                        const nowChecked = cb.checked;
+                        try {
+                            const curText = await app.vault.read(tFile);
+                            const curMatch = curText.match(sec.regex);
+                            if (!curMatch) return;
+
+                            const curLines = curMatch[2].trim().split(/\r?\n/);
+                            const tIndices: number[] = [];
+                            curLines.forEach((l: string, idx: number) => {
+                                if (l.trim().startsWith("|")) tIndices.push(idx);
+                            });
+
+                            const targetLineIdx = tIndices[2 + rowIdx];
+                            if (targetLineIdx !== undefined) {
+                                const rowCells = curLines[targetLineIdx].split("|");
+                                if (rowCells[colIdx + 1] && !rowCells[colIdx + 1].includes("N/A")) {
+                                    rowCells[colIdx + 1] = nowChecked ? " [x] " : " [ ] ";
+                                    curLines[targetLineIdx] = rowCells.join("|");
+                                    const newSecBlock = curLines.join("\n");
+                                    const newText = curText.replace(curMatch[2].trim(), newSecBlock);
+                                    await app.vault.modify(tFile, newText);
+                                    new Notice(`Updated ${row[0]} (${rawHeaders[colIdx]}): ${nowChecked ? "Done" : "Pending"}`);
+                                }
+                            }
+                        } catch (err: any) {
+                            console.error("Failed to update weekly habit matrix:", err);
+                        }
+                    };
+                }
+            });
+        });
+    }
 }

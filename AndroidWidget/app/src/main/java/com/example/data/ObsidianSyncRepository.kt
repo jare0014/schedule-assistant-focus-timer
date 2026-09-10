@@ -602,9 +602,16 @@ class ObsidianSyncRepository(private val context: Context) {
                 val isPaused = timerObj.optBoolean("isPaused", false)
                 prefs.activeTimerIsPaused = isPaused
                 
+                val serverNow = obj.optLong("serverNow", 0L)
                 val targetEnd = timerObj.optLong("targetEndTime", 0L)
                 if (targetEnd > 0L && !isPaused) {
-                    prefs.activeTimerTargetEndTime = targetEnd
+                    if (serverNow > 0L) {
+                        // Eliminate clock skew drift between PC host and Android device
+                        val clockSkew = System.currentTimeMillis() - serverNow
+                        prefs.activeTimerTargetEndTime = targetEnd + clockSkew
+                    } else {
+                        prefs.activeTimerTargetEndTime = System.currentTimeMillis() + (remainingSecs * 1000L)
+                    }
                 } else if (!isPaused && remainingSecs > 0) {
                     prefs.activeTimerTargetEndTime = System.currentTimeMillis() + (remainingSecs * 1000L)
                 } else {

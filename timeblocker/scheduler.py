@@ -146,7 +146,8 @@ def generate_schedule(
            
            ### ⏱️ Focus Blocks
            (Include complex, high-effort tasks, deep work, learning, projects, and structured Routine/Habit blocks—such as Morning Routine, Midday Routine, and Evening Routine from Todoist or Daily Note—taking 20 minutes or longer.
-           IMPORTANT: Both Work sections, all House project items, and all Routine sections (Morning, Midday, Evening) MUST be scheduled as timed Focus Blocks! Create a SEPARATE, dedicated Focus Block for EACH section/project. Do NOT merge or pile separate project sections into a single task!)
+           IMPORTANT: Both Work sections, all House project items, and all Routine sections (Morning, Midday, Evening) MUST be scheduled as timed Focus Blocks! Create a SEPARATE, dedicated Focus Block for EACH section/project. Do NOT merge or pile separate project sections into a single task!
+           CRITICAL DEDUPLICATION: You must NEVER generate duplicate time blocks for the same routine or focus category. There must only ever be at most ONE Morning Routine, ONE Midday Routine, ONE Evening Routine, ONE House block, and up to TWO Work blocks. If a routine or focus block is already present in 'Existing Tasks from my Daily Note', reuse that single block and nest any corresponding tasks under it. NEVER output multiple blocks for the same routine!)
            
            ### ☁️ Floating Micro-Tasks (Untimed)
            (Include all fast administrative items, quick emails, and simple 5-10 minute micro-chores taking under 20 minutes. Do NOT include Routine or Habit blocks here—routines must be scheduled as Focus Blocks above.

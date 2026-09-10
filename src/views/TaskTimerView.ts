@@ -750,16 +750,33 @@ export class TaskTimerView extends ItemView {
             const currentTask = this.currentTimer.task;
             if (!currentTask) return null;
 
+            const now = new Date();
+            let nowMinutes = now.getHours() * 60 + now.getMinutes();
+            if (now.getHours() < 5) nowMinutes += 1440;
+
+            // 1. If currently inside an active timed focus block and the timer is running on a subtask or different item,
+            // default "Next Task" to the current active focus block!
+            const activeBlock = allTasks.find(t =>
+                !t.isUntimed &&
+                t.startMinutes !== null &&
+                t.endMinutes !== null &&
+                nowMinutes >= t.startMinutes &&
+                nowMinutes < t.endMinutes &&
+                t.lineIndex !== currentTask.lineIndex
+            );
+            if (activeBlock) {
+                return activeBlock;
+            }
+
             let referenceMinutes = currentTask.startMinutes;
             if (referenceMinutes === undefined || referenceMinutes === null) {
-                const now = new Date();
-                referenceMinutes = now.getHours() * 60 + now.getMinutes();
+                referenceMinutes = nowMinutes;
             }
 
             allTasks.sort((a, b) => (a.startMinutes || 0) - (b.startMinutes || 0));
 
             for (const task of allTasks) {
-                if ((task.startMinutes || 0) > referenceMinutes && task.lineIndex !== currentTask.lineIndex) {
+                if (!task.isUntimed && (task.startMinutes || 0) > referenceMinutes && task.lineIndex !== currentTask.lineIndex) {
                     return task;
                 }
             }
@@ -767,6 +784,37 @@ export class TaskTimerView extends ItemView {
             console.error("Failed to parse next scheduled task:", e);
         }
         return null;
+    }
+
+    public async getDailyMediaLinks(): Promise<{ label: string, url: string, isInternal: boolean }[]> {
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return [];
+        const results: { label: string, url: string, isInternal: boolean }[] = [];
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            // Match markdown external links [Title](URL)
+            const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+            let match;
+            while ((match = mdLinkRegex.exec(content)) !== null) {
+                const label = match[1].trim();
+                const url = match[2].trim();
+                if (!label.toLowerCase().includes("src") && !label.toLowerCase().includes("button") && !results.some(r => r.url === url)) {
+                    results.push({ label, url, isInternal: false });
+                }
+            }
+            // Match internal links [[Note|Title]] or [[Note]]
+            const wikiRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+            while ((match = wikiRegex.exec(content)) !== null) {
+                const noteName = match[1].trim();
+                const alias = match[2] ? match[2].trim() : noteName;
+                if (noteName.toLowerCase().includes("podcast") || noteName.toLowerCase().includes("music") || noteName.toLowerCase().includes("audio") || noteName.toLowerCase().includes("meditation")) {
+                    results.push({ label: alias, url: noteName, isInternal: true });
+                }
+            }
+        } catch (e) {
+            console.error("Failed to parse daily media links:", e);
+        }
+        return results;
     }
 
     public renderTimer(): void {
@@ -791,7 +839,7 @@ export class TaskTimerView extends ItemView {
 
         const controls = timerContainer.createDiv({ cls: 'timer-controls' });
 
-        this.pauseBtn = controls.createEl('button', { cls: 'timer-btn', text: 'Pause' });
+        this.pauseBtn = controls.createEl('button', { cls: 'timer-btn', text: this.currentTimer.isPaused ? 'Resume' : 'Pause' });
         this.pauseBtn.onclick = () => this.togglePause();
 
         const completeBtn = controls.createEl('button', { cls: 'timer-btn primary', text: 'Complete' });
@@ -799,6 +847,38 @@ export class TaskTimerView extends ItemView {
 
         const cancelBtn = controls.createEl('button', { cls: 'timer-btn warning', text: 'Cancel' });
         cancelBtn.onclick = () => this.cancelTimer();
+
+        // Media / Audio focus track selector from daily note
+        const mediaBar = timerContainer.createDiv({
+            cls: 'timer-media-bar',
+            style: 'margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px;'
+        });
+        mediaBar.createSpan({ text: '🎵 Focus Audio:' });
+        const mediaSelect = mediaBar.createEl('select', { cls: 'timer-media-select', style: 'max-width: 140px; font-size: 12px;' });
+        mediaSelect.createEl('option', { value: '', text: 'None' });
+        const launchBtn = mediaBar.createEl('button', { cls: 'timer-btn-media', text: '▶️ Play', title: 'Launch audio/media for this session' });
+        launchBtn.style.padding = '2px 8px';
+        launchBtn.style.fontSize = '12px';
+
+        this.getDailyMediaLinks().then(links => {
+            links.forEach(link => {
+                const opt = mediaSelect.createEl('option', { value: link.url, text: link.label });
+                opt.setAttribute('data-internal', link.isInternal ? 'true' : 'false');
+            });
+        });
+
+        launchBtn.onclick = () => {
+            const selectedVal = mediaSelect.value;
+            if (!selectedVal) return;
+            const selectedOpt = mediaSelect.selectedOptions[0];
+            const isInternal = selectedOpt?.getAttribute('data-internal') === 'true';
+            if (isInternal) {
+                this.app.workspace.openLinkText(selectedVal, '', false);
+            } else {
+                window.open(selectedVal, '_blank');
+            }
+            new Notice(`Launched media: ${selectedOpt?.text || selectedVal}`, 3000);
+        };
 
         const nextTaskEl = timerContainer.createDiv({
             cls: 'timer-next-task-container',
@@ -811,7 +891,12 @@ export class TaskTimerView extends ItemView {
                 const startH12 = nextTask.startHour % 12 === 0 ? 12 : nextTask.startHour % 12;
                 const startMStr = String(nextTask.startMin).padStart(2, '0');
                 const startAmpm = nextTask.startHour >= 12 ? 'PM' : 'AM';
-                nextTaskEl.innerHTML = `⏭️ <strong>Next:</strong> ${nextTask.description} <span style="color: var(--text-accent); font-family: monospace;">(${startH12}:${startMStr} ${startAmpm})</span>`;
+                const now = new Date();
+                let nowMinutes = now.getHours() * 60 + now.getMinutes();
+                if (now.getHours() < 5) nowMinutes += 1440;
+                const isCurrent = nextTask.startMinutes !== null && nextTask.endMinutes !== null && nowMinutes >= nextTask.startMinutes && nowMinutes < nextTask.endMinutes;
+                const prefix = isCurrent ? "▶️ <strong>Active Block:</strong>" : "⏭️ <strong>Next:</strong>";
+                nextTaskEl.innerHTML = `${prefix} ${nextTask.description} <span style="color: var(--text-accent); font-family: monospace;">(${startH12}:${startMStr} ${startAmpm})</span>`;
             } else {
                 nextTaskEl.innerHTML = `⏭️ <strong>Next:</strong> None scheduled`;
             }
@@ -991,6 +1076,17 @@ export class TaskTimerView extends ItemView {
             } else {
                 await this.startTimer(taskName, parseInt(this.plugin.settings.defaultDuration));
             }
+        };
+
+        const takeBreakBtn = controls.createEl('button', { cls: 'alarm-btn info', text: '☕ Take 5m Break' });
+        takeBreakBtn.onclick = async () => {
+            this.stopAlarm();
+            if (typeof task === 'object' && task !== null) {
+                await this.endActiveTask(task);
+            } else if (typeof task === 'string') {
+                await this.endActiveTask({ description: task });
+            }
+            await this.startTimer("☕ Focus Break & Recharge", 5);
         };
 
         const rescheduleBtn = controls.createEl('button', { cls: 'alarm-btn warning', text: 'Reschedule' });

@@ -113,20 +113,26 @@ export class TimerEngineService {
     ): ActiveTimerState {
         const totalSecs = Math.max(1, Math.round(durationMinutes * 60));
         const taskObj: TaskItem | null = typeof task === 'object' ? task : null;
+        const now = Date.now();
+        let targetEndTime = now + (totalSecs * 1000);
 
         const timer: ActiveTimerState = {
             task: taskObj,
             totalSeconds: totalSecs,
             remainingSeconds: totalSecs,
             isPaused: false,
-            startTime: Date.now(),
+            startTime: now,
             intervalId: null
         };
 
         timer.intervalId = setInterval(() => {
-            if (timer.isPaused) return;
+            if (timer.isPaused) {
+                targetEndTime = Date.now() + (timer.remainingSeconds * 1000);
+                return;
+            }
 
-            timer.remainingSeconds--;
+            const remaining = Math.max(0, Math.ceil((targetEndTime - Date.now()) / 1000));
+            timer.remainingSeconds = remaining;
             onTick(timer);
 
             if (timer.remainingSeconds <= 0) {
