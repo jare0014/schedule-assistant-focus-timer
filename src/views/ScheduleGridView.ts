@@ -217,6 +217,8 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
         }
     };
 
+    const weeklyData = await loadTodayWeeklyHabits(viewInstance.app);
+
     const sortedTasks = [...timedTasks].sort((a, b) => {
         const aStart = (a.startHour ?? 0) * 60 + (a.startMin ?? 0);
         const bStart = (b.startHour ?? 0) * 60 + (b.startMin ?? 0);
@@ -231,140 +233,231 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
         task.calcEndMins = Math.max(taskStart + 15, taskEnd);
     });
 
-    const columns: any[][] = [];
+    // Group overlapping tasks into connected clusters
+    const clusters: any[][] = [];
+    let currentCluster: any[] = [];
+    let clusterEnd = -1;
+
     sortedTasks.forEach((task: any) => {
-        let placed = false;
-        for (const col of columns) {
-            const overlaps = col.some(ex => task.calcStartMins < ex.calcEndMins && task.calcEndMins > ex.calcStartMins);
-            if (!overlaps) {
-                col.push(task);
-                placed = true;
-                break;
-            }
-        }
-        if (!placed) {
-            columns.push([task]);
+        if (currentCluster.length === 0) {
+            currentCluster.push(task);
+            clusterEnd = task.calcEndMins;
+        } else if (task.calcStartMins < clusterEnd) {
+            // Overlaps with current cluster
+            currentCluster.push(task);
+            clusterEnd = Math.max(clusterEnd, task.calcEndMins);
+        } else {
+            // New cluster
+            clusters.push(currentCluster);
+            currentCluster = [task];
+            clusterEnd = task.calcEndMins;
         }
     });
+    if (currentCluster.length > 0) {
+        clusters.push(currentCluster);
+    }
 
-    const totalCols = columns.length || 1;
+    // Within each cluster, pack tasks into columns
+    clusters.forEach(cluster => {
+        const clusterCols: any[][] = [];
+        cluster.forEach(task => {
+            let placed = false;
+            for (let i = 0; i < clusterCols.length; i++) {
+                const col = clusterCols[i];
+                const overlaps = col.some(ex => task.calcStartMins < ex.calcEndMins && task.calcEndMins > ex.calcStartMins);
+                if (!overlaps) {
+                    col.push(task);
+                    task.colIndex = i;
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                task.colIndex = clusterCols.length;
+                clusterCols.push([task]);
+            }
+        });
+        const numCols = clusterCols.length;
+        cluster.forEach(task => {
+            task.totalCols = numCols;
+        });
+    });
+
     const fmtHM = (h: number | null, m: number | null) => {
         if (h === null || m === null) return "";
         const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
         return `${dh}:${m < 10 ? '0' + m : m}${h >= 12 ? 'pm' : 'am'}`;
     };
 
-    columns.forEach((colTasks, colIndex) => {
-        colTasks.forEach((task: any) => {
-            const startMinsFromMinHour = task.calcStartMins - (minHour * 60);
-            const durationMins = task.calcEndMins - task.calcStartMins;
+    sortedTasks.forEach((task: any) => {
+        const startMinsFromMinHour = task.calcStartMins - (minHour * 60);
+        const durationMins = task.calcEndMins - task.calcStartMins;
 
-            const topPx = Math.max(0, startMinsFromMinHour * (hourHeight / 60));
-            let heightPx = Math.max(28, durationMins * (hourHeight / 60));
+        const topPx = Math.max(0, startMinsFromMinHour * (hourHeight / 60));
+        let heightPx = Math.max(28, durationMins * (hourHeight / 60));
 
-            const card = canvas.createDiv({ cls: `timeblock-card${task.status === 'completed' ? ' completed' : ''}` });
-            card.style.top = `${topPx}px`;
+        const card = canvas.createDiv({ cls: `timeblock-card${task.status === 'completed' ? ' completed' : ''}` });
+        card.style.top = `${topPx}px`;
 
-            const widthPercent = 100 / totalCols;
-            const leftPercent = colIndex * widthPercent;
-            card.style.left = `calc(${leftPercent}% + 2px)`;
-            card.style.width = `calc(${widthPercent}% - 4px)`;
+        const totalCols = task.totalCols || 1;
+        const colIndex = task.colIndex || 0;
+        const widthPercent = 100 / totalCols;
+        const leftPercent = colIndex * widthPercent;
+        card.style.left = `calc(${leftPercent}% + 2px)`;
+        card.style.width = `calc(${widthPercent}% - 4px)`;
 
-            // Enable Dragging on Grid Cards
-            card.setAttribute('draggable', 'true');
-            card.ondragstart = (e) => {
-                card.addClass('dragging');
-                e.dataTransfer?.setData("text/plain", JSON.stringify({
-                    lineIndex: task.lineIndex,
-                    description: task.description,
-                    isUntimed: false,
-                    duration: durationMins,
-                    startHour: task.startHour,
-                    startMin: task.startMin,
-                    endHour: task.endHour,
-                    endMin: task.endMin
-                }));
-            };
-            card.ondragend = () => {
-                card.removeClass('dragging');
-                if (dropPreview) {
-                    dropPreview.remove();
-                    dropPreview = null;
-                }
-            };
+        // Enable Dragging on Grid Cards
+        card.setAttribute('draggable', 'true');
+        card.ondragstart = (e) => {
+            card.addClass('dragging');
+            e.dataTransfer?.setData("text/plain", JSON.stringify({
+                lineIndex: task.lineIndex,
+                description: task.description,
+                isUntimed: false,
+                duration: durationMins,
+                startHour: task.startHour,
+                startMin: task.startMin,
+                endHour: task.endHour,
+                endMin: task.endMin
+            }));
+        };
+        card.ondragend = () => {
+            card.removeClass('dragging');
+            if (dropPreview) {
+                dropPreview.remove();
+                dropPreview = null;
+            }
+        };
 
-            const cardHeader = card.createDiv({ cls: 'timeblock-card-header' });
-            cardHeader.createDiv({ cls: 'timeblock-card-title', text: task.description });
+        const cardHeader = card.createDiv({ cls: 'timeblock-card-header' });
+        cardHeader.createDiv({ cls: 'timeblock-card-title', text: task.description });
 
-            const controls = cardHeader.createDiv({ cls: 'timeblock-card-controls' });
-            const cb = controls.createEl('input', { type: 'checkbox' });
-            cb.checked = task.status === 'completed';
-            cb.onclick = async (e) => {
-                e.stopPropagation();
-                await viewInstance.toggleTaskCompletion(task, cb.checked);
-            };
+        const controls = cardHeader.createDiv({ cls: 'timeblock-card-controls' });
+        const cb = controls.createEl('input', { type: 'checkbox' });
+        cb.checked = task.status === 'completed';
+        cb.onclick = async (e) => {
+            e.stopPropagation();
+            await viewInstance.toggleTaskCompletion(task, cb.checked);
+        };
 
-            const playBtn = controls.createEl('button', { cls: 'timeblock-play-btn', text: '▶', title: 'Start Focus Session' });
-            playBtn.onclick = (e) => {
-                e.stopPropagation();
-                viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
-            };
+        const playBtn = controls.createEl('button', { cls: 'timeblock-play-btn', text: '▶', title: 'Start Focus Session' });
+        playBtn.onclick = (e) => {
+            e.stopPropagation();
+            viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+        };
 
-            const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
-            delBtn.onclick = async (e) => {
-                e.stopPropagation();
-                await viewInstance.deleteTaskBlock(task);
-            };
+        const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
+        delBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await viewInstance.deleteTaskBlock(task);
+        };
 
-            const cardTime = card.createDiv({ cls: 'timeblock-card-time' });
-            const timeStr = `${fmtHM(task.startHour, task.startMin)} – ${fmtHM(task.endHour, task.endMin)}`;
-            cardTime.createSpan({ text: timeStr });
-            cardTime.createSpan({ cls: 'timeblock-duration-badge', text: `${durationMins}m` });
+        const cardTime = card.createDiv({ cls: 'timeblock-card-time' });
+        const timeStr = `${fmtHM(task.startHour, task.startMin)} – ${fmtHM(task.endHour, task.endMin)}`;
+        cardTime.createSpan({ text: timeStr });
+        cardTime.createSpan({ cls: 'timeblock-duration-badge', text: `${durationMins}m` });
 
-            // Render nested subtasks if any exist for this task
-            const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
-            if (subtasks.length > 0) {
-                const subtasksContainer = card.createDiv({ cls: 'timeblock-subtasks-container' });
-                subtasks.forEach(subtask => {
-                    const subtaskEl = subtasksContainer.createDiv({
-                        cls: `timeblock-subtask-item${subtask.status === 'completed' ? ' completed' : ''}`
-                    });
-
-                    const subCb = subtaskEl.createEl('input', { type: 'checkbox' });
-                    subCb.checked = subtask.status === 'completed';
-                    subCb.onclick = async (e) => {
-                        e.stopPropagation();
-                        await viewInstance.toggleTaskCompletion(subtask, subCb.checked);
-                    };
-
-                    subtaskEl.createDiv({ cls: 'timeblock-subtask-title', text: subtask.description });
-
-                    if (subtask.status !== 'completed') {
-                        const subPlayBtn = subtaskEl.createEl('button', {
-                            cls: 'timeblock-subtask-play-btn',
-                            text: '▶',
-                            title: 'Start Subtask Timer'
-                        });
-                        subPlayBtn.onclick = (e) => {
-                            e.stopPropagation();
-                            viewInstance.startTimer(subtask, subtask.duration || 15);
-                        };
-                    }
+        // Render nested subtasks if any exist for this task in daily note
+        const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
+        if (subtasks.length > 0) {
+            const subtasksContainer = card.createDiv({ cls: 'timeblock-subtasks-container' });
+            subtasks.forEach(subtask => {
+                const subtaskEl = subtasksContainer.createDiv({
+                    cls: `timeblock-subtask-item${subtask.status === 'completed' ? ' completed' : ''}`
                 });
 
-                const minRequiredHeight = 48 + (subtasks.length * 28);
-                if (heightPx < minRequiredHeight) {
+                const subCb = subtaskEl.createEl('input', { type: 'checkbox' });
+                subCb.checked = subtask.status === 'completed';
+                subCb.onclick = async (e) => {
+                    e.stopPropagation();
+                    await viewInstance.toggleTaskCompletion(subtask, subCb.checked);
+                };
+
+                subtaskEl.createDiv({ cls: 'timeblock-subtask-title', text: subtask.description });
+
+                if (subtask.status !== 'completed') {
+                    const subPlayBtn = subtaskEl.createEl('button', {
+                        cls: 'timeblock-subtask-play-btn',
+                        text: '▶',
+                        title: 'Start Subtask Timer'
+                    });
+                    subPlayBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        viewInstance.startTimer(subtask, subtask.duration || 15);
+                    };
+                }
+            });
+
+            const minRequiredHeight = 48 + (subtasks.length * 28);
+            if (heightPx < minRequiredHeight) {
+                heightPx = minRequiredHeight;
+            }
+        } else if (weeklyData && weeklyData.tFile) {
+            // Check if this card matches a weekly routine/habit section
+            const secKey = getHabitSectionKey(task.description);
+            const habits = secKey ? weeklyData.habitsBySection[secKey] : null;
+
+            if (habits && habits.length > 0) {
+                const habitsContainer = card.createDiv({ cls: 'timeblock-subtasks-container timeblock-habits-container' });
+                habitsContainer.style.maxHeight = '240px';
+                habitsContainer.style.overflowY = 'auto';
+
+                habits.forEach(habit => {
+                    const habitItemEl = habitsContainer.createDiv({
+                        cls: `timeblock-subtask-item${habit.completed ? ' completed' : ''}`
+                    });
+
+                    const habitCb = habitItemEl.createEl('input', { type: 'checkbox' });
+                    habitCb.checked = habit.completed;
+                    habitCb.onclick = async (e) => {
+                        e.stopPropagation();
+                        const nowChecked = habitCb.checked;
+                        try {
+                            const curText = await viewInstance.app.vault.read(weeklyData.tFile);
+                            const curMatch = curText.match(habit.secRegex);
+                            if (!curMatch) return;
+
+                            const curLines = curMatch[2].trim().split(/\r?\n/);
+                            const tIndices: number[] = [];
+                            curLines.forEach((l: string, idx: number) => {
+                                if (l.trim().startsWith("|")) tIndices.push(idx);
+                            });
+
+                            const targetLineIdx = tIndices[2 + habit.rowIdx];
+                            if (targetLineIdx !== undefined) {
+                                const rowCells = curLines[targetLineIdx].split("|");
+                                if (rowCells[habit.colIdx + 1] && !rowCells[habit.colIdx + 1].includes("N/A")) {
+                                    rowCells[habit.colIdx + 1] = nowChecked ? " [x] " : " [ ] ";
+                                    curLines[targetLineIdx] = rowCells.join("|");
+                                    const newSecBlock = curLines.join("\n");
+                                    const newText = curText.replace(curMatch[2].trim(), newSecBlock);
+                                    await viewInstance.app.vault.modify(weeklyData.tFile, newText);
+                                    habitItemEl.toggleClass('completed', nowChecked);
+                                    new Notice(`Updated ${habit.name}: ${nowChecked ? "Done" : "Pending"}`);
+                                }
+                            }
+                        } catch (err: any) {
+                            console.error("Failed to update weekly habit item:", err);
+                        }
+                    };
+
+                    habitItemEl.createDiv({ cls: 'timeblock-subtask-title', text: habit.name });
+                });
+
+                const naturalHeight = Math.max(28, durationMins * (hourHeight / 60));
+                const minRequiredHeight = 48 + (Math.min(habits.length, 6) * 26);
+                if (naturalHeight < minRequiredHeight) {
                     heightPx = minRequiredHeight;
                 }
             }
+        }
 
-            card.style.height = `${heightPx}px`;
+        card.style.height = `${heightPx}px`;
 
-            card.onclick = () => {
-                if (card.hasClass('dragging')) return;
-                viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
-            };
-        });
+        card.onclick = () => {
+            if (card.hasClass('dragging')) return;
+            viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+        };
     });
 
     let targetScroll = 0;
@@ -535,3 +628,87 @@ async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLEle
         });
     }
 }
+
+interface HabitItemForDay {
+    name: string;
+    completed: boolean;
+    secRegex: RegExp;
+    rowIdx: number;
+    colIdx: number;
+}
+
+async function loadTodayWeeklyHabits(app: any): Promise<{
+    habitsBySection: { [sectionKey: string]: HabitItemForDay[] };
+    tFile: TFile | null;
+}> {
+    const moment = (window as any).moment;
+    if (!moment || !app?.vault) return { habitsBySection: {}, tFile: null };
+
+    const currentMoment = moment();
+    const weekStr = currentMoment.format("YYYY-[W]WW");
+    const dayName = currentMoment.format("dddd");
+    const filePath = `02_Journal/02_Weekly/${weekStr}.md`;
+
+    const tFile = app.vault.getAbstractFileByPath(filePath) as TFile;
+    if (!tFile) return { habitsBySection: {}, tFile: null };
+
+    let text = "";
+    try {
+        text = await app.vault.read(tFile);
+    } catch {
+        return { habitsBySection: {}, tFile: null };
+    }
+
+    const sections = [
+        { key: "morning", regex: /(##\s*Mornings[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
+        { key: "work", regex: /(##\s*Work[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
+        { key: "house", regex: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i }
+    ];
+
+    const habitsBySection: { [sectionKey: string]: HabitItemForDay[] } = {};
+
+    for (const sec of sections) {
+        const secMatch = text.match(sec.regex);
+        if (!secMatch) continue;
+
+        const tableLines = secMatch[2].trim().split(/\r?\n/).filter((l: string) => l.trim().startsWith("|"));
+        if (tableLines.length < 3) continue;
+
+        const rawHeaders = tableLines[0].split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
+        const dayColIdx = rawHeaders.findIndex(h => h.toLowerCase() === dayName.toLowerCase());
+        if (dayColIdx === -1) continue;
+
+        const dataRows = tableLines.slice(2).map((line: string) => {
+            return line.split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
+        });
+
+        const list: HabitItemForDay[] = [];
+        dataRows.forEach((row: string[], rowIdx: number) => {
+            const taskName = row[0].replace(/<br>/gi, " ").replace(/\*/g, "").trim();
+            const cellText = row[dayColIdx];
+            if (!cellText || cellText.includes("N/A") || cellText === "—") return;
+
+            const isChecked = cellText.includes("[x]") || cellText.includes("[X]");
+            list.push({
+                name: taskName,
+                completed: isChecked,
+                secRegex: sec.regex,
+                rowIdx: rowIdx,
+                colIdx: dayColIdx
+            });
+        });
+
+        habitsBySection[sec.key] = list;
+    }
+
+    return { habitsBySection, tFile };
+}
+
+function getHabitSectionKey(description: string): string | null {
+    const d = description.toLowerCase();
+    if (d.includes("morning")) return "morning";
+    if (d.includes("house") || d.includes("chore")) return "house";
+    if (d.includes("work")) return "work";
+    return null;
+}
+
