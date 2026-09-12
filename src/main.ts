@@ -11,6 +11,7 @@ import { FocusLogService } from './services/FocusLogService';
 import { ExternalTaskSyncService } from './services/ExternalTaskSyncService';
 import { PythonSchedulerRunner } from './services/PythonSchedulerRunner';
 import { RemoteServerService } from './services/RemoteServerService';
+import { FocusAudioService } from './services/FocusAudioService';
 import { TaskTimerView } from './views/TaskTimerView';
 import { OmniLoggerModal } from './views/OmniLoggerModal';
 import { TaskTimerSettingTab } from './settings/TaskTimerSettingTab';
@@ -26,6 +27,7 @@ export default class TaskTimerPlugin extends Plugin {
     public externalTaskSyncService!: ExternalTaskSyncService;
     public pythonSchedulerRunner!: PythonSchedulerRunner;
     public remoteServerService!: RemoteServerService;
+    public focusAudioService!: FocusAudioService;
 
     async onload(): Promise<void> {
         await this.loadSettings();
@@ -48,6 +50,11 @@ export default class TaskTimerPlugin extends Plugin {
             this.app,
             () => this,
             () => this.settings
+        );
+        this.focusAudioService = new FocusAudioService(
+            this.app,
+            () => this.settings,
+            () => this.saveSettings()
         );
 
         this.pythonSchedulerRunner.ensureVenv();
@@ -188,6 +195,9 @@ export default class TaskTimerPlugin extends Plugin {
     }
 
     async onunload(): Promise<void> {
+        if (this.focusAudioService) {
+            this.focusAudioService.stop();
+        }
         if (this.clickTracker) {
             window.removeEventListener('click', this.clickTracker, true);
         }

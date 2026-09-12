@@ -6,6 +6,7 @@ import { ItemView, WorkspaceLeaf, Notice, TFile } from 'obsidian';
 import { VIEW_TYPE_TASK_TIMER, TaskItem } from '../types';
 import { DailyNoteManager } from '../services/DailyNoteManager';
 import { TaskParserService } from '../services/TaskParserService';
+import { FocusAudioService, FocusTrackItem } from '../services/FocusAudioService';
 import { renderScheduleGridView } from './ScheduleGridView';
 
 export class TaskTimerView extends ItemView {
@@ -19,6 +20,7 @@ export class TaskTimerView extends ItemView {
 
     private timeTextEl: HTMLElement | null = null;
     private pauseBtn: HTMLButtonElement | null = null;
+    private audioUnsubscribe: (() => void) | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: any) {
         super(leaf);
@@ -42,6 +44,10 @@ export class TaskTimerView extends ItemView {
     }
 
     async onClose(): Promise<void> {
+        if (this.audioUnsubscribe) {
+            this.audioUnsubscribe();
+            this.audioUnsubscribe = null;
+        }
         this.clearTimer();
         this.stopAlarm();
     }
@@ -677,6 +683,10 @@ export class TaskTimerView extends ItemView {
 
         this.renderTimer();
 
+        if (this.plugin.focusAudioService) {
+            this.plugin.focusAudioService.onTimerStart(taskName);
+        }
+
         if (this.timerInterval) clearInterval(this.timerInterval);
         this.timerInterval = setInterval(async () => {
             if (this.currentTimer && !this.currentTimer.isPaused) {
@@ -714,6 +724,9 @@ export class TaskTimerView extends ItemView {
         const taskObj = this.currentTimer ? this.currentTimer.task : null;
         const taskName = this.currentTimer ? this.currentTimer.taskName : "Focus Block";
 
+        if (this.plugin.focusAudioService) {
+            this.plugin.focusAudioService.onTimerComplete();
+        }
         this.clearTimer();
         this.currentTimer = null;
         if (this.plugin.focusLogService) {
@@ -730,6 +743,9 @@ export class TaskTimerView extends ItemView {
 
     public async cancelTimer(): Promise<void> {
         const taskName = this.currentTimer ? this.currentTimer.taskName : "Focus Block";
+        if (this.plugin.focusAudioService) {
+            this.plugin.focusAudioService.onTimerCancel();
+        }
         this.clearTimer();
         this.currentTimer = null;
         if (this.plugin.focusLogService) {
@@ -848,37 +864,8 @@ export class TaskTimerView extends ItemView {
         const cancelBtn = controls.createEl('button', { cls: 'timer-btn warning', text: 'Cancel' });
         cancelBtn.onclick = () => this.cancelTimer();
 
-        // Media / Audio focus track selector from daily note
-        const mediaBar = timerContainer.createDiv({
-            cls: 'timer-media-bar',
-            style: 'margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px;'
-        });
-        mediaBar.createSpan({ text: '🎵 Focus Audio:' });
-        const mediaSelect = mediaBar.createEl('select', { cls: 'timer-media-select', style: 'max-width: 140px; font-size: 12px;' });
-        mediaSelect.createEl('option', { value: '', text: 'None' });
-        const launchBtn = mediaBar.createEl('button', { cls: 'timer-btn-media', text: '▶️ Play', title: 'Launch audio/media for this session' });
-        launchBtn.style.padding = '2px 8px';
-        launchBtn.style.fontSize = '12px';
-
-        this.getDailyMediaLinks().then(links => {
-            links.forEach(link => {
-                const opt = mediaSelect.createEl('option', { value: link.url, text: link.label });
-                opt.setAttribute('data-internal', link.isInternal ? 'true' : 'false');
-            });
-        });
-
-        launchBtn.onclick = () => {
-            const selectedVal = mediaSelect.value;
-            if (!selectedVal) return;
-            const selectedOpt = mediaSelect.selectedOptions[0];
-            const isInternal = selectedOpt?.getAttribute('data-internal') === 'true';
-            if (isInternal) {
-                this.app.workspace.openLinkText(selectedVal, '', false);
-            } else {
-                window.open(selectedVal, '_blank');
-            }
-            new Notice(`Launched media: ${selectedOpt?.text || selectedVal}`, 3000);
-        };
+        // Focus Audio Player Card (Timer-Synced)
+        this.renderFocusAudioCard(timerContainer);
 
         const nextTaskEl = timerContainer.createDiv({
             cls: 'timer-next-task-container',
@@ -1015,6 +1002,7 @@ export class TaskTimerView extends ItemView {
             const circle = this.contentEl.querySelector('.timer-circle-container');
             if (circle) circle.removeClass('pulsing');
             if (this.plugin.focusLogService) await this.plugin.focusLogService.logPause();
+            if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerPause();
         } else {
             const remainingMs = (this.currentTimer.pausedRemainingMs !== null && this.currentTimer.pausedRemainingMs !== undefined)
                 ? this.currentTimer.pausedRemainingMs
@@ -1025,6 +1013,7 @@ export class TaskTimerView extends ItemView {
             const circle = this.contentEl.querySelector('.timer-circle-container');
             if (circle) circle.addClass('pulsing');
             if (this.plugin.focusLogService) await this.plugin.focusLogService.logResume();
+            if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerResume();
         }
 
         if (this.plugin) {
@@ -1036,6 +1025,9 @@ export class TaskTimerView extends ItemView {
     public triggerAlarm(task: any): void {
         this.isAlarming = true;
         this.stopAlarm();
+        if (this.plugin.focusAudioService) {
+            this.plugin.focusAudioService.onTimerAlarm();
+        }
 
         const taskName = typeof task === 'object' ? task.description : task;
 
@@ -1117,5 +1109,163 @@ export class TaskTimerView extends ItemView {
         if (this.plugin.timerEngineService) {
             this.plugin.timerEngineService.stopAlarm();
         }
+    }
+
+    private renderFocusAudioCard(parent: HTMLElement): void {
+        if (!this.plugin.focusAudioService) return;
+        const audioService: FocusAudioService = this.plugin.focusAudioService;
+
+        if (this.audioUnsubscribe) {
+            this.audioUnsubscribe();
+            this.audioUnsubscribe = null;
+        }
+
+        const card = parent.createDiv({ cls: 'timer-focus-audio-card' });
+        if (audioService.isPlaying) {
+            card.addClass('is-playing');
+        }
+
+        // Row 1: Header (Title, Soundwave, AutoSync Toggle)
+        const header = card.createDiv({ cls: 'timer-audio-header' });
+        const titleGroup = header.createDiv({ cls: 'timer-audio-title-group' });
+        titleGroup.createSpan({ text: '🎵 Focus Audio' });
+
+        const waveContainer = titleGroup.createDiv({ cls: 'sound-wave-icon' });
+        waveContainer.createDiv({ cls: 'sound-wave-bar' });
+        waveContainer.createDiv({ cls: 'sound-wave-bar' });
+        waveContainer.createDiv({ cls: 'sound-wave-bar' });
+
+        const syncBadge = header.createDiv({
+            cls: `timer-audio-sync-badge${audioService.autoSyncWithTimer ? ' active' : ''}`,
+            title: 'Toggle auto play/pause synchronization with the timer'
+        });
+        syncBadge.setText(audioService.autoSyncWithTimer ? '⚡ Synced' : '⚪ Manual');
+        syncBadge.onclick = () => {
+            audioService.setAutoSync(!audioService.autoSyncWithTimer);
+        };
+
+        // Row 2: Main Row (Select dropdown, Play/Pause button, Stop button)
+        const mainRow = card.createDiv({ cls: 'timer-audio-main-row' });
+        const selectEl = mainRow.createEl('select', { cls: 'timer-audio-select' });
+        selectEl.createEl('option', { value: '', text: 'Select Focus Audio / Track...' });
+
+        const playBtn = mainRow.createEl('button', {
+            cls: `timer-audio-btn primary${audioService.isPlaying ? ' playing' : ''}`,
+            title: audioService.isPlaying ? 'Pause Audio' : 'Play Audio'
+        });
+        playBtn.setText(audioService.isPlaying ? '⏸' : '▶');
+
+        const stopBtn = mainRow.createEl('button', {
+            cls: 'timer-audio-btn',
+            title: 'Stop Audio'
+        });
+        stopBtn.setText('⏹');
+
+        // Populate track dropdown
+        const dailyFile = this.getDailyNoteFile();
+        let availableTracks: FocusTrackItem[] = [];
+        audioService.scanAvailableTracks(dailyFile).then(tracks => {
+            availableTracks = tracks;
+            tracks.forEach(track => {
+                const opt = selectEl.createEl('option', { value: track.url, text: track.label });
+                if (audioService.currentTrack?.url === track.url) {
+                    opt.selected = true;
+                }
+            });
+
+            // Pre-select track: either already selected, or Tipper, or first track
+            if (!audioService.currentTrack && tracks.length > 0) {
+                const tipperTrack = tracks.find(t => t.label.toLowerCase().includes('tipper'));
+                const defaultTrack = tipperTrack || tracks[0];
+                audioService.selectTrack(defaultTrack);
+                selectEl.value = defaultTrack.url;
+            } else if (audioService.currentTrack) {
+                selectEl.value = audioService.currentTrack.url;
+            }
+        });
+
+        selectEl.onchange = () => {
+            const selectedUrl = selectEl.value;
+            const chosen = availableTracks.find(t => t.url === selectedUrl) || null;
+            audioService.selectTrack(chosen);
+        };
+
+        playBtn.onclick = () => {
+            audioService.togglePlay();
+        };
+
+        stopBtn.onclick = () => {
+            audioService.stop();
+        };
+
+        // Row 3: Sub Row (Volume slider & Embed Drawer toggle)
+        const subRow = card.createDiv({ cls: 'timer-audio-sub-row' });
+        const volGroup = subRow.createDiv({ cls: 'timer-audio-volume-group' });
+        const muteBtn = volGroup.createEl('span', {
+            text: audioService.isMuted ? '🔇' : '🔊',
+            cls: 'timer-audio-mute-btn',
+            attr: { style: 'cursor: pointer;' }
+        });
+        muteBtn.onclick = () => {
+            audioService.toggleMute();
+        };
+
+        const volSlider = volGroup.createEl('input', {
+            type: 'range',
+            cls: 'timer-audio-vol-slider',
+            attr: { min: '0', max: '100', value: String(Math.round(audioService.volume * 100)) }
+        });
+        volSlider.oninput = () => {
+            audioService.setVolume(parseInt(volSlider.value, 10) / 100);
+        };
+
+        const drawerToggle = subRow.createEl('button', {
+            cls: 'timer-audio-toggle-embed',
+            text: 'Mini Player ▼'
+        });
+
+        // Row 4: Collapsible Embed Drawer (for YouTube / web iframe)
+        const embedDrawer = card.createDiv({ cls: 'timer-audio-embed-drawer' });
+        audioService.setContainer(embedDrawer);
+
+        drawerToggle.onclick = () => {
+            const isExpanded = embedDrawer.hasClass('expanded');
+            if (isExpanded) {
+                embedDrawer.removeClass('expanded');
+                drawerToggle.setText('Mini Player ▼');
+            } else {
+                embedDrawer.addClass('expanded');
+                drawerToggle.setText('Hide Player ▲');
+            }
+        };
+
+        // Subscribe to audioService state changes to update UI in real-time
+        this.audioUnsubscribe = audioService.onStateChange(service => {
+            if (service.isPlaying) {
+                card.addClass('is-playing');
+                playBtn.addClass('playing');
+                playBtn.setText('⏸');
+                playBtn.title = 'Pause Audio';
+            } else {
+                card.removeClass('is-playing');
+                playBtn.removeClass('playing');
+                playBtn.setText('▶');
+                playBtn.title = 'Play Audio';
+            }
+
+            syncBadge.setText(service.autoSyncWithTimer ? '⚡ Synced' : '⚪ Manual');
+            if (service.autoSyncWithTimer) {
+                syncBadge.addClass('active');
+            } else {
+                syncBadge.removeClass('active');
+            }
+
+            muteBtn.setText(service.isMuted ? '🔇' : '🔊');
+            volSlider.value = String(Math.round(service.volume * 100));
+
+            if (service.currentTrack && selectEl.value !== service.currentTrack.url) {
+                selectEl.value = service.currentTrack.url;
+            }
+        });
     }
 }
