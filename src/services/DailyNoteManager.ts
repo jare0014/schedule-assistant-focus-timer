@@ -29,13 +29,26 @@ export class DailyNoteManager {
         const day = String(now.getDate()).padStart(2, '0');
         const todayDateStr = `${year}-${month}-${day}`;
 
+        // 1. Direct path check for standard daily notes location
+        const standardPath = `02_Journal/01_Daily/${todayDateStr}.md`;
+        const directFile = app.vault.getAbstractFileByPath(standardPath);
+        if (directFile instanceof TFile) return directFile;
+
         const files = app.vault.getFiles();
 
-        let noteFile = files.find(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
-        if (noteFile) return noteFile;
+        // 2. Exact match on basename or name, preferring folder-nested daily notes over root
+        const matchingFiles = files.filter(f => f.basename === todayDateStr || f.name === `${todayDateStr}.md`);
+        if (matchingFiles.length > 0) {
+            const preferred = matchingFiles.find(f => f.path.includes('01_Daily') || f.path.includes('Daily') || f.path.includes('Journal') || f.path.includes('/'));
+            return preferred || matchingFiles[0];
+        }
 
-        noteFile = files.find(f => f.path && f.path.includes(todayDateStr));
-        if (noteFile) return noteFile;
+        // 3. Fallback path matches
+        const pathMatches = files.filter(f => f.path && f.path.includes(todayDateStr));
+        if (pathMatches.length > 0) {
+            const preferred = pathMatches.find(f => f.path.includes('01_Daily') || f.path.includes('Daily') || f.path.includes('Journal'));
+            return preferred || pathMatches[0];
+        }
 
         const activeFile = app.workspace ? app.workspace.getActiveFile() : null;
         if (activeFile && activeFile.basename === todayDateStr) {
