@@ -270,23 +270,38 @@ export class RemoteServerService {
 
                     if (view && view.currentTimer) {
                         await view.togglePause();
+                        const audioSvc = plugin.focusAudioService;
+                        const handledInternalAudio = Boolean(
+                            audioSvc &&
+                            audioSvc.autoSyncWithTimer &&
+                            audioSvc.currentTrack &&
+                            audioSvc.currentTrack.type !== 'external_web'
+                        );
                         setCorsHeaders();
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({
                             success: true,
                             isPaused: view.currentTimer.isPaused,
-                            taskName: view.currentTimer.taskName
+                            taskName: view.currentTimer.taskName,
+                            handledInternalAudio: handledInternalAudio
                         }));
                         return;
                     }
 
                     if (plugin.focusAudioService) {
                         await plugin.focusAudioService.togglePlay();
+                        const audioSvc = plugin.focusAudioService;
+                        const handledInternalAudio = Boolean(
+                            audioSvc &&
+                            audioSvc.currentTrack &&
+                            audioSvc.currentTrack.type !== 'external_web'
+                        );
                         setCorsHeaders();
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({
                             success: true,
-                            isAudioPlaying: plugin.focusAudioService.isPlaying
+                            isAudioPlaying: plugin.focusAudioService.isPlaying,
+                            handledInternalAudio: handledInternalAudio
                         }));
                         return;
                     }
