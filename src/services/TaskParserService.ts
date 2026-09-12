@@ -52,6 +52,67 @@ export class TaskParserService {
                 if (summaryMatch) currentProject = summaryMatch[1].trim();
                 if (line.includes("</details>")) currentProject = "";
 
+                if (line.trim().startsWith('```dataviewjs')) {
+                    let dvEnd = i + 1;
+                    let dvContent = '';
+                    while (dvEnd < lines.length && !lines[dvEnd].trim().startsWith('```')) {
+                        dvContent += lines[dvEnd] + '\n';
+                        dvEnd++;
+                    }
+                    if (dvContent.includes('weeklyTableTracker')) {
+                        const secMatch = dvContent.match(/section:\s*["']([^"']+)["']/i);
+                        const labelMatch = dvContent.match(/label:\s*["']([^"']+)["']/i);
+                        const startMatch = dvContent.match(/startTime:\s*["'](\d{1,2}):(\d{2})["']/i);
+                        const endMatch = dvContent.match(/endTime:\s*["'](\d{1,2}):(\d{2})["']/i);
+                        if (startMatch && endMatch && secMatch) {
+                            const sec = secMatch[1];
+                            const desc = sec.toLowerCase().includes('morning') ? 'Habits: Morning Routine' :
+                                         sec.toLowerCase().includes('house') ? 'House: Chores & Maintenance' :
+                                         sec.toLowerCase().includes('work') ? 'Work' :
+                                         (labelMatch ? labelMatch[1].replace(/^[^\w\s]+\s*/, '') : sec);
+                            const startH = parseInt(startMatch[1]);
+                            const startM = parseInt(startMatch[2]);
+                            const endH = parseInt(endMatch[1]);
+                            const endM = parseInt(endMatch[2]);
+                            let startMinutes = startH * 60 + startM;
+                            let endMinutes = endH * 60 + endM;
+                            if (startH < 5) startMinutes += 1440;
+                            if (endH < 5) endMinutes += 1440;
+                            if (endMinutes < startMinutes) endMinutes += 1440;
+                            const duration = endMinutes - startMinutes;
+
+                            const alreadyAdded = tasks.some(t => !t.isUntimed && (
+                                t.description.toLowerCase() === desc.toLowerCase() ||
+                                (Math.abs((t.startMinutes || 0) - startMinutes) < 30)
+                            ));
+                            if (!alreadyAdded) {
+                                const trackerTask: TaskItem = {
+                                    lineIndex: i,
+                                    originalLine: line,
+                                    status: 'pending',
+                                    startHour: startH,
+                                    startMin: startM,
+                                    endHour: endH,
+                                    endMin: endM,
+                                    startMinutes,
+                                    endMinutes,
+                                    duration,
+                                    description: desc,
+                                    isCalendar: false,
+                                    subheading: currentSubheading || '### ⏱️ Focus Blocks',
+                                    rawDesc: desc,
+                                    isUntimed: false,
+                                    project: currentProject || desc
+                                };
+                                tasks.push(trackerTask);
+                                if (!isIndented) lastParentTask = trackerTask;
+                            }
+                        }
+                    }
+                    i = dvEnd;
+                    continue;
+                }
+
                 const match = line.match(taskRegex);
                 if (match) {
                     const status: 'completed' | 'pending' = (match[1] === 'x' || match[1] === 'X') ? 'completed' : 'pending';
