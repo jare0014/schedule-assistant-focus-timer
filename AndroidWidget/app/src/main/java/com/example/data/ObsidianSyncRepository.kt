@@ -947,6 +947,36 @@ class ObsidianSyncRepository(private val context: Context) {
         return false
     }
 
+    suspend fun deleteTask(task: Task): Boolean {
+        prefs.addLog("Deleting task block: ${task.text}")
+        val base = getBaseUrl()
+        val url = "$base/api/task/delete"
+        val payload = JSONObject().apply {
+            put("lineIndex", task.lineNumber - 1)
+            put("description", task.displayTitle.ifEmpty { task.text })
+        }
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val body = payload.toString().toRequestBody(mediaType)
+        val request = Request.Builder().url(url).post(body)
+        if (prefs.apiToken.isNotEmpty()) {
+            request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+            request.addHeader("X-API-Key", prefs.apiToken)
+        }
+        try {
+            val response = client.newCall(request.build()).execute()
+            if (response.isSuccessful) {
+                prefs.addLog("Task deleted successfully.")
+                syncTasks()
+                return true
+            } else {
+                prefs.addLog("Failed to delete task: HTTP ${response.code}")
+            }
+        } catch (e: Exception) {
+            prefs.addLog("Network error deleting task: ${e.message}")
+        }
+        return false
+    }
+
     suspend fun dropTask(task: Task, targetSubheading: String): Boolean {
         prefs.addLog("Moving task: ${task.text} to $targetSubheading")
         val base = getBaseUrl()

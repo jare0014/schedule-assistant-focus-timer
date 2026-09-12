@@ -543,11 +543,9 @@ function renderGridView(tasks) {
         delBtn.className = 'timeblock-delete-btn';
         delBtn.innerHTML = '✕';
         delBtn.title = 'Remove task block from daily note';
-        delBtn.onclick = (e) => {
+        delBtn.onclick = async (e) => {
             e.stopPropagation();
-            if (confirm(`Remove "${task.description}" and its subtasks from today's note?`)) {
-                deleteTaskBlock(task);
-            }
+            await deleteTaskBlock(task);
         };
         controls.appendChild(delBtn);
 

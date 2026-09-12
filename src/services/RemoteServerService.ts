@@ -454,7 +454,11 @@ export class RemoteServerService {
                     if (dailyFile) {
                         const content = await this.app.vault.read(dailyFile);
                         const tasks = TaskParserService.parseAllTasks(content);
-                        const task = tasks.find(t => t.lineIndex === body.lineIndex);
+                        let task = tasks.find(t => t.lineIndex === body.lineIndex);
+                        if (!task && body.description) {
+                            const dClean = body.description.toLowerCase().trim();
+                            task = tasks.find(t => t.description.toLowerCase().trim().includes(dClean) || dClean.includes(t.description.toLowerCase().trim()));
+                        }
                         if (task) {
                             if (view) {
                                 if (view.currentTimer && view.currentTimer.task?.lineIndex === task.lineIndex) {
@@ -489,8 +493,9 @@ export class RemoteServerService {
                         const content = await this.app.vault.read(dailyFile);
                         const lines = content.split(/\r?\n/);
                         let lineIndex = body.lineIndex;
-                        if (lineIndex === undefined || lineIndex >= lines.length) {
-                            lineIndex = lines.findIndex(l => l.toLowerCase().includes((body.description || '').toLowerCase()) && (l.includes('- [ ]') || l.includes('- [x]')));
+                        const desc = (body.description || '').toLowerCase().trim();
+                        if (lineIndex === undefined || lineIndex >= lines.length || (desc && !lines[lineIndex].toLowerCase().includes(desc))) {
+                            lineIndex = lines.findIndex(l => (desc ? l.toLowerCase().includes(desc) : false) && (l.includes('- [ ]') || l.includes('- [x]') || l.includes('- [/]')));
                         }
                         if (lineIndex !== -1) {
                             const parentIndent = lines[lineIndex].match(/^(\s*)/)![1].length;

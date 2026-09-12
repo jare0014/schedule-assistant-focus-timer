@@ -1041,6 +1041,12 @@ fun ObsidianTodoScreen(
                         scope.launch(Dispatchers.Main) { refreshPreferencesState() }
                     }
                 },
+                onDeleteTask = { task ->
+                    scope.launch(Dispatchers.IO) {
+                        repository.deleteTask(task)
+                        scope.launch(Dispatchers.Main) { refreshPreferencesState() }
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -1837,6 +1843,7 @@ fun NativeTimelineGridView(
     onStartTimer: (Task) -> Unit,
     onToggleTask: (Task) -> Unit,
     onToggleHabit: ((section: String, name: String, completed: Boolean) -> Unit)? = null,
+    onDeleteTask: ((Task) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var zoomLevel by remember { mutableIntStateOf(60) }
@@ -2277,11 +2284,24 @@ fun NativeTimelineGridView(
                                         }
                                     }
 
-                                    IconButton(
-                                        onClick = { onStartTimer(task) },
-                                        modifier = Modifier.size(28.dp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
-                                        Text("▶", color = ObsidianAccentGreen, fontSize = 12.sp)
+                                        IconButton(
+                                            onClick = { onStartTimer(task) },
+                                            modifier = Modifier.size(26.dp)
+                                        ) {
+                                            Text("▶", color = ObsidianAccentGreen, fontSize = 11.sp)
+                                        }
+                                        if (onDeleteTask != null) {
+                                            IconButton(
+                                                onClick = { onDeleteTask(task) },
+                                                modifier = Modifier.size(26.dp)
+                                            ) {
+                                                Text("✕", color = Color(0xFFEF4444), fontSize = 11.sp)
+                                            }
+                                        }
                                     }
                                 }
                             }
