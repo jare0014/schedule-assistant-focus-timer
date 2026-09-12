@@ -6,7 +6,7 @@
 
 import { App, Notice, TFile } from 'obsidian';
 
-export type AudioSourceType = 'youtube' | 'local' | 'spotify' | 'web';
+export type AudioSourceType = 'youtube' | 'local' | 'spotify' | 'web' | 'external_web';
 
 export interface FocusTrackItem {
     label: string;
@@ -251,6 +251,16 @@ export class FocusAudioService {
      * Categorizes a media link into YouTube, Spotify, Local, or Generic Web.
      */
     public categorizeUrl(label: string, url: string, isInternal: boolean): FocusTrackItem {
+        // External authenticated / non-embeddable web audio (YouTube Music library, EquiSync)
+        if (url.includes('music.youtube.com') || url.includes('equisync.eocinstitute.org')) {
+            return {
+                label,
+                url,
+                type: 'external_web',
+                isInternal: false
+            };
+        }
+
         // YouTube / YouTube Music playlist
         const ytPlaylistMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
         if (ytPlaylistMatch && (url.includes('youtube.com') || url.includes('youtu.be'))) {
@@ -346,6 +356,8 @@ export class FocusAudioService {
                 this.playYouTubeTrack(this.currentTrack);
             } else if (this.currentTrack.type === 'spotify' || this.currentTrack.type === 'web') {
                 this.playEmbedTrack(this.currentTrack);
+            } else if (this.currentTrack.type === 'external_web') {
+                this.playExternalWebTrack(this.currentTrack);
             }
             this.isPlaying = true;
             this.wasPlayingBeforePause = true;
@@ -375,6 +387,8 @@ export class FocusAudioService {
                     this.iframeElement.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
                 } catch (e) {}
             }
+        } else if (this.currentTrack?.type === 'external_web') {
+            // Managed via system media key or browser session
         }
 
         this.isPlaying = false;
@@ -402,6 +416,10 @@ export class FocusAudioService {
                 this.notify();
                 return;
             }
+        } else if (this.currentTrack.type === 'external_web') {
+            this.isPlaying = true;
+            this.notify();
+            return;
         }
 
         await this.play();
@@ -543,6 +561,20 @@ export class FocusAudioService {
             this.app.workspace.openLinkText(track.url, '', false);
         } else {
             window.open(track.url, '_blank');
+        }
+    }
+
+    private playExternalWebTrack(track: FocusTrackItem): void {
+        // Clear any previous iframe from container to avoid dead "refused to connect" boxes
+        if (this.iframeElement && this.iframeElement.parentElement) {
+            this.iframeElement.parentElement.removeChild(this.iframeElement);
+            this.iframeElement = null;
+        }
+
+        // Open in user's default browser (where they are logged in to YouTube Music / Google)
+        window.open(track.url, '_blank');
+        if (this.onEnsureVisible) {
+            this.onEnsureVisible();
         }
     }
 

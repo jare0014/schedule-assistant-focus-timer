@@ -1262,11 +1262,50 @@ export class TaskTimerView extends ItemView {
             text: 'Mini Player ▼'
         });
 
-        // Row 4: Collapsible Embed Drawer (for YouTube / web iframe)
+        // Row 4: Collapsible Embed Drawer (for YouTube / web iframe / external web notice)
         const embedDrawer = card.createDiv({ cls: 'timer-audio-embed-drawer' });
         audioService.setContainer(embedDrawer);
 
+        const updateEmbedDrawerContent = () => {
+            const track = audioService.currentTrack;
+            if (track?.type === 'external_web') {
+                embedDrawer.empty();
+                const externalNotice = embedDrawer.createDiv({ cls: 'timer-audio-external-notice' });
+                externalNotice.style.padding = '14px 16px';
+                externalNotice.style.backgroundColor = 'var(--background-secondary)';
+                externalNotice.style.borderRadius = '8px';
+                externalNotice.style.border = '1px solid var(--background-modifier-border)';
+                externalNotice.style.textAlign = 'center';
+
+                const titleEl = externalNotice.createDiv({ style: 'font-weight: 600; margin-bottom: 6px; font-size: 13px; color: var(--text-normal);' });
+                titleEl.setText(`🌐 ${track.label}`);
+
+                const descEl = externalNotice.createDiv({ style: 'font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;' });
+                if (track.url.includes('music.youtube.com')) {
+                    descEl.setText('🔒 Requires your logged-in Google account for private EOTO tracks. Plays in your browser and toggles via Ctrl+K.');
+                } else if (track.url.includes('equisync')) {
+                    descEl.setText('🎧 EquiSync Element Web Audio synthesizer. Runs in your browser with full audio engine support.');
+                } else {
+                    descEl.setText('🌐 External web audio player. Controlled via system media keys and Ctrl+K.');
+                }
+
+                const openBtn = externalNotice.createEl('button', {
+                    cls: 'mod-cta',
+                    text: 'Open Web Player in Browser ↗',
+                    attr: { style: 'width: 100%; font-size: 12px; font-weight: bold; padding: 7px 12px; cursor: pointer;' }
+                });
+                openBtn.onclick = () => {
+                    window.open(track.url, '_blank');
+                };
+            } else {
+                const notice = embedDrawer.querySelector('.timer-audio-external-notice');
+                if (notice) notice.remove();
+                audioService.setContainer(embedDrawer);
+            }
+        };
+
         audioService.setOnEnsureVisible(() => {
+            updateEmbedDrawerContent();
             if (!embedDrawer.hasClass('expanded')) {
                 embedDrawer.addClass('expanded');
                 drawerToggle.setText('Hide Player ▲');
@@ -1279,6 +1318,7 @@ export class TaskTimerView extends ItemView {
                 embedDrawer.removeClass('expanded');
                 drawerToggle.setText('Mini Player ▼');
             } else {
+                updateEmbedDrawerContent();
                 embedDrawer.addClass('expanded');
                 drawerToggle.setText('Hide Player ▲');
             }
@@ -1311,6 +1351,7 @@ export class TaskTimerView extends ItemView {
             if (service.currentTrack && selectEl.value !== service.currentTrack.url) {
                 selectEl.value = service.currentTrack.url;
             }
+            updateEmbedDrawerContent();
         });
     }
 }
