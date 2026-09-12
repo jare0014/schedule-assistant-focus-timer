@@ -1224,8 +1224,12 @@ export class TaskTimerView extends ItemView {
             audioService.selectTrack(chosen);
         };
 
-        playBtn.onclick = () => {
-            audioService.togglePlay();
+        playBtn.onclick = async () => {
+            if (this.currentTimer) {
+                await this.togglePause();
+            } else {
+                await audioService.togglePlay();
+            }
         };
 
         stopBtn.onclick = () => {
