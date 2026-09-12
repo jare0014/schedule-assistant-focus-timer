@@ -707,6 +707,11 @@ body {
     gap: 4px;
 }
 
+.timeblock-habits-container {
+    max-height: 240px;
+    overflow-y: auto;
+}
+
 .timeblock-subtask-item {
     display: flex;
     align-items: center;

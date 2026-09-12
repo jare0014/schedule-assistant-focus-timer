@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.ObsidianSyncRepository
 import com.example.data.SyncPreferences
 import com.example.data.Task
+import com.example.data.HabitItem
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.ObsidianAccentGreen
 import com.example.ui.theme.ObsidianBg
@@ -126,6 +127,7 @@ fun ObsidianTodoScreen(
     
     // Live database flows
     val tasks by repository.getAllTasksFlow().collectAsStateWithLifecycle(initialValue = emptyList())
+    val todayHabits by repository.todayHabits.collectAsStateWithLifecycle(initialValue = emptyMap())
     
     val dragDropState = remember { DragDropState() }
     var focusBlocksRect by remember { mutableStateOf<Rect?>(null) }
@@ -1020,6 +1022,7 @@ fun ObsidianTodoScreen(
         if (selectedViewMode == "GRID") {
             NativeTimelineGridView(
                 tasks = tasks,
+                todayHabits = todayHabits,
                 onStartTimer = { task ->
                     scope.launch(Dispatchers.IO) {
                         repository.startTimer(task)
@@ -1029,6 +1032,12 @@ fun ObsidianTodoScreen(
                 onToggleTask = { task ->
                     scope.launch(Dispatchers.IO) {
                         repository.toggleTask(task, !task.isCompleted)
+                        scope.launch(Dispatchers.Main) { refreshPreferencesState() }
+                    }
+                },
+                onToggleHabit = { section, name, completed ->
+                    scope.launch(Dispatchers.IO) {
+                        repository.toggleHabit(section, name, completed)
                         scope.launch(Dispatchers.Main) { refreshPreferencesState() }
                     }
                 },
@@ -1813,11 +1822,21 @@ class DragDropState {
     var isDragging by mutableStateOf(false)
 }
 
+data class TimedClusterItem(
+    val task: Task,
+    val startMins: Int,
+    val endMins: Int,
+    var colIndex: Int = 0,
+    var totalCols: Int = 1
+)
+
 @Composable
 fun NativeTimelineGridView(
     tasks: List<Task>,
+    todayHabits: Map<String, List<HabitItem>> = emptyMap(),
     onStartTimer: (Task) -> Unit,
     onToggleTask: (Task) -> Unit,
+    onToggleHabit: ((section: String, name: String, completed: Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var zoomLevel by remember { mutableIntStateOf(60) }
@@ -1853,6 +1872,68 @@ fun NativeTimelineGridView(
                 }
             }
             null
+        }
+    }
+
+    val clusteredTasks = remember(timedTasks) {
+        val sorted = timedTasks.map { TimedClusterItem(it.first, it.second, it.third) }
+            .sortedBy { it.startMins }
+
+        val clusters = mutableListOf<MutableList<TimedClusterItem>>()
+        var currentCluster = mutableListOf<TimedClusterItem>()
+        var clusterEnd = -1
+
+        for (item in sorted) {
+            if (currentCluster.isEmpty()) {
+                currentCluster.add(item)
+                clusterEnd = item.endMins
+            } else if (item.startMins < clusterEnd) {
+                currentCluster.add(item)
+                clusterEnd = Math.max(clusterEnd, item.endMins)
+            } else {
+                clusters.add(currentCluster)
+                currentCluster = mutableListOf(item)
+                clusterEnd = item.endMins
+            }
+        }
+        if (currentCluster.isNotEmpty()) {
+            clusters.add(currentCluster)
+        }
+
+        for (cluster in clusters) {
+            val clusterCols = mutableListOf<MutableList<TimedClusterItem>>()
+            for (item in cluster) {
+                var placed = false
+                for (i in clusterCols.indices) {
+                    val col = clusterCols[i]
+                    val overlaps = col.any { ex -> item.startMins < ex.endMins && item.endMins > ex.startMins }
+                    if (!overlaps) {
+                        col.add(item)
+                        item.colIndex = i
+                        placed = true
+                        break
+                    }
+                }
+                if (!placed) {
+                    item.colIndex = clusterCols.size
+                    clusterCols.add(mutableListOf(item))
+                }
+            }
+            val numCols = clusterCols.size
+            for (item in cluster) {
+                item.totalCols = numCols
+            }
+        }
+        sorted
+    }
+
+    fun getHabitSectionKey(description: String): String? {
+        val d = description.lowercase()
+        return when {
+            d.contains("morning") -> "morning"
+            d.contains("house") || d.contains("chore") -> "house"
+            d.contains("work") -> "work"
+            else -> null
         }
     }
 
@@ -2057,99 +2138,151 @@ fun NativeTimelineGridView(
                         }
                     }
 
-                    timedTasks.forEach { (task, startMins, endMins) ->
-                        val startOffsetMins = startMins - (minHour * 60)
-                        val durationMins = Math.max(15, endMins - startMins)
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(start = 58.dp, end = 8.dp)
+                    ) {
+                        val availableWidth = maxWidth
+                        clusteredTasks.forEach { item ->
+                            val task = item.task
+                            val startMins = item.startMins
+                            val endMins = item.endMins
+                            val startOffsetMins = startMins - (minHour * 60)
+                            val durationMins = Math.max(15, endMins - startMins)
 
-                        val topDp = (startOffsetMins.toFloat() / 60f) * zoomLevel
-                        val cardHeightDp = Math.max(32f, (durationMins.toFloat() / 60f) * zoomLevel)
+                            val topDp = (startOffsetMins.toFloat() / 60f) * zoomLevel
+                            val cardHeightDp = Math.max(32f, (durationMins.toFloat() / 60f) * zoomLevel)
 
-                        val subtasks = subtasksByParent[task.lineNumber] ?: emptyList()
-                        val extraHeightDp = if (subtasks.isNotEmpty()) subtasks.size * 22f else 0f
-                        val finalCardHeightDp = Math.max(cardHeightDp, 32f + extraHeightDp)
+                            val subtasks = subtasksByParent[task.lineNumber] ?: emptyList()
+                            val secKey = getHabitSectionKey(task.displayTitle.ifEmpty { task.text })
+                            val habits = if (subtasks.isEmpty() && secKey != null) todayHabits[secKey] ?: emptyList() else emptyList()
 
-                        Card(
-                            modifier = Modifier
-                                .padding(start = 60.dp, end = 8.dp)
-                                .fillMaxWidth()
-                                .height(finalCardHeightDp.dp)
-                                .offset(y = topDp.dp)
-                                .border(1.dp, com.example.ui.theme.ObsidianPurple, RoundedCornerShape(8.dp)),
-                            colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ObsidianPurple.copy(alpha = 0.25f)),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
+                            val extraHeightDp = when {
+                                subtasks.isNotEmpty() -> subtasks.size * 22f
+                                habits.isNotEmpty() -> Math.min(habits.size, 8) * 22f
+                                else -> 0f
+                            }
+                            val finalCardHeightDp = Math.max(cardHeightDp, 32f + extraHeightDp)
+
+                            val colWidth = if (item.totalCols > 1) availableWidth / item.totalCols else availableWidth
+                            val colLeft = colWidth * item.colIndex
+                            val cardWidth = if (item.totalCols > 1) colWidth - 4.dp else colWidth
+
+                            Card(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Top
+                                    .offset(x = colLeft, y = topDp.dp)
+                                    .width(cardWidth)
+                                    .height(finalCardHeightDp.dp)
+                                    .border(1.dp, com.example.ui.theme.ObsidianPurple, RoundedCornerShape(8.dp)),
+                                colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ObsidianPurple.copy(alpha = 0.25f)),
+                                shape = RoundedCornerShape(8.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = task.displayTitle.ifEmpty { task.text },
-                                        color = com.example.ui.theme.ObsidianTextPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "${durationMins}m",
-                                        color = com.example.ui.theme.ObsidianTextMuted,
-                                        fontSize = 10.sp
-                                    )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = task.displayTitle.ifEmpty { task.text },
+                                            color = com.example.ui.theme.ObsidianTextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${durationMins}m",
+                                            color = com.example.ui.theme.ObsidianTextMuted,
+                                            fontSize = 10.sp
+                                        )
 
-                                    if (subtasks.isNotEmpty()) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 4.dp),
-                                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                                        ) {
-                                            subtasks.forEach { sub ->
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.SpaceBetween
-                                                ) {
+                                        if (subtasks.isNotEmpty()) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 4.dp),
+                                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                subtasks.forEach { sub ->
                                                     Row(
+                                                        modifier = Modifier.fillMaxWidth(),
                                                         verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .clickable { onToggleTask(sub) }
+                                                        ) {
+                                                            Text(
+                                                                text = if (sub.isCompleted) "☑ " else "☐ ",
+                                                                color = if (sub.isCompleted) ObsidianAccentGreen else com.example.ui.theme.ObsidianTextMuted,
+                                                                fontSize = 10.sp
+                                                            )
+                                                            Text(
+                                                                text = sub.displayTitle.ifEmpty { sub.text },
+                                                                color = if (sub.isCompleted) com.example.ui.theme.ObsidianTextMuted else com.example.ui.theme.ObsidianTextPrimary,
+                                                                fontSize = 10.sp,
+                                                                textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                        IconButton(
+                                                            onClick = { onStartTimer(sub) },
+                                                            modifier = Modifier.size(20.dp)
+                                                        ) {
+                                                            Text("▶", color = ObsidianAccentGreen, fontSize = 8.sp)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else if (habits.isNotEmpty()) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 4.dp),
+                                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                habits.forEach { habit ->
+                                                    Row(
                                                         modifier = Modifier
-                                                            .weight(1f)
-                                                            .clickable { onToggleTask(sub) }
+                                                            .fillMaxWidth()
+                                                            .clickable {
+                                                                onToggleHabit?.invoke(habit.section, habit.name, !habit.completed)
+                                                            },
+                                                        verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         Text(
-                                                            text = if (sub.isCompleted) "☑ " else "☐ ",
-                                                            color = if (sub.isCompleted) ObsidianAccentGreen else com.example.ui.theme.ObsidianTextMuted,
+                                                            text = if (habit.completed) "☑ " else "☐ ",
+                                                            color = if (habit.completed) ObsidianAccentGreen else com.example.ui.theme.ObsidianTextMuted,
                                                             fontSize = 10.sp
                                                         )
                                                         Text(
-                                                            text = sub.displayTitle.ifEmpty { sub.text },
-                                                            color = if (sub.isCompleted) com.example.ui.theme.ObsidianTextMuted else com.example.ui.theme.ObsidianTextPrimary,
+                                                            text = habit.name,
+                                                            color = if (habit.completed) com.example.ui.theme.ObsidianTextMuted else com.example.ui.theme.ObsidianTextPrimary,
                                                             fontSize = 10.sp,
-                                                            textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                                                            textDecoration = if (habit.completed) TextDecoration.LineThrough else TextDecoration.None,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
-                                                    }
-                                                    IconButton(
-                                                        onClick = { onStartTimer(sub) },
-                                                        modifier = Modifier.size(20.dp)
-                                                    ) {
-                                                        Text("▶", color = ObsidianAccentGreen, fontSize = 8.sp)
                                                     }
                                                 }
                                             }
                                         }
                                     }
-                                }
 
-                                IconButton(
-                                    onClick = { onStartTimer(task) },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Text("▶", color = ObsidianAccentGreen, fontSize = 12.sp)
+                                    IconButton(
+                                        onClick = { onStartTimer(task) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Text("▶", color = ObsidianAccentGreen, fontSize = 12.sp)
+                                    }
                                 }
                             }
                         }

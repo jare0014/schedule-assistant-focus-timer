@@ -438,166 +438,259 @@ function renderGridView(tasks) {
         task.calcEndMins = Math.max(taskStart + 15, taskEnd);
     });
 
-    // Group truly overlapping tasks into columns (by real schedule time)
-    const columns = [];
+    // Group overlapping tasks into connected clusters
+    const clusters = [];
+    let currentCluster = [];
+    let clusterEnd = -1;
+
     sortedTasks.forEach(task => {
-        let placed = false;
-        for (let col of columns) {
-            // Check ALL tasks in column for true overlap, not just the last one
-            const overlaps = col.some(existing =>
-                task.calcStartMins < existing.calcEndMins && task.calcEndMins > existing.calcStartMins
-            );
-            if (!overlaps) {
-                col.push(task);
-                placed = true;
-                break;
-            }
+        if (currentCluster.length === 0) {
+            currentCluster.push(task);
+            clusterEnd = task.calcEndMins;
+        } else if (task.calcStartMins < clusterEnd) {
+            // Overlaps with current cluster
+            currentCluster.push(task);
+            clusterEnd = Math.max(clusterEnd, task.calcEndMins);
+        } else {
+            // New cluster
+            clusters.push(currentCluster);
+            currentCluster = [task];
+            clusterEnd = task.calcEndMins;
         }
-        if (!placed) columns.push([task]);
+    });
+    if (currentCluster.length > 0) {
+        clusters.push(currentCluster);
+    }
+
+    // Within each cluster, pack tasks into non-overlapping columns
+    clusters.forEach(cluster => {
+        const clusterCols = [];
+        cluster.forEach(task => {
+            let placed = false;
+            for (let i = 0; i < clusterCols.length; i++) {
+                const col = clusterCols[i];
+                const overlaps = col.some(existing =>
+                    task.calcStartMins < existing.calcEndMins && task.calcEndMins > existing.calcStartMins
+                );
+                if (!overlaps) {
+                    col.push(task);
+                    task.colIndex = i;
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                task.colIndex = clusterCols.length;
+                clusterCols.push([task]);
+            }
+        });
+        const numCols = clusterCols.length;
+        cluster.forEach(task => {
+            task.totalCols = numCols;
+        });
     });
 
-    const totalCols = columns.length || 1;
+    sortedTasks.forEach(task => {
+        const startMinsFromMinHour = task.calcStartMins - (minHour * 60);
+        const durationMins = task.calcEndMins - task.calcStartMins;
 
-    columns.forEach((colTasks, colIndex) => {
-        colTasks.forEach(task => {
-            const startMinsFromMinHour = task.calcStartMins - (minHour * 60);
-            const durationMins = task.calcEndMins - task.calcStartMins;
+        const topPx = Math.max(0, startMinsFromMinHour * (hourHeight / 60));
+        let heightPx = Math.max(28, durationMins * (hourHeight / 60));
 
-            const topPx = Math.max(0, startMinsFromMinHour * (hourHeight / 60));
-            let heightPx = Math.max(28, durationMins * (hourHeight / 60));
+        const card = document.createElement('div');
+        card.className = `timeblock-card${task.status === 'completed' ? ' completed' : ''}`;
+        card.style.top = `${topPx}px`;
 
-            const card = document.createElement('div');
-            card.className = `timeblock-card${task.status === 'completed' ? ' completed' : ''}`;
-            card.style.top = `${topPx}px`;
+        const totalCols = task.totalCols || 1;
+        const colIndex = task.colIndex || 0;
+        const widthPercent = 100 / totalCols;
+        const leftPercent = colIndex * widthPercent;
+        card.style.left = `calc(${leftPercent}% + 2px)`;
+        card.style.width = `calc(${widthPercent}% - 4px)`;
 
-            const widthPercent = 100 / totalCols;
-            const leftPercent = colIndex * widthPercent;
-            card.style.left = `calc(${leftPercent}% + 2px)`;
-            card.style.width = `calc(${widthPercent}% - 4px)`;
+        // Header section: Title and Controls
+        const cardHeader = document.createElement('div');
+        cardHeader.className = 'timeblock-card-header';
 
-            // Header section: Title and Controls
-            const cardHeader = document.createElement('div');
-            cardHeader.className = 'timeblock-card-header';
+        const titleEl = document.createElement('div');
+        titleEl.className = 'timeblock-card-title';
+        titleEl.textContent = task.description;
+        cardHeader.appendChild(titleEl);
 
-            const titleEl = document.createElement('div');
-            titleEl.className = 'timeblock-card-title';
-            titleEl.textContent = task.description;
-            cardHeader.appendChild(titleEl);
+        const controls = document.createElement('div');
+        controls.className = 'timeblock-card-controls';
 
-            const controls = document.createElement('div');
-            controls.className = 'timeblock-card-controls';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = task.status === 'completed';
+        cb.onclick = (e) => {
+            e.stopPropagation();
+            toggleTaskStatus(task);
+        };
+        controls.appendChild(cb);
 
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.checked = task.status === 'completed';
-            cb.onclick = (e) => {
-                e.stopPropagation();
-                toggleTaskStatus(task);
-            };
-            controls.appendChild(cb);
+        const playBtn = document.createElement('button');
+        playBtn.className = 'timeblock-play-btn';
+        playBtn.innerHTML = '▶';
+        playBtn.title = 'Start Focus Session';
+        playBtn.onclick = (e) => {
+            e.stopPropagation();
+            startTaskTimer(task);
+        };
+        controls.appendChild(playBtn);
 
-            const playBtn = document.createElement('button');
-            playBtn.className = 'timeblock-play-btn';
-            playBtn.innerHTML = '▶';
-            playBtn.title = 'Start Focus Session';
-            playBtn.onclick = (e) => {
-                e.stopPropagation();
-                startTaskTimer(task);
-            };
-            controls.appendChild(playBtn);
+        const delBtn = document.createElement('button');
+        delBtn.className = 'timeblock-delete-btn';
+        delBtn.innerHTML = '✕';
+        delBtn.title = 'Remove task block from daily note';
+        delBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (confirm(`Remove "${task.description}" and its subtasks from today's note?`)) {
+                deleteTaskBlock(task);
+            }
+        };
+        controls.appendChild(delBtn);
 
-            const delBtn = document.createElement('button');
-            delBtn.className = 'timeblock-delete-btn';
-            delBtn.innerHTML = '✕';
-            delBtn.title = 'Remove task block from daily note';
-            delBtn.onclick = (e) => {
-                e.stopPropagation();
-                if (confirm(`Remove "${task.description}" and its subtasks from today's note?`)) {
-                    deleteTaskBlock(task);
-                }
-            };
-            controls.appendChild(delBtn);
+        cardHeader.appendChild(controls);
+        card.appendChild(cardHeader);
 
-            cardHeader.appendChild(controls);
-            card.appendChild(cardHeader);
+        // Time range & duration row
+        const cardTime = document.createElement('div');
+        cardTime.className = 'timeblock-card-time';
 
-            // Time range & duration row
-            const cardTime = document.createElement('div');
-            cardTime.className = 'timeblock-card-time';
+        const formatHourMin = (h, m) => {
+            const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+            const ampm = h >= 12 ? 'pm' : 'am';
+            return `${dh}:${m < 10 ? '0' + m : m}${ampm}`;
+        };
+        const timeStr = `${formatHourMin(task.startHour, task.startMin)} – ${formatHourMin(task.endHour, task.endMin)}`;
 
-            const formatHourMin = (h, m) => {
-                const dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
-                const ampm = h >= 12 ? 'pm' : 'am';
-                return `${dh}:${m < 10 ? '0' + m : m}${ampm}`;
-            };
-            const timeStr = `${formatHourMin(task.startHour, task.startMin)} – ${formatHourMin(task.endHour, task.endMin)}`;
+        cardTime.appendChild(document.createTextNode(timeStr));
 
-            cardTime.appendChild(document.createTextNode(timeStr));
+        const durBadge = document.createElement('span');
+        durBadge.className = 'timeblock-duration-badge';
+        durBadge.textContent = `${durationMins}m`;
+        cardTime.appendChild(durBadge);
 
-            const durBadge = document.createElement('span');
-            durBadge.className = 'timeblock-duration-badge';
-            durBadge.textContent = `${durationMins}m`;
-            cardTime.appendChild(durBadge);
+        card.appendChild(cardTime);
 
-            card.appendChild(cardTime);
+        // Render nested subtasks if any exist for this parent task
+        const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
+        if (subtasks.length > 0) {
+            const subtasksContainer = document.createElement('div');
+            subtasksContainer.className = 'timeblock-subtasks-container';
 
-            // Render nested subtasks if any exist for this parent task
-            const subtasks = tasks.filter(t => t.parentLineIndex === task.lineIndex);
-            if (subtasks.length > 0) {
-                const subtasksContainer = document.createElement('div');
-                subtasksContainer.className = 'timeblock-subtasks-container';
+            subtasks.forEach(subtask => {
+                const subtaskEl = document.createElement('div');
+                subtaskEl.className = `timeblock-subtask-item${subtask.status === 'completed' ? ' completed' : ''}`;
 
-                subtasks.forEach(subtask => {
-                    const subtaskEl = document.createElement('div');
-                    subtaskEl.className = `timeblock-subtask-item${subtask.status === 'completed' ? ' completed' : ''}`;
+                const subCb = document.createElement('input');
+                subCb.type = 'checkbox';
+                subCb.checked = subtask.status === 'completed';
+                subCb.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleTaskStatus(subtask);
+                };
+                subtaskEl.appendChild(subCb);
 
-                    const subCb = document.createElement('input');
-                    subCb.type = 'checkbox';
-                    subCb.checked = subtask.status === 'completed';
-                    subCb.onclick = (e) => {
+                const subTitle = document.createElement('div');
+                subTitle.className = 'timeblock-subtask-title';
+                subTitle.textContent = subtask.description;
+                subtaskEl.appendChild(subTitle);
+
+                if (subtask.status !== 'completed') {
+                    const subPlayBtn = document.createElement('button');
+                    subPlayBtn.className = 'timeblock-subtask-play-btn';
+                    subPlayBtn.textContent = '▶';
+                    subPlayBtn.title = 'Start Subtask Timer';
+                    subPlayBtn.onclick = (e) => {
                         e.stopPropagation();
-                        toggleTaskStatus(subtask);
+                        startTaskTimer(subtask);
                     };
-                    subtaskEl.appendChild(subCb);
+                    subtaskEl.appendChild(subPlayBtn);
+                }
 
-                    const subTitle = document.createElement('div');
-                    subTitle.className = 'timeblock-subtask-title';
-                    subTitle.textContent = subtask.description;
-                    subtaskEl.appendChild(subTitle);
+                subtasksContainer.appendChild(subtaskEl);
+            });
 
-                    if (subtask.status !== 'completed') {
-                        const subPlayBtn = document.createElement('button');
-                        subPlayBtn.className = 'timeblock-subtask-play-btn';
-                        subPlayBtn.textContent = '▶';
-                        subPlayBtn.title = 'Start Subtask Timer';
-                        subPlayBtn.onclick = (e) => {
-                            e.stopPropagation();
-                            startTaskTimer(subtask);
-                        };
-                        subtaskEl.appendChild(subPlayBtn);
-                    }
+            card.appendChild(subtasksContainer);
 
-                    subtasksContainer.appendChild(subtaskEl);
+            // Expand height to accommodate nested subtasks
+            const minRequiredHeight = 48 + (subtasks.length * 28);
+            if (heightPx < minRequiredHeight) {
+                heightPx = minRequiredHeight;
+            }
+        } else if (lastState && lastState.todayHabits) {
+            // Check if this card matches a weekly routine/habit section
+            const secKey = getHabitSectionKey(task.description);
+            const habits = secKey ? lastState.todayHabits[secKey] : null;
+
+            if (habits && habits.length > 0 && secKey) {
+                const habitsContainer = document.createElement('div');
+                habitsContainer.className = 'timeblock-subtasks-container timeblock-habits-container';
+                habitsContainer.style.maxHeight = '240px';
+                habitsContainer.style.overflowY = 'auto';
+
+                habits.forEach(habit => {
+                    const habitItemEl = document.createElement('div');
+                    habitItemEl.className = `timeblock-subtask-item${habit.completed ? ' completed' : ''}`;
+
+                    const habitCb = document.createElement('input');
+                    habitCb.type = 'checkbox';
+                    habitCb.checked = habit.completed;
+                    habitCb.onclick = async (e) => {
+                        e.stopPropagation();
+                        const nowChecked = habitCb.checked;
+                        try {
+                            const res = await fetch(`${API_BASE}/api/habit/toggle`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    section: secKey,
+                                    rowIdx: habit.rowIdx,
+                                    name: habit.name,
+                                    completed: nowChecked
+                                })
+                            });
+                            if (res.ok) {
+                                habit.completed = nowChecked;
+                                habitItemEl.classList.toggle('completed', nowChecked);
+                                checkStatus();
+                            } else {
+                                habitCb.checked = !nowChecked;
+                            }
+                        } catch(err) {
+                            habitCb.checked = !nowChecked;
+                        }
+                    };
+                    habitItemEl.appendChild(habitCb);
+
+                    const habitTitle = document.createElement('div');
+                    habitTitle.className = 'timeblock-subtask-title';
+                    habitTitle.textContent = habit.name;
+                    habitItemEl.appendChild(habitTitle);
+
+                    habitsContainer.appendChild(habitItemEl);
                 });
 
-                card.appendChild(subtasksContainer);
+                card.appendChild(habitsContainer);
 
-                // Expand height to accommodate nested subtasks
-                const minRequiredHeight = 48 + (subtasks.length * 28);
-                if (heightPx < minRequiredHeight) {
+                const naturalHeight = Math.max(28, durationMins * (hourHeight / 60));
+                const minRequiredHeight = 48 + (Math.min(habits.length, 6) * 26);
+                if (naturalHeight < minRequiredHeight) {
                     heightPx = minRequiredHeight;
                 }
             }
+        }
 
-            card.style.height = `${heightPx}px`;
+        card.style.height = `${heightPx}px`;
 
-            // Card click handler
-            card.onclick = () => {
-                startTaskTimer(task);
-            };
+        // Card click handler
+        card.onclick = () => {
+            startTaskTimer(task);
+        };
 
-            canvas.appendChild(card);
-        });
+        canvas.appendChild(card);
     });
 
     gridWrapper.appendChild(canvas);
@@ -618,6 +711,15 @@ function renderGridView(tasks) {
 
     gridWrapper.scrollTop = targetScroll;
     requestAnimationFrame(() => { gridWrapper.scrollTop = targetScroll; });
+}
+
+function getHabitSectionKey(description) {
+    if (!description) return null;
+    const d = description.toLowerCase();
+    if (d.includes("morning")) return "morning";
+    if (d.includes("house") || d.includes("chore")) return "house";
+    if (d.includes("work")) return "work";
+    return null;
 }
 
 function renderListView(tasks) {

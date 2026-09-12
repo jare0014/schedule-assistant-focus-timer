@@ -10,6 +10,7 @@ import { spawn } from 'child_process';
 import { VIEW_TYPE_TASK_TIMER, TaskTimerPluginSettings } from '../types';
 import { DailyNoteManager } from './DailyNoteManager';
 import { TaskParserService } from './TaskParserService';
+import { WeeklyHabitService } from './WeeklyHabitService';
 
 export class RemoteServerService {
     private server: (http.Server & { _sockets?: Set<any> }) | null = null;
@@ -127,6 +128,20 @@ export class RemoteServerService {
                         }
                     }
 
+                    let todayHabits: any = { morning: [], work: [], house: [] };
+                    try {
+                        const weeklyData = await WeeklyHabitService.loadTodayWeeklyHabits(this.app);
+                        if (weeklyData && weeklyData.habitsBySection) {
+                            todayHabits = {
+                                morning: (weeklyData.habitsBySection.morning || []).map(h => ({ name: h.name, completed: h.completed, rowIdx: h.rowIdx, sectionKey: h.sectionKey })),
+                                work: (weeklyData.habitsBySection.work || []).map(h => ({ name: h.name, completed: h.completed, rowIdx: h.rowIdx, sectionKey: h.sectionKey })),
+                                house: (weeklyData.habitsBySection.house || []).map(h => ({ name: h.name, completed: h.completed, rowIdx: h.rowIdx, sectionKey: h.sectionKey }))
+                            };
+                        }
+                    } catch (err) {
+                        console.error("Failed to load today's weekly habits:", err);
+                    }
+
                     setCorsHeaders();
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
@@ -143,6 +158,7 @@ export class RemoteServerService {
                             lineIndex: activeTimer.task ? activeTimer.task.lineIndex : null
                         } : null,
                         isAlarming,
+                        todayHabits,
                         schedule: schedule.map(t => ({
                             lineIndex: t.lineIndex,
                             status: t.status,
@@ -347,6 +363,37 @@ export class RemoteServerService {
                         }
                     }
                     throw new Error("Task not found or view not available.");
+                }
+
+                if (req.method === 'POST' && pathname === '/api/habit/toggle') {
+                    const body = await readBody();
+                    const section = body.section;
+                    const habitIdentifier = body.rowIdx !== undefined ? body.rowIdx : body.name;
+                    const completed = Boolean(body.completed);
+
+                    if (!section || habitIdentifier === undefined) {
+                        setCorsHeaders();
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: "Missing section or habit identifier." }));
+                        return;
+                    }
+
+                    const success = await WeeklyHabitService.toggleWeeklyHabit(this.app, section, habitIdentifier, completed);
+                    if (success) {
+                        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                        if (leaves.length > 0) {
+                            (leaves[0].view as any).renderSchedule();
+                        }
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true }));
+                        return;
+                    } else {
+                        setCorsHeaders();
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: "Failed to toggle weekly habit item." }));
+                        return;
+                    }
                 }
 
                 if (req.method === 'POST' && pathname === '/api/task/postpone') {

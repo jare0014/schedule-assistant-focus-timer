@@ -4,6 +4,7 @@
 
 import { TaskItem } from '../types';
 import { Notice, TFile } from 'obsidian';
+import { WeeklyHabitService, HabitItemForDay } from '../services/WeeklyHabitService';
 
 export async function renderScheduleGridView(viewInstance: any, viewContainer: HTMLElement, tasks: TaskItem[]): Promise<void> {
     const existingWrapper = viewContainer.querySelector('.time-grid-wrapper') as HTMLElement | null;
@@ -217,7 +218,7 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
         }
     };
 
-    const weeklyData = await loadTodayWeeklyHabits(viewInstance.app);
+    const weeklyData = await WeeklyHabitService.loadTodayWeeklyHabits(viewInstance.app);
 
     const sortedTasks = [...timedTasks].sort((a, b) => {
         const aStart = (a.startHour ?? 0) * 60 + (a.startMin ?? 0);
@@ -394,10 +395,10 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
             }
         } else if (weeklyData && weeklyData.tFile) {
             // Check if this card matches a weekly routine/habit section
-            const secKey = getHabitSectionKey(task.description);
+            const secKey = WeeklyHabitService.getHabitSectionKey(task.description);
             const habits = secKey ? weeklyData.habitsBySection[secKey] : null;
 
-            if (habits && habits.length > 0) {
+            if (habits && habits.length > 0 && secKey) {
                 const habitsContainer = card.createDiv({ cls: 'timeblock-subtasks-container timeblock-habits-container' });
                 habitsContainer.style.maxHeight = '240px';
                 habitsContainer.style.overflowY = 'auto';
@@ -413,31 +414,21 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
                         e.stopPropagation();
                         const nowChecked = habitCb.checked;
                         try {
-                            const curText = await viewInstance.app.vault.read(weeklyData.tFile);
-                            const curMatch = curText.match(habit.secRegex);
-                            if (!curMatch) return;
-
-                            const curLines = curMatch[2].trim().split(/\r?\n/);
-                            const tIndices: number[] = [];
-                            curLines.forEach((l: string, idx: number) => {
-                                if (l.trim().startsWith("|")) tIndices.push(idx);
-                            });
-
-                            const targetLineIdx = tIndices[2 + habit.rowIdx];
-                            if (targetLineIdx !== undefined) {
-                                const rowCells = curLines[targetLineIdx].split("|");
-                                if (rowCells[habit.colIdx + 1] && !rowCells[habit.colIdx + 1].includes("N/A")) {
-                                    rowCells[habit.colIdx + 1] = nowChecked ? " [x] " : " [ ] ";
-                                    curLines[targetLineIdx] = rowCells.join("|");
-                                    const newSecBlock = curLines.join("\n");
-                                    const newText = curText.replace(curMatch[2].trim(), newSecBlock);
-                                    await viewInstance.app.vault.modify(weeklyData.tFile, newText);
-                                    habitItemEl.toggleClass('completed', nowChecked);
-                                    new Notice(`Updated ${habit.name}: ${nowChecked ? "Done" : "Pending"}`);
-                                }
+                            const success = await WeeklyHabitService.toggleWeeklyHabit(
+                                viewInstance.app,
+                                secKey,
+                                habit.rowIdx,
+                                nowChecked
+                            );
+                            if (success) {
+                                habitItemEl.toggleClass('completed', nowChecked);
+                                new Notice(`Updated ${habit.name}: ${nowChecked ? "Done" : "Pending"}`);
+                            } else {
+                                habitCb.checked = !nowChecked;
                             }
                         } catch (err: any) {
                             console.error("Failed to update weekly habit item:", err);
+                            habitCb.checked = !nowChecked;
                         }
                     };
 
@@ -629,86 +620,4 @@ async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLEle
     }
 }
 
-interface HabitItemForDay {
-    name: string;
-    completed: boolean;
-    secRegex: RegExp;
-    rowIdx: number;
-    colIdx: number;
-}
-
-async function loadTodayWeeklyHabits(app: any): Promise<{
-    habitsBySection: { [sectionKey: string]: HabitItemForDay[] };
-    tFile: TFile | null;
-}> {
-    const moment = (window as any).moment;
-    if (!moment || !app?.vault) return { habitsBySection: {}, tFile: null };
-
-    const currentMoment = moment();
-    const weekStr = currentMoment.format("YYYY-[W]WW");
-    const dayName = currentMoment.format("dddd");
-    const filePath = `02_Journal/02_Weekly/${weekStr}.md`;
-
-    const tFile = app.vault.getAbstractFileByPath(filePath) as TFile;
-    if (!tFile) return { habitsBySection: {}, tFile: null };
-
-    let text = "";
-    try {
-        text = await app.vault.read(tFile);
-    } catch {
-        return { habitsBySection: {}, tFile: null };
-    }
-
-    const sections = [
-        { key: "morning", regex: /(##\s*Mornings[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
-        { key: "work", regex: /(##\s*Work[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
-        { key: "house", regex: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i }
-    ];
-
-    const habitsBySection: { [sectionKey: string]: HabitItemForDay[] } = {};
-
-    for (const sec of sections) {
-        const secMatch = text.match(sec.regex);
-        if (!secMatch) continue;
-
-        const tableLines = secMatch[2].trim().split(/\r?\n/).filter((l: string) => l.trim().startsWith("|"));
-        if (tableLines.length < 3) continue;
-
-        const rawHeaders = tableLines[0].split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
-        const dayColIdx = rawHeaders.findIndex(h => h.toLowerCase() === dayName.toLowerCase());
-        if (dayColIdx === -1) continue;
-
-        const dataRows = tableLines.slice(2).map((line: string) => {
-            return line.split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
-        });
-
-        const list: HabitItemForDay[] = [];
-        dataRows.forEach((row: string[], rowIdx: number) => {
-            const taskName = row[0].replace(/<br>/gi, " ").replace(/\*/g, "").trim();
-            const cellText = row[dayColIdx];
-            if (!cellText || cellText.includes("N/A") || cellText === "—") return;
-
-            const isChecked = cellText.includes("[x]") || cellText.includes("[X]");
-            list.push({
-                name: taskName,
-                completed: isChecked,
-                secRegex: sec.regex,
-                rowIdx: rowIdx,
-                colIdx: dayColIdx
-            });
-        });
-
-        habitsBySection[sec.key] = list;
-    }
-
-    return { habitsBySection, tFile };
-}
-
-function getHabitSectionKey(description: string): string | null {
-    const d = description.toLowerCase();
-    if (d.includes("morning")) return "morning";
-    if (d.includes("house") || d.includes("chore")) return "house";
-    if (d.includes("work")) return "work";
-    return null;
-}
 

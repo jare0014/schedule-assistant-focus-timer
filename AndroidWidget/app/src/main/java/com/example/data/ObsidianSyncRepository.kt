@@ -13,11 +13,23 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
+data class HabitItem(
+    val name: String,
+    val completed: Boolean,
+    val section: String,
+    val rowIdx: Int
+)
 
 class ObsidianSyncRepository(private val context: Context) {
     private val db = AppDatabase.getDatabase(context)
     private val taskDao = db.taskDao()
     private val prefs = SyncPreferences(context)
+
+    private val _todayHabits = MutableStateFlow<Map<String, List<HabitItem>>>(emptyMap())
+    val todayHabits: StateFlow<Map<String, List<HabitItem>>> = _todayHabits
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
@@ -623,6 +635,32 @@ class ObsidianSyncRepository(private val context: Context) {
             } else {
                 clearActiveTimerPrefs()
             }
+            if (obj.has("todayHabits") && !obj.isNull("todayHabits")) {
+                val habitsObj = obj.getJSONObject("todayHabits")
+                val parsedHabits = mutableMapOf<String, List<HabitItem>>()
+                val sections = listOf("morning", "work", "house")
+                for (sec in sections) {
+                    if (habitsObj.has(sec)) {
+                        val arr = habitsObj.optJSONArray(sec)
+                        if (arr != null) {
+                            val list = mutableListOf<HabitItem>()
+                            for (i in 0 until arr.length()) {
+                                val itemObj = arr.getJSONObject(i)
+                                list.add(
+                                    HabitItem(
+                                        name = itemObj.optString("name", ""),
+                                        completed = itemObj.optBoolean("completed", false),
+                                        section = itemObj.optString("sectionKey", sec),
+                                        rowIdx = itemObj.optInt("rowIdx", i)
+                                    )
+                                )
+                            }
+                            parsedHabits[sec] = list
+                        }
+                    }
+                }
+                _todayHabits.value = parsedHabits
+            }
             prefs.isAlarming = obj.optBoolean("isAlarming", false)
             com.example.widget.TimerService.checkAndSyncTimerService(context)
             triggerWidgetUpdate()
@@ -631,6 +669,59 @@ class ObsidianSyncRepository(private val context: Context) {
             clearActiveTimerPrefs()
             com.example.widget.TimerService.checkAndSyncTimerService(context)
             triggerWidgetUpdate()
+        }
+    }
+
+    suspend fun toggleHabit(section: String, habitName: String, completed: Boolean): Boolean {
+        prefs.addLog("Toggling weekly habit [$habitName] in $section to: $completed")
+
+        val current = _todayHabits.value.toMutableMap()
+        val secList = current[section]?.toMutableList() ?: mutableListOf()
+        val idx = secList.indexOfFirst { it.name == habitName }
+        if (idx != -1) {
+            secList[idx] = secList[idx].copy(completed = completed)
+            current[section] = secList
+            _todayHabits.value = current
+        }
+
+        val base = getBaseUrl()
+        val url = "$base/api/habit/toggle"
+        val payload = JSONObject().apply {
+            put("section", section)
+            put("name", habitName)
+            put("completed", completed)
+        }
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val postBody = payload.toString().toRequestBody(mediaType)
+        val postRequest = Request.Builder().url(url).post(postBody)
+        if (prefs.apiToken.isNotEmpty()) {
+            postRequest.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+            postRequest.addHeader("X-API-Key", prefs.apiToken)
+        }
+
+        try {
+            val response = client.newCall(postRequest.build()).execute()
+            if (response.isSuccessful) {
+                prefs.addLog("Successfully synced habit [$habitName].")
+                syncActiveTimer()
+                return true
+            } else {
+                prefs.addLog("Failed toggling habit: HTTP ${response.code}. Reverting.")
+                if (idx != -1) {
+                    secList[idx] = secList[idx].copy(completed = !completed)
+                    current[section] = secList
+                    _todayHabits.value = current
+                }
+                return false
+            }
+        } catch (e: Exception) {
+            prefs.addLog("Error toggling habit: ${e.message}. Reverting.")
+            if (idx != -1) {
+                secList[idx] = secList[idx].copy(completed = !completed)
+                current[section] = secList
+                _todayHabits.value = current
+            }
+            return false
         }
     }
 
