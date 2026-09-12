@@ -48,6 +48,9 @@ export class TaskTimerView extends ItemView {
             this.audioUnsubscribe();
             this.audioUnsubscribe = null;
         }
+        if (this.plugin?.focusAudioService) {
+            this.plugin.focusAudioService.setTimerToggleHandler(null);
+        }
         this.clearTimer();
         this.stopAlarm();
     }
@@ -1114,6 +1117,26 @@ export class TaskTimerView extends ItemView {
     private renderFocusAudioCard(parent: HTMLElement): void {
         if (!this.plugin.focusAudioService) return;
         const audioService: FocusAudioService = this.plugin.focusAudioService;
+
+        // Wire bidirectional timer toggle handler
+        audioService.setTimerToggleHandler(async (targetState = 'toggle') => {
+            if (!this.currentTimer) return false;
+
+            if (targetState === 'pause') {
+                if (!this.currentTimer.isPaused) {
+                    await this.togglePause();
+                }
+                return true;
+            } else if (targetState === 'resume') {
+                if (this.currentTimer.isPaused) {
+                    await this.togglePause();
+                }
+                return true;
+            } else {
+                await this.togglePause();
+                return true;
+            }
+        });
 
         if (this.audioUnsubscribe) {
             this.audioUnsubscribe();

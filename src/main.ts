@@ -144,6 +144,25 @@ export default class TaskTimerPlugin extends Plugin {
             }
         });
 
+        // Add Toggle Focus Timer & Media command
+        this.addCommand({
+            id: 'toggle-timer-and-media',
+            name: 'Toggle Focus Timer & Media (Play/Pause)',
+            callback: async () => {
+                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                if (leaves.length > 0) {
+                    const view = leaves[0].view as any;
+                    if (view.currentTimer) {
+                        await view.togglePause();
+                        return;
+                    }
+                }
+                if (this.focusAudioService) {
+                    await this.focusAudioService.togglePlay();
+                }
+            }
+        });
+
         // Add unified task toggle command
         this.addCommand({
             id: 'toggle-task-server',

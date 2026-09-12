@@ -261,6 +261,42 @@ export class RemoteServerService {
                     return;
                 }
 
+                if ((req.method === 'POST' || req.method === 'GET') && (pathname === '/api/timer/toggle' || pathname === '/api/timer/play-pause')) {
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    let view: any = null;
+                    if (leaves.length > 0) {
+                        view = leaves[0].view as any;
+                    }
+
+                    if (view && view.currentTimer) {
+                        await view.togglePause();
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
+                            success: true,
+                            isPaused: view.currentTimer.isPaused,
+                            taskName: view.currentTimer.taskName
+                        }));
+                        return;
+                    }
+
+                    if (plugin.focusAudioService) {
+                        await plugin.focusAudioService.togglePlay();
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
+                            success: true,
+                            isAudioPlaying: plugin.focusAudioService.isPlaying
+                        }));
+                        return;
+                    }
+
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: "No active timer or audio player" }));
+                    return;
+                }
+
                 if (req.method === 'POST' && pathname === '/api/timer/complete') {
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
                     if (leaves.length > 0) {

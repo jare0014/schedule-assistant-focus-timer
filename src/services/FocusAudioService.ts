@@ -39,6 +39,8 @@ export class FocusAudioService {
 
     // Listeners
     private stateListeners: ((service: FocusAudioService) => void)[] = [];
+    private onTimerToggle: ((targetState?: 'pause' | 'resume' | 'toggle') => Promise<boolean> | boolean) | null = null;
+    private messageListener: ((evt: MessageEvent) => void) | null = null;
 
     constructor(app: App, getSettings: () => any, saveSettings: () => Promise<void>) {
         this.app = app;
@@ -53,6 +55,93 @@ export class FocusAudioService {
         if (s && typeof s.focusAudioVolume === 'number') {
             this.volume = s.focusAudioVolume;
         }
+
+        this.setupMediaSession();
+        this.setupYouTubeMessageListener();
+    }
+
+    public setTimerToggleHandler(handler: ((targetState?: 'pause' | 'resume' | 'toggle') => Promise<boolean> | boolean) | null): void {
+        this.onTimerToggle = handler;
+    }
+
+    public hasTimerToggleHandler(): boolean {
+        return this.onTimerToggle !== null;
+    }
+
+    private setupMediaSession(): void {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+        try {
+            navigator.mediaSession.setActionHandler('play', async () => {
+                if (this.autoSyncWithTimer && this.onTimerToggle) {
+                    const handled = await this.onTimerToggle('resume');
+                    if (handled) return;
+                }
+                await this.resume();
+            });
+            navigator.mediaSession.setActionHandler('pause', async () => {
+                if (this.autoSyncWithTimer && this.onTimerToggle) {
+                    const handled = await this.onTimerToggle('pause');
+                    if (handled) return;
+                }
+                this.pause();
+            });
+            navigator.mediaSession.setActionHandler('stop', () => {
+                this.stop();
+            });
+        } catch (e) {
+            console.warn("FocusAudioService: error setting up mediaSession:", e);
+        }
+    }
+
+    private updateMediaSession(): void {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+        try {
+            navigator.mediaSession.playbackState = this.isPlaying ? 'playing' : 'paused';
+            if (this.currentTrack) {
+                (navigator as any).mediaSession.metadata = new (window as any).MediaMetadata({
+                    title: this.currentTrack.label.replace(/^🎙️\s*/, ''),
+                    artist: 'Obsidian Focus Session',
+                    album: 'Schedule Assistant'
+                });
+            }
+        } catch (e) {}
+    }
+
+    private setupYouTubeMessageListener(): void {
+        this.messageListener = async (evt: MessageEvent) => {
+            try {
+                let data = evt.data;
+                if (typeof data === 'string') {
+                    try { data = JSON.parse(data); } catch (e) { return; }
+                }
+                if (!data || typeof data !== 'object') return;
+
+                const playerState = data.info?.playerState !== undefined ? data.info.playerState : (data.event === 'onStateChange' ? data.info : undefined);
+                if (playerState === 2) {
+                    // YouTube paused externally or via media key
+                    if (this.isPlaying) {
+                        this.isPlaying = false;
+                        this.wasPlayingBeforePause = true;
+                        this.notify();
+                        if (this.autoSyncWithTimer && this.onTimerToggle) {
+                            await this.onTimerToggle('pause');
+                        }
+                    }
+                } else if (playerState === 1) {
+                    // YouTube playing
+                    if (!this.isPlaying) {
+                        this.isPlaying = true;
+                        this.wasPlayingBeforePause = true;
+                        this.notify();
+                        if (this.autoSyncWithTimer && this.onTimerToggle) {
+                            await this.onTimerToggle('resume');
+                        }
+                    }
+                }
+            } catch (e) {}
+        };
+        window.addEventListener('message', this.messageListener);
     }
 
     public onStateChange(callback: (service: FocusAudioService) => void): () => void {
@@ -63,6 +152,7 @@ export class FocusAudioService {
     }
 
     private notify(): void {
+        this.updateMediaSession();
         this.stateListeners.forEach(cb => {
             try { cb(this); } catch (e) { console.error("Audio state listener error:", e); }
         });
@@ -313,6 +403,11 @@ export class FocusAudioService {
      * Toggles between Play and Pause.
      */
     public async togglePlay(): Promise<void> {
+        if (this.autoSyncWithTimer && this.onTimerToggle) {
+            const handled = await this.onTimerToggle('toggle');
+            if (handled) return;
+        }
+
         if (this.isPlaying) {
             this.pause();
         } else {
@@ -424,6 +519,7 @@ export class FocusAudioService {
         this.ensureIframe(track.embedUrl || track.url);
         // Delay slightly for iframe load then play
         setTimeout(() => {
+            this.sendYouTubeCommand('addEventListener', ['onStateChange']);
             this.sendYouTubeCommand('playVideo');
             this.sendYouTubeCommand('setVolume', [Math.round(this.volume * 100)]);
         }, 1200);
@@ -493,7 +589,8 @@ export class FocusAudioService {
     }
 
     public onTimerResume(): void {
-        if (this.autoSyncWithTimer && this.wasPlayingBeforePause && this.currentTrack) {
+        if (this.autoSyncWithTimer && this.currentTrack) {
+            this.wasPlayingBeforePause = true;
             this.resume();
         }
     }
