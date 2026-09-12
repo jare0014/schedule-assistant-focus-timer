@@ -1184,6 +1184,17 @@ export class TaskTimerView extends ItemView {
         });
         stopBtn.setText('⏹');
 
+        const launchBtn = mainRow.createEl('button', {
+            cls: 'timer-audio-btn',
+            title: 'Open in YouTube / External App (Popout)'
+        });
+        launchBtn.setText('↗');
+        launchBtn.onclick = () => {
+            if (audioService.currentTrack?.url) {
+                window.open(audioService.currentTrack.url, '_blank');
+            }
+        };
+
         // Populate track dropdown
         const dailyFile = this.getDailyNoteFile();
         let availableTracks: FocusTrackItem[] = [];
@@ -1250,6 +1261,13 @@ export class TaskTimerView extends ItemView {
         // Row 4: Collapsible Embed Drawer (for YouTube / web iframe)
         const embedDrawer = card.createDiv({ cls: 'timer-audio-embed-drawer' });
         audioService.setContainer(embedDrawer);
+
+        audioService.setOnEnsureVisible(() => {
+            if (!embedDrawer.hasClass('expanded')) {
+                embedDrawer.addClass('expanded');
+                drawerToggle.setText('Hide Player ▲');
+            }
+        });
 
         drawerToggle.onclick = () => {
             const isExpanded = embedDrawer.hasClass('expanded');

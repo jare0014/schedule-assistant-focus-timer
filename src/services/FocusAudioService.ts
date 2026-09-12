@@ -41,6 +41,7 @@ export class FocusAudioService {
     private stateListeners: ((service: FocusAudioService) => void)[] = [];
     private onTimerToggle: ((targetState?: 'pause' | 'resume' | 'toggle') => Promise<boolean> | boolean) | null = null;
     private messageListener: ((evt: MessageEvent) => void) | null = null;
+    private onEnsureVisible: (() => void) | null = null;
 
     constructor(app: App, getSettings: () => any, saveSettings: () => Promise<void>) {
         this.app = app;
@@ -58,6 +59,10 @@ export class FocusAudioService {
 
         this.setupMediaSession();
         this.setupYouTubeMessageListener();
+    }
+
+    public setOnEnsureVisible(handler: (() => void) | null): void {
+        this.onEnsureVisible = handler;
     }
 
     public setTimerToggleHandler(handler: ((targetState?: 'pause' | 'resume' | 'toggle') => Promise<boolean> | boolean) | null): void {
@@ -256,7 +261,7 @@ export class FocusAudioService {
                 type: 'youtube',
                 isInternal: false,
                 playlistId,
-                embedUrl: `https://www.youtube-nocookie.com/embed/videoseries?list=${playlistId}&enablejsapi=1&origin=${encodeURIComponent(window.location.origin || 'app://obsidian.md')}`
+                embedUrl: `https://www.youtube.com/embed/videoseries?list=${playlistId}&enablejsapi=1&autoplay=1`
             };
         }
 
@@ -270,7 +275,7 @@ export class FocusAudioService {
                 type: 'youtube',
                 isInternal: false,
                 videoId,
-                embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&origin=${encodeURIComponent(window.location.origin || 'app://obsidian.md')}`
+                embedUrl: `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1`
             };
         }
 
@@ -390,10 +395,13 @@ export class FocusAudioService {
                 return;
             }
         } else if (this.currentTrack.type === 'youtube') {
-            this.sendYouTubeCommand('playVideo');
-            this.isPlaying = true;
-            this.notify();
-            return;
+            if (this.iframeElement) {
+                if (this.onEnsureVisible) this.onEnsureVisible();
+                this.sendYouTubeCommand('playVideo');
+                this.isPlaying = true;
+                this.notify();
+                return;
+            }
         }
 
         await this.play();
@@ -517,12 +525,15 @@ export class FocusAudioService {
 
     private playYouTubeTrack(track: FocusTrackItem): void {
         this.ensureIframe(track.embedUrl || track.url);
+        if (this.onEnsureVisible) {
+            this.onEnsureVisible();
+        }
         // Delay slightly for iframe load then play
         setTimeout(() => {
             this.sendYouTubeCommand('addEventListener', ['onStateChange']);
             this.sendYouTubeCommand('playVideo');
             this.sendYouTubeCommand('setVolume', [Math.round(this.volume * 100)]);
-        }, 1200);
+        }, 1000);
     }
 
     private playEmbedTrack(track: FocusTrackItem): void {
