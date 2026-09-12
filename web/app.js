@@ -792,7 +792,7 @@ function createTaskCard(task) {
             await fetch(`${API_BASE}/api/task/toggle`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lineIndex: task.lineIndex, complete: cb.checked })
+                body: JSON.stringify({ lineIndex: task.lineIndex, complete: cb.checked, description: task.description })
             });
             checkStatus();
         } catch(err) {

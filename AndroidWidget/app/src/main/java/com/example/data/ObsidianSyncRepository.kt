@@ -513,6 +513,8 @@ class ObsidianSyncRepository(private val context: Context) {
             val payload = JSONObject().apply {
                 put("lineIndex", task.lineNumber - 1)
                 put("complete", isCompleted)
+                put("description", task.displayTitle.ifEmpty { task.text })
+                put("text", task.text)
             }
 
             val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
@@ -949,11 +951,14 @@ class ObsidianSyncRepository(private val context: Context) {
 
     suspend fun deleteTask(task: Task): Boolean {
         prefs.addLog("Deleting task block: ${task.text}")
+        taskDao.deleteTask(task.id)
+        triggerWidgetUpdate()
         val base = getBaseUrl()
         val url = "$base/api/task/delete"
         val payload = JSONObject().apply {
             put("lineIndex", task.lineNumber - 1)
             put("description", task.displayTitle.ifEmpty { task.text })
+            put("text", task.text)
         }
         val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
         val body = payload.toString().toRequestBody(mediaType)
@@ -969,10 +974,12 @@ class ObsidianSyncRepository(private val context: Context) {
                 syncTasks()
                 return true
             } else {
-                prefs.addLog("Failed to delete task: HTTP ${response.code}")
+                prefs.addLog("Remote delete response: HTTP ${response.code}")
+                syncTasks()
             }
         } catch (e: Exception) {
             prefs.addLog("Network error deleting task: ${e.message}")
+            syncTasks()
         }
         return false
     }

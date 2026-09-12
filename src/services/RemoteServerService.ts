@@ -345,24 +345,67 @@ export class RemoteServerService {
 
                 if (req.method === 'POST' && pathname === '/api/task/toggle') {
                     const body = await readBody();
-                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    if (leaves.length > 0) {
-                        const view = leaves[0].view as any;
-                        const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
-                        if (dailyFile) {
-                            const content = await this.app.vault.read(dailyFile);
-                            const tasks = TaskParserService.parseAllTasks(content);
-                            const task = tasks.find(t => t.lineIndex === body.lineIndex);
-                            if (task) {
-                                await view.toggleTaskCompletion(task, body.complete);
-                                setCorsHeaders();
-                                res.writeHead(200, { 'Content-Type': 'application/json' });
-                                res.end(JSON.stringify({ success: true }));
-                                return;
+                    const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
+                    if (dailyFile) {
+                        const content = await this.app.vault.read(dailyFile);
+                        let lines = content.split(/\r?\n/);
+                        let targetIdx = body.lineIndex;
+                        const desc = (body.description || body.text || '').toLowerCase().trim();
+
+                        if (targetIdx === undefined || targetIdx >= lines.length || (desc && !lines[targetIdx].toLowerCase().includes(desc))) {
+                            targetIdx = lines.findIndex(l => 
+                                (desc ? l.toLowerCase().includes(desc) : false) && 
+                                (l.includes("- [ ]") || l.includes("- [x]") || l.includes("- [/]"))
+                            );
+                        }
+
+                        if (targetIdx !== -1) {
+                            const origLine = lines[targetIdx];
+                            const complete = Boolean(body.complete);
+                            if (complete) {
+                                lines[targetIdx] = origLine.replace("- [ ]", "- [x]").replace("- [/]", "- [x]");
+                            } else {
+                                lines[targetIdx] = origLine.replace("- [x]", "- [ ]");
                             }
+
+                            // Also toggle child subtasks if indented
+                            const parentIndent = origLine.match(/^(\s*)/)![1].length;
+                            for (let i = targetIdx + 1; i < lines.length; i++) {
+                                const childLine = lines[i];
+                                if (!childLine.trim()) continue;
+                                const childIndent = childLine.match(/^(\s*)/)![1].length;
+                                if (childIndent <= parentIndent) break;
+
+                                if (childLine.includes("- [ ]") || childLine.includes("- [x]") || childLine.includes("- [/]")) {
+                                    if (complete) {
+                                        lines[i] = childLine.replace("- [ ]", "- [x]").replace("- [/]", "- [x]");
+                                    } else {
+                                        lines[i] = childLine.replace("- [x]", "- [ ]");
+                                    }
+                                }
+                            }
+
+                            if (plugin.externalTaskSyncService) {
+                                await plugin.externalTaskSyncService.toggleTaskStatusByLineText(origLine, complete);
+                            }
+
+                            await this.app.vault.modify(dailyFile, lines.join("\n"));
+
+                            const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                            if (leaves.length > 0 && typeof (leaves[0].view as any)?.renderSchedule === 'function') {
+                                try { (leaves[0].view as any).renderSchedule(); } catch (e) { console.error("renderSchedule error:", e); }
+                            }
+
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true }));
+                            return;
                         }
                     }
-                    throw new Error("Task not found or view not available.");
+                    setCorsHeaders();
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: "Task not found or daily note not available." }));
+                    return;
                 }
 
                 if (req.method === 'POST' && pathname === '/api/habit/toggle') {
@@ -381,8 +424,8 @@ export class RemoteServerService {
                     const success = await WeeklyHabitService.toggleWeeklyHabit(this.app, section, habitIdentifier, completed);
                     if (success) {
                         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                        if (leaves.length > 0) {
-                            (leaves[0].view as any).renderSchedule();
+                        if (leaves.length > 0 && typeof (leaves[0].view as any)?.renderSchedule === 'function') {
+                            try { (leaves[0].view as any).renderSchedule(); } catch (e) { console.error("renderSchedule error:", e); }
                         }
                         setCorsHeaders();
                         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -417,8 +460,8 @@ export class RemoteServerService {
                                 }
                             }
                             await DailyNoteManager.postponeTask(this.app, task);
-                            if (view) {
-                                view.renderSchedule();
+                            if (view && typeof view.renderSchedule === 'function') {
+                                try { view.renderSchedule(); } catch (e) { console.error("renderSchedule error:", e); }
                             }
                             setCorsHeaders();
                             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -437,8 +480,12 @@ export class RemoteServerService {
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
                     const view = leaves.length > 0 ? (leaves[0].view as any) : null;
                     if (view) {
-                        await view.handleTaskDrop(body.draggedTask, body.targetSubheading);
-                        view.renderSchedule();
+                        if (typeof view.handleTaskDrop === 'function') {
+                            await view.handleTaskDrop(body.draggedTask, body.targetSubheading);
+                        }
+                        if (typeof view.renderSchedule === 'function') {
+                            try { view.renderSchedule(); } catch (e) { console.error("renderSchedule error:", e); }
+                        }
                     }
                     setCorsHeaders();
                     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -471,8 +518,8 @@ export class RemoteServerService {
                                 }
                             }
                             await DailyNoteManager.removeTask(this.app, task);
-                            if (view) {
-                                view.renderSchedule();
+                            if (view && typeof view.renderSchedule === 'function') {
+                                try { view.renderSchedule(); } catch (e) { console.error("renderSchedule error:", e); }
                             }
                             setCorsHeaders();
                             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -491,9 +538,9 @@ export class RemoteServerService {
                     const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
                     if (dailyFile) {
                         const content = await this.app.vault.read(dailyFile);
-                        const lines = content.split(/\r?\n/);
+                        let lines = content.split(/\r?\n/);
                         let lineIndex = body.lineIndex;
-                        const desc = (body.description || '').toLowerCase().trim();
+                        const desc = (body.description || body.text || '').toLowerCase().trim();
                         if (lineIndex === undefined || lineIndex >= lines.length || (desc && !lines[lineIndex].toLowerCase().includes(desc))) {
                             lineIndex = lines.findIndex(l => (desc ? l.toLowerCase().includes(desc) : false) && (l.includes('- [ ]') || l.includes('- [x]') || l.includes('- [/]')));
                         }
@@ -506,19 +553,67 @@ export class RemoteServerService {
                                 if (child.match(/^(\s*)/)![1].length <= parentIndent) break;
                                 endIndex++;
                             }
+                            // Also check if immediately following lines are a weeklyTableTracker block for this task
+                            if (endIndex < lines.length && lines[endIndex].trim().startsWith('```dataviewjs')) {
+                                let dvEnd = endIndex + 1;
+                                while (dvEnd < lines.length && !lines[dvEnd].trim().startsWith('```')) {
+                                    dvEnd++;
+                                }
+                                if (dvEnd < lines.length) {
+                                    const dvBlock = lines.slice(endIndex, dvEnd + 1).join('\n');
+                                    if (desc && dvBlock.toLowerCase().includes(desc)) {
+                                        endIndex = dvEnd + 1;
+                                    }
+                                }
+                            }
                             lines.splice(lineIndex, endIndex - lineIndex);
                             await this.app.vault.modify(dailyFile, lines.join('\n'));
                             const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                            if (leaves.length > 0) (leaves[0].view as any).renderSchedule();
+                            if (leaves.length > 0 && typeof (leaves[0].view as any)?.renderSchedule === 'function') {
+                                try { (leaves[0].view as any).renderSchedule(); } catch (e) { console.error("renderSchedule error:", e); }
+                            }
                             setCorsHeaders();
                             res.writeHead(200, { 'Content-Type': 'application/json' });
                             res.end(JSON.stringify({ success: true }));
+                            return;
+                        } else {
+                            // If not found as a markdown task, check if it exists purely as a dataviewjs weeklyTableTracker block
+                            if (desc) {
+                                const dvIdx = lines.findIndex((l, idx) => {
+                                    if (l.trim().startsWith('```dataviewjs')) {
+                                        const snippet = lines.slice(idx, idx + 10).join('\n').toLowerCase();
+                                        return snippet.includes('weeklytabletracker') && snippet.includes(desc);
+                                    }
+                                    return false;
+                                });
+                                if (dvIdx !== -1) {
+                                    let dvEnd = dvIdx + 1;
+                                    while (dvEnd < lines.length && !lines[dvEnd].trim().startsWith('```')) {
+                                        dvEnd++;
+                                    }
+                                    const deleteCount = (dvEnd < lines.length ? dvEnd + 1 : dvIdx + 1) - dvIdx;
+                                    lines.splice(dvIdx, deleteCount);
+                                    await this.app.vault.modify(dailyFile, lines.join('\n'));
+                                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                                    if (leaves.length > 0 && typeof (leaves[0].view as any)?.renderSchedule === 'function') {
+                                        try { (leaves[0].view as any).renderSchedule(); } catch (e) { console.error("renderSchedule error:", e); }
+                                    }
+                                    setCorsHeaders();
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ success: true, removedTracker: true }));
+                                    return;
+                                }
+                            }
+                            // If neither task line nor tracker found, it was already deleted! Return 200 idempotent success
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true, message: "Task was already deleted" }));
                             return;
                         }
                     }
                     setCorsHeaders();
                     res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Task not found or daily note unavailable.' }));
+                    res.end(JSON.stringify({ error: 'Daily note unavailable.' }));
                     return;
                 }
 
