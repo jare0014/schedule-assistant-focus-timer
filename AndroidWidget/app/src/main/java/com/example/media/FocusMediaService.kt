@@ -16,6 +16,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import android.media.AudioManager
+import android.view.KeyEvent
 import com.example.MainActivity
 import com.example.data.SyncPreferences
 
@@ -40,6 +42,9 @@ class FocusMediaService : MediaSessionService() {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_TYPE = "extra_type"
 
+        private const val CHANNEL_ID = "focus_audio_channel"
+        private const val NOTIFICATION_ID = 2001
+
         fun playTrack(context: Context, label: String, url: String, streamUrl: String?, type: String) {
             val intent = Intent(context, FocusMediaService::class.java).apply {
                 action = ACTION_PLAY
@@ -48,49 +53,71 @@ class FocusMediaService : MediaSessionService() {
                 putExtra(EXTRA_STREAM_URL, streamUrl)
                 putExtra(EXTRA_TYPE, type)
             }
-            context.startService(intent)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
 
         fun pauseAudio(context: Context) {
             val intent = Intent(context, FocusMediaService::class.java).apply {
                 action = ACTION_PAUSE
             }
-            context.startService(intent)
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {}
         }
 
         fun resumeAudio(context: Context) {
             val intent = Intent(context, FocusMediaService::class.java).apply {
                 action = ACTION_RESUME
             }
-            context.startService(intent)
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {}
         }
 
         fun toggleAudio(context: Context) {
             val intent = Intent(context, FocusMediaService::class.java).apply {
                 action = ACTION_TOGGLE
             }
-            context.startService(intent)
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {}
         }
 
         fun duckAudio(context: Context) {
             val intent = Intent(context, FocusMediaService::class.java).apply {
                 action = ACTION_DUCK
             }
-            context.startService(intent)
+            try { context.startService(intent) } catch (e: Exception) {}
         }
 
         fun unduckAudio(context: Context) {
             val intent = Intent(context, FocusMediaService::class.java).apply {
                 action = ACTION_UNDUCK
             }
-            context.startService(intent)
+            try { context.startService(intent) } catch (e: Exception) {}
         }
 
         fun stopAudio(context: Context) {
             val intent = Intent(context, FocusMediaService::class.java).apply {
                 action = ACTION_STOP
             }
-            context.startService(intent)
+            try { context.startService(intent) } catch (e: Exception) {}
         }
     }
 
@@ -224,12 +251,28 @@ class FocusMediaService : MediaSessionService() {
             player.pause()
         }
         equiSyncEngine?.pause()
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+            audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
+        } catch (e: Exception) {
+            Log.e("FocusMediaService", "Error dispatching pause media key: ${e.message}")
+        }
         prefs.isPhoneAudioPlaying = false
         prefs.addLog("Audio playback paused.")
     }
 
     private fun resumeInternal() {
-        if (prefs.selectedAudioTrackType == "external_web" && prefs.selectedAudioTrackUrl.contains("equisync")) {
+        if (prefs.selectedAudioTrackType == "spotify" || (prefs.selectedAudioTrackType == "external_web" && !prefs.selectedAudioTrackUrl.contains("equisync"))) {
+            try {
+                val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
+                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
+            } catch (e: Exception) {
+                Log.e("FocusMediaService", "Error dispatching play media key: ${e.message}")
+            }
+            prefs.isPhoneAudioPlaying = true
+        } else if (prefs.selectedAudioTrackType == "external_web" && prefs.selectedAudioTrackUrl.contains("equisync")) {
             equiSyncEngine?.resume()
             prefs.isPhoneAudioPlaying = true
         } else {
@@ -252,6 +295,13 @@ class FocusMediaService : MediaSessionService() {
         player.stop()
         player.clearMediaItems()
         equiSyncEngine?.stop()
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+            audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
+        } catch (e: Exception) {
+            Log.e("FocusMediaService", "Error dispatching pause media key: ${e.message}")
+        }
         prefs.isPhoneAudioPlaying = false
         prefs.addLog("Audio playback stopped.")
     }

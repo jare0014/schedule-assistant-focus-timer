@@ -6,8 +6,11 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.os.Build
+import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
+import android.view.KeyEvent
 import android.widget.Toast
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -952,14 +955,29 @@ fun ObsidianTodoScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Track Info & Selector trigger
+                        // Track Info: tapping opens external app, or opens track selector if local
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    showTrackMenu = true
-                                    scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
+                                    if (selectedAudioTrackType == "spotify" || (selectedAudioTrackType == "external_web" && !selectedAudioTrackUrl.contains("equisync")) || selectedAudioTrackType == "youtube") {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                            context.startActivity(webIntent)
+                                        }
+                                    } else if (selectedAudioTrackUrl.contains("equisync")) {
+                                        val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                        webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        context.startActivity(webIntent)
+                                    } else {
+                                        showTrackMenu = true
+                                        scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
+                                    }
                                 }
                         ) {
                             val audioIcon = when {
@@ -989,14 +1007,26 @@ fun ObsidianTodoScreen(
                                         )
                                     }
                                 }
-                                Text(
-                                    text = selectedAudioTrackLabel.ifEmpty { "Select Track" },
-                                    color = ObsidianTextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = selectedAudioTrackLabel.ifEmpty { "Select Track" },
+                                        color = ObsidianTextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    if (selectedAudioTrackType == "spotify" || selectedAudioTrackType == "external_web" || selectedAudioTrackType == "youtube") {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "↗",
+                                            color = ObsidianTextMuted,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -1042,13 +1072,24 @@ fun ObsidianTodoScreen(
                                             prefs.selectedAudioTrackType = track.type
                                             refreshPreferencesState()
                                             if (isPhoneAudioPlaying) {
-                                                FocusMediaService.playTrack(
-                                                    context,
-                                                    track.label,
-                                                    track.url,
-                                                    track.streamUrl,
-                                                    track.type
-                                                )
+                                                if (track.type == "local") {
+                                                    FocusMediaService.playTrack(
+                                                        context,
+                                                        track.label,
+                                                        track.url,
+                                                        track.streamUrl,
+                                                        track.type
+                                                    )
+                                                } else {
+                                                    try {
+                                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(track.url))
+                                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(track.url))
+                                                        context.startActivity(webIntent)
+                                                    }
+                                                }
                                             }
                                         }
                                     )
@@ -1079,34 +1120,27 @@ fun ObsidianTodoScreen(
                                 )
                             }
 
-                            // Play / Pause / Launch button
+                            // Dedicated Play / Pause button
                             IconButton(
                                 onClick = {
-                                    if (selectedAudioTrackType == "external_web" && !selectedAudioTrackUrl.contains("equisync")) {
-                                        // YouTube Music external intent launch
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                            context.startActivity(webIntent)
-                                        }
-                                    } else if (selectedAudioTrackType == "spotify") {
-                                        // Spotify external intent launch
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                            context.startActivity(webIntent)
-                                        }
-                                    } else {
-                                        // Native Media3 Player & EquiSync WebEngine
-                                        if (isPhoneAudioPlaying) {
+                                    if (isPhoneAudioPlaying) {
+                                        // PAUSE ACTION
+                                        if (selectedAudioTrackType == "local") {
                                             FocusMediaService.pauseAudio(context)
                                         } else {
+                                            try {
+                                                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
+                                            } catch (e: Exception) {}
+                                            FocusMediaService.pauseAudio(context)
+                                        }
+                                        prefs.isPhoneAudioPlaying = false
+                                        isPhoneAudioPlaying = false
+                                        prefs.addLog("Paused focus audio")
+                                    } else {
+                                        // PLAY ACTION
+                                        if (selectedAudioTrackType == "local") {
                                             FocusMediaService.playTrack(
                                                 context,
                                                 selectedAudioTrackLabel,
@@ -1114,7 +1148,35 @@ fun ObsidianTodoScreen(
                                                 selectedAudioTrackStreamUrl,
                                                 selectedAudioTrackType
                                             )
+                                        } else if (selectedAudioTrackType == "spotify") {
+                                            // Dispatch media play key first
+                                            try {
+                                                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
+                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
+                                            } catch (e: Exception) {}
+
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                                context.startActivity(webIntent)
+                                            }
+                                        } else if (selectedAudioTrackType == "external_web" || selectedAudioTrackType == "youtube") {
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                                context.startActivity(webIntent)
+                                            }
                                         }
+                                        prefs.isPhoneAudioPlaying = true
+                                        isPhoneAudioPlaying = true
+                                        prefs.addLog("Started focus audio: $selectedAudioTrackLabel")
                                     }
                                     scope.launch(Dispatchers.Main) {
                                         refreshPreferencesState()
@@ -1127,12 +1189,16 @@ fun ObsidianTodoScreen(
                                         shape = CircleShape
                                     )
                             ) {
-                                Icon(
-                                    imageVector = if (isPhoneAudioPlaying) Icons.Default.Close else Icons.Default.PlayArrow,
-                                    contentDescription = if (isPhoneAudioPlaying) "Pause" else "Play",
-                                    tint = if (isPhoneAudioPlaying) ObsidianBg else ObsidianPurple,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                if (isPhoneAudioPlaying) {
+                                    PauseIcon(tint = ObsidianBg, modifier = Modifier.size(18.dp))
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play",
+                                        tint = ObsidianPurple,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -2551,3 +2617,25 @@ fun NativeTimelineGridView(
     }
 }
 
+@Composable
+fun PauseIcon(tint: Color, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.5.dp)
+                .height(13.dp)
+                .background(tint, RoundedCornerShape(1.dp))
+        )
+        Spacer(modifier = Modifier.width(3.5.dp))
+        Box(
+            modifier = Modifier
+                .width(3.5.dp)
+                .height(13.dp)
+                .background(tint, RoundedCornerShape(1.dp))
+        )
+    }
+}
