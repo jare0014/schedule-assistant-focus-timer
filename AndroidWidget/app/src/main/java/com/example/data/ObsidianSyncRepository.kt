@@ -640,6 +640,26 @@ class ObsidianSyncRepository(private val context: Context) {
             } else {
                 clearActiveTimerPrefs()
             }
+            if (obj.has("focusAudio") && !obj.isNull("focusAudio")) {
+                val audioObj = obj.getJSONObject("focusAudio")
+                if (audioObj.has("currentTrack") && !audioObj.isNull("currentTrack")) {
+                    val trackObj = audioObj.getJSONObject("currentTrack")
+                    val label = trackObj.optString("label", "")
+                    val url = trackObj.optString("url", "")
+                    val streamUrl = trackObj.optString("streamUrl", "")
+                    val type = trackObj.optString("type", "external_web")
+                    if (label.isNotEmpty()) {
+                        prefs.selectedAudioTrackLabel = label
+                        prefs.selectedAudioTrackUrl = url
+                        prefs.selectedAudioTrackStreamUrl = streamUrl
+                        prefs.selectedAudioTrackType = type
+                    }
+                }
+                val desktopPlaying = audioObj.optBoolean("isPlaying", false)
+                if (prefs.activeTimerIsPaused || prefs.activeTimerTaskName.isEmpty()) {
+                    prefs.isPhoneAudioPlaying = false
+                }
+            }
             if (obj.has("todayHabits") && !obj.isNull("todayHabits")) {
                 val habitsObj = obj.getJSONObject("todayHabits")
                 val parsedHabits = mutableMapOf<String, List<HabitItem>>()
@@ -923,6 +943,20 @@ class ObsidianSyncRepository(private val context: Context) {
                         )
                     }
                     _availableAudioTracks.value = list
+
+                    if (obj.has("currentTrack") && !obj.isNull("currentTrack")) {
+                        val curTrack = obj.getJSONObject("currentTrack")
+                        val curLabel = curTrack.optString("label", "")
+                        if (curLabel.isNotEmpty()) {
+                            prefs.selectedAudioTrackLabel = curLabel
+                            prefs.selectedAudioTrackUrl = curTrack.optString("url", "")
+                            prefs.selectedAudioTrackStreamUrl = curTrack.optString("streamUrl", "")
+                            prefs.selectedAudioTrackType = curTrack.optString("type", "external_web")
+                        }
+                    }
+                    if (prefs.activeTimerIsPaused || prefs.activeTimerTaskName.isEmpty()) {
+                        prefs.isPhoneAudioPlaying = false
+                    }
                     return list
                 }
             }
@@ -930,6 +964,30 @@ class ObsidianSyncRepository(private val context: Context) {
             Log.e("SyncRepository", "Error fetching audio tracks: ${e.message}")
         }
         return _availableAudioTracks.value
+    }
+
+    suspend fun selectAudioTrackOnDesktop(label: String, url: String, type: String): Boolean {
+        try {
+            val base = getBaseUrl()
+            val targetUrl = "$base/api/audio/select"
+            val payload = JSONObject().apply {
+                put("label", label)
+                put("url", url)
+                put("type", type)
+            }
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val body = payload.toString().toRequestBody(mediaType)
+            val request = Request.Builder().url(targetUrl).post(body)
+            if (prefs.apiToken.isNotEmpty()) {
+                request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+                request.addHeader("X-API-Key", prefs.apiToken)
+            }
+            val response = client.newCall(request.build()).execute()
+            return response.isSuccessful
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "Error selecting audio track on desktop: ${e.message}")
+        }
+        return false
     }
 
     suspend fun postponeTask(task: Task): Boolean {

@@ -286,7 +286,7 @@ export class FocusAudioService {
                 type: 'youtube',
                 isInternal: false,
                 playlistId,
-                embedUrl: `https://www.youtube.com/embed/videoseries?list=${playlistId}&enablejsapi=1&autoplay=1`
+                embedUrl: `https://www.youtube.com/embed/videoseries?list=${playlistId}&enablejsapi=1&autoplay=1&playsinline=1`
             };
         }
 
@@ -300,7 +300,7 @@ export class FocusAudioService {
                 type: 'youtube',
                 isInternal: false,
                 videoId,
-                embedUrl: `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1`
+                embedUrl: `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1`
             };
         }
 

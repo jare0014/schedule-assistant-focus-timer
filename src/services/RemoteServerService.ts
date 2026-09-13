@@ -72,18 +72,20 @@ export class RemoteServerService {
                 }
 
                 // Serve files from Obsidian vault (for Markdown mobile sync)
-                const relativePath = decodeURIComponent(pathname);
-                if (!relativePath.includes('..')) {
-                    const fullVaultFilePath = path.join(vaultPath, relativePath);
-                    if (req.method === 'GET' && fs.existsSync(fullVaultFilePath) && fs.statSync(fullVaultFilePath).isFile()) {
-                        let contentType = 'text/plain; charset=utf-8';
-                        if (relativePath.endsWith('.md')) {
-                            contentType = 'text/markdown; charset=utf-8';
+                if (!pathname.startsWith('/api/')) {
+                    const relativePath = decodeURIComponent(pathname).replace(/^\/+/, '');
+                    if (!relativePath.includes('..') && relativePath.length > 0) {
+                        const fullVaultFilePath = path.join(vaultPath, relativePath);
+                        if (req.method === 'GET' && fs.existsSync(fullVaultFilePath) && fs.statSync(fullVaultFilePath).isFile()) {
+                            let contentType = 'text/plain; charset=utf-8';
+                            if (relativePath.endsWith('.md')) {
+                                contentType = 'text/markdown; charset=utf-8';
+                            }
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': contentType });
+                            res.end(fs.readFileSync(fullVaultFilePath));
+                            return;
                         }
-                        setCorsHeaders();
-                        res.writeHead(200, { 'Content-Type': contentType });
-                        res.end(fs.readFileSync(fullVaultFilePath));
-                        return;
                     }
                 }
 
@@ -158,6 +160,20 @@ export class RemoteServerService {
                             lineIndex: activeTimer.task ? activeTimer.task.lineIndex : null
                         } : null,
                         isAlarming,
+                        focusAudio: plugin.focusAudioService ? {
+                            currentTrack: plugin.focusAudioService.currentTrack ? {
+                                label: plugin.focusAudioService.currentTrack.label,
+                                url: plugin.focusAudioService.currentTrack.url,
+                                streamUrl: plugin.focusAudioService.currentTrack.type === 'local' && plugin.focusAudioService.currentTrack.localFile
+                                    ? `http://${req.headers.host || `127.0.0.1:${settings.port || 8090}`}/${encodeURIComponent(plugin.focusAudioService.currentTrack.localFile.path).replace(/%2F/g, '/')}`
+                                    : plugin.focusAudioService.currentTrack.url,
+                                type: plugin.focusAudioService.currentTrack.type,
+                                isInternal: plugin.focusAudioService.currentTrack.isInternal
+                            } : null,
+                            isPlaying: Boolean(plugin.focusAudioService.isPlaying),
+                            autoSyncWithTimer: Boolean(plugin.focusAudioService.autoSyncWithTimer),
+                            volume: plugin.focusAudioService.volume
+                        } : null,
                         todayHabits,
                         schedule: schedule.map(t => ({
                             lineIndex: t.lineIndex,
@@ -226,6 +242,35 @@ export class RemoteServerService {
                         }
                     });
                 });
+
+                if (req.method === 'POST' && pathname === '/api/audio/select') {
+                    const body = await readBody();
+                    if (plugin.focusAudioService) {
+                        const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
+                        const tracks = await plugin.focusAudioService.scanAvailableTracks(dailyFile);
+                        const matched = tracks.find(t => t.url === body.url || t.label.toLowerCase() === (body.label || '').toLowerCase());
+                        if (matched) {
+                            plugin.focusAudioService.selectTrack(matched);
+                        }
+                    }
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true }));
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/audio/toggle') {
+                    if (plugin.focusAudioService) {
+                        await plugin.focusAudioService.togglePlay();
+                    }
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        success: true,
+                        isPlaying: Boolean(plugin.focusAudioService?.isPlaying)
+                    }));
+                    return;
+                }
 
                 if (req.method === 'POST' && pathname === '/api/timer/start') {
                     const body = await readBody();
