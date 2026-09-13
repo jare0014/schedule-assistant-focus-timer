@@ -266,17 +266,7 @@ export class FocusAudioService {
      * Categorizes a media link into YouTube, Spotify, Local, or Generic Web.
      */
     public categorizeUrl(label: string, url: string, isInternal: boolean): FocusTrackItem {
-        // External authenticated / non-embeddable web audio (YouTube Music library, EquiSync)
-        if (url.includes('music.youtube.com') || url.includes('equisync.eocinstitute.org')) {
-            return {
-                label,
-                url,
-                type: 'external_web',
-                isInternal: false
-            };
-        }
-
-        // YouTube / YouTube Music playlist
+        // 1. YouTube / YouTube Music playlist (e.g. music.youtube.com/playlist?list=... or youtube.com/playlist?list=...)
         const ytPlaylistMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
         if (ytPlaylistMatch && (url.includes('youtube.com') || url.includes('youtu.be'))) {
             const playlistId = ytPlaylistMatch[1];
@@ -290,7 +280,7 @@ export class FocusAudioService {
             };
         }
 
-        // YouTube video
+        // 2. YouTube / YouTube Music video (e.g. music.youtube.com/watch?v=... or youtube.com/watch?v=...)
         const ytVideoMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
         if (ytVideoMatch && (url.includes('youtube.com') || url.includes('youtu.be'))) {
             const videoId = ytVideoMatch[1];
@@ -304,7 +294,7 @@ export class FocusAudioService {
             };
         }
 
-        // Spotify
+        // 3. Spotify
         const spotifyMatch = url.match(/open\.spotify\.com\/(track|album|playlist|artist)\/([a-zA-Z0-9]+)/);
         if (spotifyMatch) {
             const spotType = spotifyMatch[1];
@@ -315,6 +305,16 @@ export class FocusAudioService {
                 type: 'spotify',
                 isInternal: false,
                 embedUrl: `https://open.spotify.com/embed/${spotType}/${spotId}?utm_source=generator&theme=0`
+            };
+        }
+
+        // 4. External authenticated / non-embeddable web audio (YouTube Music private library channels, EquiSync)
+        if (url.includes('equisync.eocinstitute.org') || url.includes('music.youtube.com') || url.includes('privately_owned')) {
+            return {
+                label,
+                url,
+                type: 'external_web',
+                isInternal: false
             };
         }
 
@@ -593,7 +593,7 @@ export class FocusAudioService {
         }
     }
 
-    private ensureIframe(src: string): HTMLIFrameElement {
+    public ensureIframe(src?: string): HTMLIFrameElement {
         if (!this.iframeElement) {
             this.iframeElement = document.createElement('iframe');
             this.iframeElement.className = 'focus-audio-embed-frame';
@@ -601,7 +601,7 @@ export class FocusAudioService {
             this.iframeElement.setAttribute('allowfullscreen', 'true');
         }
 
-        if (this.iframeElement.src !== src) {
+        if (src && this.iframeElement.src !== src) {
             this.iframeElement.src = src;
         }
 

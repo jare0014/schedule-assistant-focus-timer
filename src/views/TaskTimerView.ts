@@ -1225,8 +1225,16 @@ export class TaskTimerView extends ItemView {
         };
 
         playBtn.onclick = async () => {
-            if (this.currentTimer) {
-                await this.togglePause();
+            if (this.currentTimer && audioService.autoSyncWithTimer) {
+                if (audioService.isPlaying) {
+                    await this.togglePause();
+                } else {
+                    if (this.currentTimer.isPaused) {
+                        await this.togglePause();
+                    } else {
+                        await audioService.play();
+                    }
+                }
             } else {
                 await audioService.togglePlay();
             }
@@ -1281,12 +1289,12 @@ export class TaskTimerView extends ItemView {
                 titleEl.setText(`🌐 ${track.label}`);
 
                 const descEl = externalNotice.createDiv({ style: 'font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;' });
-                if (track.url.includes('music.youtube.com')) {
+                if (track.label.toLowerCase().includes('eoto') || track.url.includes('privately_owned') || track.url.includes('channel/FE')) {
                     descEl.setText('🔒 Requires your logged-in Google account for private EOTO tracks. Plays in your browser and toggles via Ctrl+K.');
                 } else if (track.url.includes('equisync')) {
                     descEl.setText('🎧 EquiSync Element Web Audio synthesizer. Runs in your browser with full audio engine support.');
                 } else {
-                    descEl.setText('🌐 External web audio player. Controlled via system media keys and Ctrl+K.');
+                    descEl.setText('🌐 External web audio player. Plays in your browser and toggles via Ctrl+K.');
                 }
 
                 const openBtn = externalNotice.createEl('button', {
@@ -1301,6 +1309,9 @@ export class TaskTimerView extends ItemView {
                 const notice = embedDrawer.querySelector('.timer-audio-external-notice');
                 if (notice) notice.remove();
                 audioService.setContainer(embedDrawer);
+                if (track?.embedUrl) {
+                    audioService.ensureIframe(track.embedUrl);
+                }
             }
         };
 
