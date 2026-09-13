@@ -91,6 +91,14 @@ class SyncPreferences(private val context: Context) {
         get() = prefs.getBoolean("is_phone_audio_playing", false)
         set(value) = prefs.edit().putBoolean("is_phone_audio_playing", value).apply()
 
+    var isDesktopAudioPlaying: Boolean
+        get() = prefs.getBoolean("is_desktop_audio_playing", false)
+        set(value) = prefs.edit().putBoolean("is_desktop_audio_playing", value).apply()
+
+    var playbackDeviceTarget: String
+        get() = prefs.getString("playback_device_target", "kilPC") ?: "kilPC"
+        set(value) = prefs.edit().putString("playback_device_target", value).apply()
+
     fun getLogs(): List<String> {
         val serialized = prefs.getString("sync_logs", "") ?: ""
         if (serialized.isEmpty()) return emptyList()

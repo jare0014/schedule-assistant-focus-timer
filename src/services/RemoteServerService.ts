@@ -272,6 +272,158 @@ export class RemoteServerService {
                     return;
                 }
 
+                if (req.method === 'POST' && pathname === '/api/audio/volume') {
+                    const body = await readBody();
+                    if (plugin.focusAudioService && typeof body.volume === 'number') {
+                        plugin.focusAudioService.setVolume(body.volume);
+                    }
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, volume: plugin.focusAudioService?.volume }));
+                    return;
+                }
+
+                // Audio Streaming Endpoint with full HTTP 206 Partial Content (Byte-Range)
+                if (req.method === 'GET' && pathname === '/api/audio/stream') {
+                    const parsedUrl = new URL(req.url || '', `http://${req.headers.host || '127.0.0.1'}`);
+                    const fileParam = parsedUrl.searchParams.get('file');
+                    if (!fileParam) {
+                        setCorsHeaders();
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: "Missing 'file' parameter." }));
+                        return;
+                    }
+
+                    const safeRelative = path.normalize(decodeURIComponent(fileParam)).replace(/^(\.\.[\/\\])+/, '');
+                    const fullPath = path.join(vaultPath, safeRelative);
+
+                    if (!fs.existsSync(fullPath)) {
+                        setCorsHeaders();
+                        res.writeHead(404, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: "File not found." }));
+                        return;
+                    }
+
+                    const stat = fs.statSync(fullPath);
+                    const totalSize = stat.size;
+                    const ext = path.extname(fullPath).toLowerCase().replace('.', '');
+                    const mimeTypes: { [k: string]: string } = {
+                        'mp3': 'audio/mpeg',
+                        'm4a': 'audio/mp4',
+                        'wav': 'audio/wav',
+                        'ogg': 'audio/ogg',
+                        'aac': 'audio/aac',
+                        'flac': 'audio/flac'
+                    };
+                    const contentType = mimeTypes[ext] || 'audio/mpeg';
+
+                    const range = req.headers.range;
+                    setCorsHeaders();
+                    res.setHeader('Accept-Ranges', 'bytes');
+
+                    if (range) {
+                        const parts = range.replace(/bytes=/, "").split("-");
+                        const start = parseInt(parts[0], 10);
+                        const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+
+                        if (start >= totalSize || end >= totalSize) {
+                            res.writeHead(416, {
+                                'Content-Range': `bytes */${totalSize}`
+                            });
+                            res.end();
+                            return;
+                        }
+
+                        const chunkSize = (end - start) + 1;
+                        res.writeHead(206, {
+                            'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+                            'Content-Length': chunkSize,
+                            'Content-Type': contentType
+                        });
+                        const stream = fs.createReadStream(fullPath, { start, end });
+                        stream.pipe(res);
+                        return;
+                    } else {
+                        res.writeHead(200, {
+                            'Content-Length': totalSize,
+                            'Content-Type': contentType
+                        });
+                        const stream = fs.createReadStream(fullPath);
+                        stream.pipe(res);
+                        return;
+                    }
+                }
+
+                // RSS 2.0 / iTunes Podcast Feed Endpoint
+                if (req.method === 'GET' && (pathname === '/api/feed.xml' || pathname === '/api/podcast.xml' || pathname === '/api/feed')) {
+                    const host = req.headers.host || `127.0.0.1:${settings.port || 8090}`;
+                    const proto = 'http';
+                    const baseUrl = `${proto}://${host}`;
+
+                    const files = this.app.vault.getFiles();
+                    const audioFiles = files.filter(f => {
+                        const ext = f.extension?.toLowerCase();
+                        return ext === 'mp3' || ext === 'm4a' || ext === 'wav' || ext === 'ogg';
+                    });
+                    audioFiles.sort((a, b) => b.stat.mtime - a.stat.mtime);
+
+                    const currentTrack = plugin.focusAudioService?.currentTrack;
+                    let itemsXml = '';
+
+                    if (currentTrack) {
+                        const isLocal = currentTrack.type === 'local' && currentTrack.localFile;
+                        const encUrl = isLocal 
+                            ? `${baseUrl}/api/audio/stream?file=${encodeURIComponent(currentTrack.localFile!.path)}`
+                            : currentTrack.url;
+                        const encLength = isLocal ? currentTrack.localFile!.stat.size : 1048576;
+                        const encType = isLocal ? (currentTrack.localFile!.extension === 'm4a' ? 'audio/mp4' : 'audio/mpeg') : 'audio/mpeg';
+
+                        itemsXml += `    <item>
+      <title><![CDATA[⚡ Active Focus Track: ${currentTrack.label.replace(/^🎙️\s*/, '')}]]></title>
+      <description><![CDATA[Currently active focus session track in Obsidian on kilPC.]]></description>
+      <link>${encUrl}</link>
+      <guid isPermaLink="false">focus-active-track-${Date.now()}</guid>
+      <enclosure url="${encUrl}" length="${encLength}" type="${encType}"/>
+      <pubDate>${new Date().toUTCString()}</pubDate>
+    </item>\n`;
+                    }
+
+                    for (const f of audioFiles) {
+                        const title = f.basename.replace(/_/g, ' ');
+                        const streamUrl = `${baseUrl}/api/audio/stream?file=${encodeURIComponent(f.path)}`;
+                        const ext = (f.extension || '').toLowerCase();
+                        const encType = ext === 'm4a' ? 'audio/mp4' : (ext === 'wav' ? 'audio/wav' : 'audio/mpeg');
+                        const pubDate = new Date(f.stat.mtime).toUTCString();
+
+                        itemsXml += `    <item>
+      <title><![CDATA[${title}]]></title>
+      <description><![CDATA[Obsidian vault audio: ${f.path}]]></description>
+      <link>${streamUrl}</link>
+      <guid isPermaLink="false">${f.path}</guid>
+      <enclosure url="${streamUrl}" length="${f.stat.size}" type="${encType}"/>
+      <pubDate>${pubDate}</pubDate>
+    </item>\n`;
+                    }
+
+                    const rssXml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Obsidian Focus &amp; Podcast Feed</title>
+    <link>${baseUrl}/</link>
+    <description>Private self-hosted focus audio, podcasts, and daily review streams from Obsidian on kilPC.</description>
+    <language>en-us</language>
+    <itunes:author>Obsidian kilPC</itunes:author>
+    <itunes:summary>Private self-hosted focus audio and podcast episodes.</itunes:summary>
+    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
+${itemsXml}  </channel>
+</rss>`;
+
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' });
+                    res.end(rssXml);
+                    return;
+                }
+
                 if (req.method === 'POST' && pathname === '/api/timer/start') {
                     const body = await readBody();
                     await plugin.activateView();

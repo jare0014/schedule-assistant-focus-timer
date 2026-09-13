@@ -44,7 +44,7 @@ class ObsidianSyncRepository(private val context: Context) {
 
     suspend fun getLocalTasks() = taskDao.getAllTasksDirect()
 
-    private fun getBaseUrl(): String {
+    fun getBaseUrl(): String {
         var ip = prefs.serverIp.trim().replace(" ", "")
         val port = prefs.serverPort.trim().replace(" ", "")
         if (!ip.startsWith("http://") && !ip.startsWith("https://")) {
@@ -656,6 +656,7 @@ class ObsidianSyncRepository(private val context: Context) {
                     }
                 }
                 val desktopPlaying = audioObj.optBoolean("isPlaying", false)
+                prefs.isDesktopAudioPlaying = desktopPlaying
                 if (prefs.activeTimerIsPaused || prefs.activeTimerTaskName.isEmpty()) {
                     prefs.isPhoneAudioPlaying = false
                 }
@@ -986,6 +987,30 @@ class ObsidianSyncRepository(private val context: Context) {
             return response.isSuccessful
         } catch (e: Exception) {
             Log.e("SyncRepository", "Error selecting audio track on desktop: ${e.message}")
+        }
+        return false
+    }
+
+    suspend fun toggleDesktopAudio(): Boolean {
+        try {
+            val base = getBaseUrl()
+            val targetUrl = "$base/api/audio/toggle"
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val body = "{}".toRequestBody(mediaType)
+            val request = Request.Builder().url(targetUrl).post(body)
+            if (prefs.apiToken.isNotEmpty()) {
+                request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+                request.addHeader("X-API-Key", prefs.apiToken)
+            }
+            val response = client.newCall(request.build()).execute()
+            if (response.isSuccessful) {
+                val json = JSONObject(response.body?.string() ?: "{}")
+                val isPlaying = json.optBoolean("isPlaying", false)
+                prefs.isDesktopAudioPlaying = isPlaying
+                return isPlaying
+            }
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "Error toggling desktop audio: ${e.message}")
         }
         return false
     }

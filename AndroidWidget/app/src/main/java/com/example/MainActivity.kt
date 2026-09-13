@@ -167,6 +167,8 @@ fun ObsidianTodoScreen(
     var selectedAudioTrackStreamUrl by remember { mutableStateOf(prefs.selectedAudioTrackStreamUrl) }
     var selectedAudioTrackType by remember { mutableStateOf(prefs.selectedAudioTrackType) }
     var isPhoneAudioPlaying by remember { mutableStateOf(prefs.isPhoneAudioPlaying) }
+    var isDesktopAudioPlaying by remember { mutableStateOf(prefs.isDesktopAudioPlaying) }
+    var playbackDeviceTarget by remember { mutableStateOf(prefs.playbackDeviceTarget) }
     var isAudioAutoSyncEnabled by remember { mutableStateOf(prefs.isAudioAutoSyncEnabled) }
     val availableAudioTracks by repository.availableAudioTracks.collectAsStateWithLifecycle()
     
@@ -193,6 +195,8 @@ fun ObsidianTodoScreen(
         selectedAudioTrackStreamUrl = prefs.selectedAudioTrackStreamUrl
         selectedAudioTrackType = prefs.selectedAudioTrackType
         isPhoneAudioPlaying = prefs.isPhoneAudioPlaying
+        isDesktopAudioPlaying = prefs.isDesktopAudioPlaying
+        playbackDeviceTarget = prefs.playbackDeviceTarget
         isAudioAutoSyncEnabled = prefs.isAudioAutoSyncEnabled
     }
     val makeDragModifier = @Composable { task: Task ->
@@ -891,8 +895,24 @@ fun ObsidianTodoScreen(
                                     scope.launch(Dispatchers.IO) {
                                         if (activeTimerIsPaused) {
                                             repository.resumeTimer()
+                                            if (isPhoneAudioPlaying) {
+                                                try {
+                                                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                                                    audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
+                                                    audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
+                                                } catch (e: Exception) {}
+                                            }
                                         } else {
                                             repository.pauseTimer()
+                                            if (isPhoneAudioPlaying) {
+                                                try {
+                                                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                                                    audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+                                                    audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
+                                                } catch (e: Exception) {}
+                                                FocusMediaService.pauseAudio(context)
+                                                prefs.isPhoneAudioPlaying = false
+                                            }
                                         }
                                         scope.launch(Dispatchers.Main) {
                                             refreshPreferencesState()
@@ -920,6 +940,15 @@ fun ObsidianTodoScreen(
                                 onClick = {
                                     scope.launch(Dispatchers.IO) {
                                         repository.completeTimer()
+                                        if (isPhoneAudioPlaying) {
+                                            try {
+                                                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
+                                            } catch (e: Exception) {}
+                                            FocusMediaService.pauseAudio(context)
+                                            prefs.isPhoneAudioPlaying = false
+                                        }
                                         scope.launch(Dispatchers.Main) {
                                             refreshPreferencesState()
                                         }
@@ -949,31 +978,128 @@ fun ObsidianTodoScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     var showTrackMenu by remember { mutableStateOf(false) }
+                    var showDeviceMenu by remember { mutableStateOf(false) }
+
+                    // Playback Device Target Selector Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "PLAYBACK TARGET",
+                            color = ObsidianTextMuted,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                        Box {
+                            Surface(
+                                color = ObsidianSurface,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, ObsidianBorder),
+                                modifier = Modifier.clickable { showDeviceMenu = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val targetLabel = when (playbackDeviceTarget) {
+                                        "phone_stream" -> "📱 Stream to Phone (API)"
+                                        "phone_app" -> "📱 Open in Phone App"
+                                        else -> "🖥️ kilPC (Desktop)"
+                                    }
+                                    Text(
+                                        text = targetLabel,
+                                        color = if (playbackDeviceTarget == "kilPC") ObsidianPurple else ObsidianAccentGreen,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("▾", color = ObsidianTextMuted, fontSize = 10.sp)
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = showDeviceMenu,
+                                onDismissRequest = { showDeviceMenu = false },
+                                modifier = Modifier.background(ObsidianSurface)
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("🖥️ kilPC (Desktop)", color = if (playbackDeviceTarget == "kilPC") ObsidianPurple else ObsidianTextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("Sound plays through kilPC speakers / soundcard", color = ObsidianTextMuted, fontSize = 10.sp)
+                                        }
+                                    },
+                                    onClick = {
+                                        showDeviceMenu = false
+                                        playbackDeviceTarget = "kilPC"
+                                        prefs.playbackDeviceTarget = "kilPC"
+                                        refreshPreferencesState()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("📱 Stream to Phone (API)", color = if (playbackDeviceTarget == "phone_stream") ObsidianPurple else ObsidianTextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("Stream audio byte-range from kilPC into phone earbuds", color = ObsidianTextMuted, fontSize = 10.sp)
+                                        }
+                                    },
+                                    onClick = {
+                                        showDeviceMenu = false
+                                        playbackDeviceTarget = "phone_stream"
+                                        prefs.playbackDeviceTarget = "phone_stream"
+                                        refreshPreferencesState()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("🚀 Open in Phone App", color = if (playbackDeviceTarget == "phone_app") ObsidianPurple else ObsidianTextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("Launch native Spotify / YouTube Music Android app", color = ObsidianTextMuted, fontSize = 10.sp)
+                                        }
+                                    },
+                                    onClick = {
+                                        showDeviceMenu = false
+                                        playbackDeviceTarget = "phone_app"
+                                        prefs.playbackDeviceTarget = "phone_app"
+                                        refreshPreferencesState()
+                                    }
+                                )
+                            }
+                        }
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Track Info: tapping opens external app, or opens track selector if local
+                        // Track Info: tapping opens track selector or external app
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    if (selectedAudioTrackType == "spotify" || (selectedAudioTrackType == "external_web" && !selectedAudioTrackUrl.contains("equisync")) || selectedAudioTrackType == "youtube") {
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                            context.startActivity(webIntent)
+                                    if (playbackDeviceTarget == "kilPC") {
+                                        showTrackMenu = true
+                                        scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
+                                    } else if (playbackDeviceTarget == "phone_app") {
+                                        if (selectedAudioTrackType == "spotify" || (selectedAudioTrackType == "external_web" && !selectedAudioTrackUrl.contains("equisync")) || selectedAudioTrackType == "youtube") {
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                                context.startActivity(webIntent)
+                                            }
+                                        } else {
+                                            showTrackMenu = true
+                                            scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
                                         }
-                                    } else if (selectedAudioTrackUrl.contains("equisync")) {
-                                        val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                        webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        context.startActivity(webIntent)
                                     } else {
                                         showTrackMenu = true
                                         scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
@@ -997,10 +1123,11 @@ fun ObsidianTodoScreen(
                                         fontWeight = FontWeight.ExtraBold,
                                         letterSpacing = 0.5.sp
                                     )
-                                    if (isPhoneAudioPlaying) {
+                                    val isCurrentPlaying = if (playbackDeviceTarget == "kilPC") isDesktopAudioPlaying else isPhoneAudioPlaying
+                                    if (isCurrentPlaying) {
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "• PLAYING",
+                                            text = if (playbackDeviceTarget == "kilPC") "• KILPC PLAYING" else "• PLAYING",
                                             color = ObsidianAccentGreen,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold
@@ -1017,7 +1144,7 @@ fun ObsidianTodoScreen(
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f, fill = false)
                                     )
-                                    if (selectedAudioTrackType == "spotify" || selectedAudioTrackType == "external_web" || selectedAudioTrackType == "youtube") {
+                                    if (playbackDeviceTarget == "phone_app" && (selectedAudioTrackType == "spotify" || selectedAudioTrackType == "external_web" || selectedAudioTrackType == "youtube")) {
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = "↗",
@@ -1071,24 +1198,31 @@ fun ObsidianTodoScreen(
                                             prefs.selectedAudioTrackStreamUrl = track.streamUrl ?: ""
                                             prefs.selectedAudioTrackType = track.type
                                             refreshPreferencesState()
-                                            if (isPhoneAudioPlaying) {
-                                                if (track.type == "local") {
-                                                    FocusMediaService.playTrack(
-                                                        context,
-                                                        track.label,
-                                                        track.url,
-                                                        track.streamUrl,
-                                                        track.type
-                                                    )
-                                                } else {
-                                                    try {
-                                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(track.url))
-                                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                        context.startActivity(intent)
-                                                    } catch (e: Exception) {
-                                                        val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(track.url))
-                                                        context.startActivity(webIntent)
-                                                    }
+
+                                            // Always notify desktop so kilPC stays in sync
+                                            scope.launch(Dispatchers.IO) {
+                                                repository.selectAudioTrackOnDesktop(track.label, track.url, track.type)
+                                            }
+
+                                            if (playbackDeviceTarget == "phone_stream") {
+                                                val streamUrl = if (!track.streamUrl.isNullOrEmpty()) track.streamUrl else "${repository.getBaseUrl()}/api/audio/stream?file=${Uri.encode(track.url)}"
+                                                FocusMediaService.playTrack(
+                                                    context,
+                                                    track.label,
+                                                    track.url,
+                                                    streamUrl,
+                                                    track.type
+                                                )
+                                                prefs.isPhoneAudioPlaying = true
+                                                refreshPreferencesState()
+                                            } else if (playbackDeviceTarget == "phone_app" && isPhoneAudioPlaying) {
+                                                try {
+                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(track.url))
+                                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(track.url))
+                                                    context.startActivity(webIntent)
                                                 }
                                             }
                                         }
@@ -1121,41 +1255,53 @@ fun ObsidianTodoScreen(
                             }
 
                             // Dedicated Play / Pause button
+                            val isCurrentActive = if (playbackDeviceTarget == "kilPC") isDesktopAudioPlaying else isPhoneAudioPlaying
                             IconButton(
                                 onClick = {
-                                    if (isPhoneAudioPlaying) {
-                                        // PAUSE ACTION
-                                        if (selectedAudioTrackType == "local") {
+                                    if (playbackDeviceTarget == "kilPC") {
+                                        // TOGGLE AUDIO REMOTELY ON KILPC
+                                        scope.launch(Dispatchers.IO) {
+                                            val newPlaying = repository.toggleDesktopAudio()
+                                            scope.launch(Dispatchers.Main) {
+                                                isDesktopAudioPlaying = newPlaying
+                                                refreshPreferencesState()
+                                            }
+                                        }
+                                    } else if (playbackDeviceTarget == "phone_stream") {
+                                        // STREAM AUDIO CHUNKS ON PHONE VIA EXOPLAYER
+                                        if (isPhoneAudioPlaying) {
                                             FocusMediaService.pauseAudio(context)
+                                            prefs.isPhoneAudioPlaying = false
+                                            isPhoneAudioPlaying = false
                                         } else {
+                                            val streamUrl = if (selectedAudioTrackStreamUrl.isNotEmpty()) {
+                                                selectedAudioTrackStreamUrl
+                                            } else {
+                                                "${repository.getBaseUrl()}/api/audio/stream?file=${Uri.encode(selectedAudioTrackUrl)}"
+                                            }
+                                            FocusMediaService.playTrack(
+                                                context,
+                                                selectedAudioTrackLabel,
+                                                selectedAudioTrackUrl,
+                                                streamUrl,
+                                                selectedAudioTrackType
+                                            )
+                                            prefs.isPhoneAudioPlaying = true
+                                            isPhoneAudioPlaying = true
+                                        }
+                                        refreshPreferencesState()
+                                    } else {
+                                        // PHONE APP LAUNCHER
+                                        if (isPhoneAudioPlaying) {
                                             try {
                                                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                                                 audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
                                                 audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
                                             } catch (e: Exception) {}
                                             FocusMediaService.pauseAudio(context)
-                                        }
-                                        prefs.isPhoneAudioPlaying = false
-                                        isPhoneAudioPlaying = false
-                                        prefs.addLog("Paused focus audio")
-                                    } else {
-                                        // PLAY ACTION
-                                        if (selectedAudioTrackType == "local") {
-                                            FocusMediaService.playTrack(
-                                                context,
-                                                selectedAudioTrackLabel,
-                                                selectedAudioTrackUrl,
-                                                selectedAudioTrackStreamUrl,
-                                                selectedAudioTrackType
-                                            )
-                                        } else if (selectedAudioTrackType == "spotify") {
-                                            // Dispatch media play key first
-                                            try {
-                                                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
-                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
-                                            } catch (e: Exception) {}
-
+                                            prefs.isPhoneAudioPlaying = false
+                                            isPhoneAudioPlaying = false
+                                        } else {
                                             try {
                                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
                                                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -1164,32 +1310,20 @@ fun ObsidianTodoScreen(
                                                 val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
                                                 context.startActivity(webIntent)
                                             }
-                                        } else if (selectedAudioTrackType == "external_web" || selectedAudioTrackType == "youtube") {
-                                            try {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                                context.startActivity(webIntent)
-                                            }
+                                            prefs.isPhoneAudioPlaying = true
+                                            isPhoneAudioPlaying = true
                                         }
-                                        prefs.isPhoneAudioPlaying = true
-                                        isPhoneAudioPlaying = true
-                                        prefs.addLog("Started focus audio: $selectedAudioTrackLabel")
-                                    }
-                                    scope.launch(Dispatchers.Main) {
                                         refreshPreferencesState()
                                     }
                                 },
                                 modifier = Modifier
                                     .size(36.dp)
                                     .background(
-                                        color = if (isPhoneAudioPlaying) ObsidianPurple else ObsidianPurple.copy(alpha = 0.2f),
+                                        color = if (isCurrentActive) ObsidianPurple else ObsidianPurple.copy(alpha = 0.2f),
                                         shape = CircleShape
                                     )
                             ) {
-                                if (isPhoneAudioPlaying) {
+                                if (isCurrentActive) {
                                     PauseIcon(tint = ObsidianBg, modifier = Modifier.size(18.dp))
                                 } else {
                                     Icon(
