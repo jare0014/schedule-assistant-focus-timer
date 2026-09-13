@@ -757,7 +757,10 @@ export class RemoteServerService {
                         res.writeHead(500, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: e.message }));
                     }
-                    // Static vault file streaming & APK download handler
+                    return;
+                }
+
+                // Static vault file streaming & APK download handler
                 if (req.method === 'GET' && !pathname.startsWith('/api/')) {
                     const relativePath = decodeURIComponent(pathname.replace(/^\//, ''));
                     const file = this.app.vault.getAbstractFileByPath(relativePath);
