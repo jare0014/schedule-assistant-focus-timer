@@ -177,6 +177,44 @@ export class RemoteServerService {
                     return;
                 }
 
+                if (req.method === 'GET' && pathname === '/api/audio/tracks') {
+                    const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
+                    let tracks: any[] = [];
+                    if (plugin.focusAudioService) {
+                        const rawTracks = await plugin.focusAudioService.scanAvailableTracks(dailyFile);
+                        const host = req.headers.host || `127.0.0.1:${settings.port || 8090}`;
+                        const proto = 'http';
+                        tracks = rawTracks.map(t => {
+                            let streamUrl = t.url;
+                            if (t.type === 'local' && t.localFile) {
+                                streamUrl = `${proto}://${host}/${encodeURIComponent(t.localFile.path).replace(/%2F/g, '/')}`;
+                            }
+                            return {
+                                label: t.label,
+                                url: t.url,
+                                streamUrl: streamUrl,
+                                type: t.type,
+                                isInternal: t.isInternal,
+                                videoId: t.videoId,
+                                playlistId: t.playlistId
+                            };
+                        });
+                    }
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        success: true,
+                        tracks: tracks,
+                        currentTrack: plugin.focusAudioService?.currentTrack ? {
+                            label: plugin.focusAudioService.currentTrack.label,
+                            url: plugin.focusAudioService.currentTrack.url,
+                            type: plugin.focusAudioService.currentTrack.type
+                        } : null,
+                        isPlaying: Boolean(plugin.focusAudioService?.isPlaying)
+                    }));
+                    return;
+                }
+
                 const readBody = () => new Promise<any>((resolve) => {
                     let body = '';
                     req.on('data', chunk => { body += chunk; });
