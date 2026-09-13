@@ -244,6 +244,21 @@ export class FocusAudioService {
             console.error("FocusAudioService: error scanning vault audio files:", e);
         }
 
+        // 3. Add default standard focus presets if not already detected
+        const presets: { label: string; url: string; type: AudioSourceType; isInternal: boolean }[] = [
+            { label: 'Tipper - Saenger with Singer', url: 'https://www.youtube.com/watch?v=sU1474z71xI', type: 'youtube', isInternal: false },
+            { label: 'EquiSync Element System', url: 'https://equisync.eocinstitute.org/element-system/', type: 'external_web', isInternal: false },
+            { label: 'YouTube Music', url: 'https://music.youtube.com/', type: 'external_web', isInternal: false },
+            { label: 'Spotify Deep Focus', url: 'https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO', type: 'spotify', isInternal: false }
+        ];
+
+        for (const preset of presets) {
+            if (!tracks.some(t => t.url === preset.url || t.label.toLowerCase() === preset.label.toLowerCase())) {
+                const categorized = this.categorizeUrl(preset.label, preset.url, false);
+                tracks.push(categorized);
+            }
+        }
+
         return tracks;
     }
 
