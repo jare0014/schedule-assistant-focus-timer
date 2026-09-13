@@ -48,9 +48,6 @@ export class TaskTimerView extends ItemView {
             this.audioUnsubscribe();
             this.audioUnsubscribe = null;
         }
-        if (this.plugin?.focusAudioService) {
-            this.plugin.focusAudioService.setTimerToggleHandler(null);
-        }
         this.clearTimer();
         this.stopAlarm();
     }
@@ -837,6 +834,38 @@ export class TaskTimerView extends ItemView {
     }
 
     public renderTimer(): void {
+        if (!this.currentTimer && this.plugin?.activeTimer) {
+            this.currentTimer = this.plugin.activeTimer;
+        }
+
+        if (!this.currentTimer) {
+            this.renderSchedule();
+            return;
+        }
+
+        if (!this.timerInterval && !this.currentTimer.isPaused) {
+            this.timerInterval = setInterval(async () => {
+                if (this.currentTimer && !this.currentTimer.isPaused) {
+                    const curNow = Date.now();
+                    const remainingMs = Math.max(0, this.currentTimer.targetEndTime - curNow);
+                    this.currentTimer.remainingSeconds = Math.ceil(remainingMs / 1000);
+                    this.updateTimerDisplay();
+
+                    if (remainingMs <= 0) {
+                        const expiredTask = this.currentTimer.task;
+                        const expiredTaskName = this.currentTimer.taskName;
+                        this.clearTimer();
+                        this.currentTimer = null;
+                        this.plugin.activeTimer = null;
+                        if (this.plugin.focusLogService) {
+                            await this.plugin.focusLogService.logUpdate(true);
+                        }
+                        this.triggerAlarm(expiredTask || expiredTaskName);
+                    }
+                }
+            }, 500);
+        }
+
         const container = this.contentEl;
         container.empty();
 

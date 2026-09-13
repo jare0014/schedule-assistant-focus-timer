@@ -56,6 +56,10 @@ export default class TaskTimerPlugin extends Plugin {
             () => this.settings,
             () => this.saveSettings()
         );
+        this.focusAudioService.setTimerToggleHandler(async () => {
+            const res = await this.toggleFocusSession();
+            return res.success;
+        });
 
         this.pythonSchedulerRunner.ensureVenv();
 
@@ -149,17 +153,7 @@ export default class TaskTimerPlugin extends Plugin {
             id: 'toggle-timer-and-media',
             name: 'Toggle Focus Timer & Media (Play/Pause)',
             callback: async () => {
-                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                if (leaves.length > 0) {
-                    const view = leaves[0].view as any;
-                    if (view.currentTimer) {
-                        await view.togglePause();
-                        return;
-                    }
-                }
-                if (this.focusAudioService) {
-                    await this.focusAudioService.togglePlay();
-                }
+                await this.toggleFocusSession();
             }
         });
 
@@ -269,6 +263,78 @@ export default class TaskTimerPlugin extends Plugin {
                 active: true,
             });
         }
+    }
+
+    async toggleFocusSession(): Promise<{ success: boolean; isPaused?: boolean; taskName?: string; isAudioPlaying?: boolean; handledInternalAudio: boolean }> {
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        let activeView = leaves.map(l => l.view as any).find(v => v && v.currentTimer);
+
+        if (!activeView && leaves.length > 0) {
+            activeView = leaves[0].view as any;
+            if (!activeView.currentTimer && this.activeTimer) {
+                activeView.currentTimer = this.activeTimer;
+            }
+        }
+
+        const audioSvc = this.focusAudioService;
+        const hasInternalTrack = Boolean(
+            audioSvc &&
+            audioSvc.currentTrack &&
+            audioSvc.currentTrack.type !== 'external_web'
+        );
+
+        if (activeView && activeView.currentTimer) {
+            await activeView.togglePause();
+            const handledInternalAudio = Boolean(
+                hasInternalTrack &&
+                (audioSvc?.autoSyncWithTimer || !activeView.currentTimer.isPaused)
+            );
+            return {
+                success: true,
+                isPaused: activeView.currentTimer.isPaused,
+                taskName: activeView.currentTimer.taskName,
+                handledInternalAudio
+            };
+        }
+
+        if (this.activeTimer) {
+            this.activeTimer.isPaused = !this.activeTimer.isPaused;
+            if (this.activeTimer.isPaused) {
+                this.activeTimer.pausedRemainingMs = Math.max(0, (this.activeTimer.targetEndTime || Date.now()) - Date.now());
+                this.activeTimer.remainingSeconds = Math.ceil(this.activeTimer.pausedRemainingMs / 1000);
+                if (this.focusLogService) await this.focusLogService.logPause();
+                if (this.focusAudioService) this.focusAudioService.onTimerPause();
+            } else {
+                const remainingMs = (this.activeTimer.pausedRemainingMs !== null && this.activeTimer.pausedRemainingMs !== undefined)
+                    ? this.activeTimer.pausedRemainingMs
+                    : (this.activeTimer.remainingSeconds * 1000);
+                this.activeTimer.targetEndTime = Date.now() + remainingMs;
+                this.activeTimer.pausedRemainingMs = null;
+                if (this.focusLogService) await this.focusLogService.logResume();
+                if (this.focusAudioService) this.focusAudioService.onTimerResume();
+            }
+            const handledInternalAudio = Boolean(
+                hasInternalTrack &&
+                (audioSvc?.autoSyncWithTimer || !this.activeTimer.isPaused)
+            );
+            return {
+                success: true,
+                isPaused: this.activeTimer.isPaused,
+                taskName: this.activeTimer.taskName,
+                handledInternalAudio
+            };
+        }
+
+        if (this.focusAudioService) {
+            await this.focusAudioService.togglePlay();
+            return {
+                success: true,
+                isAudioPlaying: this.focusAudioService.isPlaying,
+                handledInternalAudio: hasInternalTrack
+            };
+        }
+
+        return { success: false, handledInternalAudio: false };
     }
 
     async check5AMAutoRun(): Promise<void> {

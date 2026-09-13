@@ -458,147 +458,171 @@ ${itemsXml}  </channel>
 
                 if (req.method === 'POST' && pathname === '/api/timer/pause') {
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    if (leaves.length > 0) {
-                        const view = leaves[0].view as any;
-                        if (view.currentTimer) {
-                            if (!view.currentTimer.isPaused) {
-                                await view.togglePause();
-                            }
-                            setCorsHeaders();
-                            res.writeHead(200, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ success: true, isPaused: true }));
-                        } else {
-                            throw new Error("No timer currently active.");
+                    let activeView = leaves.map(l => l.view as any).find(v => v && v.currentTimer);
+                    if (!activeView && leaves.length > 0) {
+                        activeView = leaves[0].view as any;
+                        if (!activeView.currentTimer && plugin.activeTimer) {
+                            activeView.currentTimer = plugin.activeTimer;
                         }
-                    } else {
-                        throw new Error("Focus timer view leaf not available.");
                     }
-                    return;
+
+                    if (activeView && activeView.currentTimer) {
+                        if (!activeView.currentTimer.isPaused) {
+                            await activeView.togglePause();
+                        }
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, isPaused: true }));
+                        return;
+                    }
+
+                    if (plugin.activeTimer) {
+                        if (!plugin.activeTimer.isPaused) {
+                            plugin.activeTimer.isPaused = true;
+                            plugin.activeTimer.pausedRemainingMs = Math.max(0, (plugin.activeTimer.targetEndTime || Date.now()) - Date.now());
+                            plugin.activeTimer.remainingSeconds = Math.ceil(plugin.activeTimer.pausedRemainingMs / 1000);
+                            if (plugin.focusLogService) await plugin.focusLogService.logPause();
+                            if (plugin.focusAudioService) plugin.focusAudioService.onTimerPause();
+                        }
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, isPaused: true }));
+                        return;
+                    }
+
+                    throw new Error("No timer currently active.");
                 }
 
                 if (req.method === 'POST' && pathname === '/api/timer/resume') {
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    if (leaves.length > 0) {
-                        const view = leaves[0].view as any;
-                        if (view.currentTimer) {
-                            if (view.currentTimer.isPaused) {
-                                await view.togglePause();
-                            }
-                            setCorsHeaders();
-                            res.writeHead(200, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ success: true, isPaused: false }));
-                        } else {
-                            throw new Error("No timer currently active.");
+                    let activeView = leaves.map(l => l.view as any).find(v => v && v.currentTimer);
+                    if (!activeView && leaves.length > 0) {
+                        activeView = leaves[0].view as any;
+                        if (!activeView.currentTimer && plugin.activeTimer) {
+                            activeView.currentTimer = plugin.activeTimer;
                         }
-                    } else {
-                        throw new Error("Focus timer view leaf not available.");
                     }
-                    return;
+
+                    if (activeView && activeView.currentTimer) {
+                        if (activeView.currentTimer.isPaused) {
+                            await activeView.togglePause();
+                        }
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, isPaused: false }));
+                        return;
+                    }
+
+                    if (plugin.activeTimer) {
+                        if (plugin.activeTimer.isPaused) {
+                            plugin.activeTimer.isPaused = false;
+                            const remainingMs = (plugin.activeTimer.pausedRemainingMs !== null && plugin.activeTimer.pausedRemainingMs !== undefined)
+                                ? plugin.activeTimer.pausedRemainingMs
+                                : (plugin.activeTimer.remainingSeconds * 1000);
+                            plugin.activeTimer.targetEndTime = Date.now() + remainingMs;
+                            plugin.activeTimer.pausedRemainingMs = null;
+                            if (plugin.focusLogService) await plugin.focusLogService.logResume();
+                            if (plugin.focusAudioService) plugin.focusAudioService.onTimerResume();
+                        }
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, isPaused: false }));
+                        return;
+                    }
+
+                    throw new Error("No timer currently active.");
                 }
 
                 if ((req.method === 'POST' || req.method === 'GET') && (pathname === '/api/timer/toggle' || pathname === '/api/timer/play-pause')) {
-                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    let view: any = null;
-                    if (leaves.length > 0) {
-                        view = leaves[0].view as any;
-                    }
-
-                    if (view && view.currentTimer) {
-                        await view.togglePause();
-                        const audioSvc = plugin.focusAudioService;
-                        const handledInternalAudio = Boolean(
-                            audioSvc &&
-                            audioSvc.autoSyncWithTimer &&
-                            audioSvc.currentTrack &&
-                            audioSvc.currentTrack.type !== 'external_web'
-                        );
-                        setCorsHeaders();
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({
-                            success: true,
-                            isPaused: view.currentTimer.isPaused,
-                            taskName: view.currentTimer.taskName,
-                            handledInternalAudio: handledInternalAudio
-                        }));
-                        return;
-                    }
-
-                    if (plugin.focusAudioService) {
-                        await plugin.focusAudioService.togglePlay();
-                        const audioSvc = plugin.focusAudioService;
-                        const handledInternalAudio = Boolean(
-                            audioSvc &&
-                            audioSvc.currentTrack &&
-                            audioSvc.currentTrack.type !== 'external_web'
-                        );
-                        setCorsHeaders();
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({
-                            success: true,
-                            isAudioPlaying: plugin.focusAudioService.isPlaying,
-                            handledInternalAudio: handledInternalAudio
-                        }));
-                        return;
-                    }
-
+                    const toggleResult = await plugin.toggleFocusSession();
                     setCorsHeaders();
                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, message: "No active timer or audio player" }));
+                    res.end(JSON.stringify(toggleResult));
                     return;
                 }
 
                 if (req.method === 'POST' && pathname === '/api/timer/complete') {
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    if (leaves.length > 0) {
-                        const view = leaves[0].view as any;
-                        if (view.currentTimer || view.isAlarming) {
-                            if (view.isAlarming) {
-                                view.stopAlarm();
-                            }
-                            if (view.currentTimer) {
-                                await view.completeTimer();
-                            } else {
-                                const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
-                                if (dailyFile) {
-                                    const content = await this.app.vault.read(dailyFile);
-                                    const tasks = TaskParserService.parseAllTasks(content);
-                                    const openTask = tasks.find(t => t.status !== 'completed');
-                                    if (openTask) {
-                                        await view.endActiveTask(openTask);
-                                    }
-                                }
-                                view.renderSchedule();
-                            }
-                            setCorsHeaders();
-                            res.writeHead(200, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ success: true }));
-                        } else {
-                            throw new Error("No active timer or alarm to complete.");
+                    let activeView = leaves.map(l => l.view as any).find(v => v && (v.currentTimer || v.isAlarming));
+                    if (!activeView && leaves.length > 0) {
+                        activeView = leaves[0].view as any;
+                        if (!activeView.currentTimer && plugin.activeTimer) {
+                            activeView.currentTimer = plugin.activeTimer;
                         }
-                    } else {
-                        throw new Error("Focus timer view leaf not available.");
                     }
-                    return;
-                }
 
-                if (req.method === 'POST' && pathname === '/api/timer/cancel') {
-                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
-                    if (leaves.length > 0) {
-                        const view = leaves[0].view as any;
-                        if (view.currentTimer) {
-                            await view.cancelTimer();
+                    if (activeView && (activeView.currentTimer || activeView.isAlarming)) {
+                        if (activeView.isAlarming) {
+                            activeView.stopAlarm();
                         }
-                        if (view.isAlarming) {
-                            view.stopAlarm();
-                            view.renderSchedule();
+                        if (activeView.currentTimer) {
+                            await activeView.completeTimer();
+                        } else {
+                            const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
+                            if (dailyFile) {
+                                const content = await this.app.vault.read(dailyFile);
+                                const tasks = TaskParserService.parseAllTasks(content);
+                                const openTask = tasks.find(t => t.status !== 'completed');
+                                if (openTask) {
+                                    await activeView.endActiveTask(openTask);
+                                }
+                            }
+                            activeView.renderSchedule();
                         }
                         setCorsHeaders();
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ success: true }));
-                    } else {
-                        throw new Error("Focus timer view leaf not available.");
+                        return;
                     }
-                    return;
+
+                    if (plugin.activeTimer) {
+                        if (plugin.focusAudioService) plugin.focusAudioService.onTimerComplete();
+                        if (plugin.focusLogService) await plugin.focusLogService.logUpdate(true);
+                        plugin.activeTimer = null;
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true }));
+                        return;
+                    }
+
+                    throw new Error("No active timer or alarm to complete.");
+                }
+
+                if (req.method === 'POST' && pathname === '/api/timer/cancel') {
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    let activeView = leaves.map(l => l.view as any).find(v => v && (v.currentTimer || v.isAlarming));
+                    if (!activeView && leaves.length > 0) {
+                        activeView = leaves[0].view as any;
+                        if (!activeView.currentTimer && plugin.activeTimer) {
+                            activeView.currentTimer = plugin.activeTimer;
+                        }
+                    }
+
+                    if (activeView && (activeView.currentTimer || activeView.isAlarming)) {
+                        if (activeView.currentTimer) {
+                            await activeView.cancelTimer();
+                        }
+                        if (activeView.isAlarming) {
+                            activeView.stopAlarm();
+                            activeView.renderSchedule();
+                        }
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true }));
+                        return;
+                    }
+
+                    if (plugin.activeTimer) {
+                        if (plugin.focusAudioService) plugin.focusAudioService.onTimerCancel();
+                        if (plugin.focusLogService) await plugin.focusLogService.logUpdate(false);
+                        plugin.activeTimer = null;
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true }));
+                        return;
+                    }
+
+                    throw new Error("No active timer to cancel.");
                 }
 
                 if (req.method === 'POST' && pathname === '/api/schedule/generate') {
