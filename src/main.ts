@@ -152,6 +152,7 @@ export default class TaskTimerPlugin extends Plugin {
         this.addCommand({
             id: 'toggle-timer-and-media',
             name: 'Toggle Focus Timer & Media (Play/Pause)',
+            hotkeys: [{ modifiers: ['Mod'], key: 'k' }],
             callback: async () => {
                 await this.toggleFocusSession();
             }
@@ -325,8 +326,114 @@ export default class TaskTimerPlugin extends Plugin {
             };
         }
 
+        // If no timer is currently active, start a focus timer session for current scheduled block or next pending task
+        let matchedTask: any = null;
+        let matchedDuration = parseInt(this.settings.defaultDuration) || 25;
+        const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
+
+        if (dailyFile) {
+            try {
+                const content = await this.app.vault.read(dailyFile);
+                const allTasks = TaskParserService.parseAllTasks(content);
+
+                // 1. Check if user currently has a task clicked or cursor in active Markdown view
+                const activeMarkdown = this.app.workspace.getActiveViewOfType(MarkdownView);
+                const lineContent = DailyNoteManager.getClickedLineContent(activeMarkdown);
+                if (lineContent) {
+                    const timeRangeRegex = /\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\b/i;
+                    const match = lineContent.match(timeRangeRegex);
+                    if (match) {
+                        let startH = parseInt(match[1]);
+                        const startM = parseInt(match[2]);
+                        const startAmpm = match[3];
+                        let endH = parseInt(match[4]);
+                        const endM = parseInt(match[5]);
+                        const endAmpm = match[6];
+                        if (startAmpm) {
+                            const ampm = startAmpm.toLowerCase();
+                            if (ampm === 'pm' && startH < 12) startH += 12;
+                            if (ampm === 'am' && startH === 12) startH = 0;
+                        }
+                        if (endAmpm) {
+                            const ampm = endAmpm.toLowerCase();
+                            if (ampm === 'pm' && endH < 12) endH += 12;
+                            if (ampm === 'am' && endH === 12) endH = 0;
+                        }
+                        const clickedStart = startH * 60 + startM;
+                        const clickedEnd = endH * 60 + endM;
+                        matchedTask = allTasks.find(t => t.startMinutes === clickedStart && t.endMinutes === clickedEnd);
+                    }
+                }
+
+                // 2. If no clicked line match, find the task active for the current time
+                if (!matchedTask) {
+                    const now = new Date();
+                    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+                    matchedTask = allTasks.find(t =>
+                        t.status !== 'completed' &&
+                        t.startMinutes !== undefined &&
+                        t.endMinutes !== undefined &&
+                        nowMinutes >= t.startMinutes &&
+                        nowMinutes < t.endMinutes
+                    );
+
+                    // 3. Fallback to next upcoming uncompleted timed task today
+                    if (!matchedTask) {
+                        matchedTask = allTasks.find(t =>
+                            t.status !== 'completed' &&
+                            t.startMinutes !== undefined &&
+                            t.startMinutes >= nowMinutes
+                        );
+                    }
+
+                    // 4. Fallback to any incomplete task
+                    if (!matchedTask) {
+                        matchedTask = allTasks.find(t => t.status !== 'completed');
+                    }
+                }
+
+                if (matchedTask && matchedTask.duration && matchedTask.duration > 0) {
+                    matchedDuration = matchedTask.duration;
+                }
+            } catch (e) {
+                console.error("toggleFocusSession: error matching daily note task:", e);
+            }
+        }
+
+        const taskInput = matchedTask || "Focus Session";
+        const taskName = typeof taskInput === 'object' ? taskInput.description : taskInput;
+
+        // Ensure TaskTimerView is open and start timer
+        if (leaves.length === 0) {
+            await this.activateView();
+        }
+        const updatedLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        if (updatedLeaves.length > 0) {
+            const targetView = updatedLeaves[0].view as any;
+            await targetView.startTimer(taskInput, matchedDuration);
+
+            // Ensure audio starts if configured
+            if (this.focusAudioService) {
+                await this.focusAudioService.onTimerStart(taskName);
+            }
+
+            const isInternal = Boolean(
+                audioSvc &&
+                audioSvc.currentTrack &&
+                audioSvc.currentTrack.type !== 'external_web'
+            );
+
+            return {
+                success: true,
+                isPaused: false,
+                taskName,
+                handledInternalAudio: isInternal
+            };
+        }
+
         if (this.focusAudioService) {
-            await this.focusAudioService.togglePlay();
+            await this.focusAudioService.togglePlay(true);
             return {
                 success: true,
                 isAudioPlaying: this.focusAudioService.isPlaying,

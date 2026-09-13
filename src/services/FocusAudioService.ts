@@ -5,6 +5,7 @@
  */
 
 import { App, Notice, TFile } from 'obsidian';
+import { DailyNoteManager } from './DailyNoteManager';
 
 export type AudioSourceType = 'youtube' | 'local' | 'spotify' | 'web' | 'external_web';
 
@@ -440,11 +441,24 @@ export class FocusAudioService {
         await this.play();
     }
 
+    public async ensureTrackLoaded(): Promise<FocusTrackItem | null> {
+        if (this.currentTrack) return this.currentTrack;
+        const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
+        const tracks = await this.scanAvailableTracks(dailyFile);
+        if (tracks.length > 0) {
+            const tipperTrack = tracks.find(t => t.label.toLowerCase().includes('tipper'));
+            const defaultTrack = tipperTrack || tracks[0];
+            this.selectTrack(defaultTrack);
+            return defaultTrack;
+        }
+        return null;
+    }
+
     /**
      * Toggles between Play and Pause.
      */
-    public async togglePlay(): Promise<void> {
-        if (this.autoSyncWithTimer && this.onTimerToggle) {
+    public async togglePlay(bypassTimerSync: boolean = false): Promise<void> {
+        if (!bypassTimerSync && this.autoSyncWithTimer && this.onTimerToggle) {
             const handled = await this.onTimerToggle('toggle');
             if (handled) return;
         }
@@ -452,6 +466,9 @@ export class FocusAudioService {
         if (this.isPlaying) {
             this.pause();
         } else {
+            if (!this.currentTrack) {
+                await this.ensureTrackLoaded();
+            }
             if (this.wasPlayingBeforePause) {
                 await this.resume();
             } else {
@@ -633,9 +650,14 @@ export class FocusAudioService {
     // Timer Lifecycle Integration Hooks
     // ==========================================
 
-    public onTimerStart(taskName?: string): void {
-        if (this.autoSyncWithTimer && this.currentTrack) {
-            this.play();
+    public async onTimerStart(taskName?: string): Promise<void> {
+        if (this.autoSyncWithTimer) {
+            if (!this.currentTrack) {
+                await this.ensureTrackLoaded();
+            }
+            if (this.currentTrack) {
+                await this.play();
+            }
         }
     }
 
@@ -646,10 +668,15 @@ export class FocusAudioService {
         }
     }
 
-    public onTimerResume(): void {
-        if (this.autoSyncWithTimer && this.currentTrack) {
-            this.wasPlayingBeforePause = true;
-            this.resume();
+    public async onTimerResume(): Promise<void> {
+        if (this.autoSyncWithTimer) {
+            if (!this.currentTrack) {
+                await this.ensureTrackLoaded();
+            }
+            if (this.currentTrack) {
+                this.wasPlayingBeforePause = true;
+                await this.resume();
+            }
         }
     }
 
