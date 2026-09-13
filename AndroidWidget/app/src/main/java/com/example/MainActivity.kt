@@ -56,6 +56,8 @@ import com.example.data.ObsidianSyncRepository
 import com.example.data.SyncPreferences
 import com.example.data.Task
 import com.example.data.HabitItem
+import com.example.data.FocusAudioTrack
+import com.example.media.FocusMediaService
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.ObsidianAccentGreen
 import com.example.ui.theme.ObsidianBg
@@ -155,6 +157,15 @@ fun ObsidianTodoScreen(
     var activeTimerIsPaused by remember { mutableStateOf(prefs.activeTimerIsPaused) }
     var activeTimerLineIndex by remember { mutableStateOf(prefs.activeTimerLineIndex) }
     var isAlarming by remember { mutableStateOf(prefs.isAlarming) }
+
+    // Focus Audio states
+    var selectedAudioTrackLabel by remember { mutableStateOf(prefs.selectedAudioTrackLabel) }
+    var selectedAudioTrackUrl by remember { mutableStateOf(prefs.selectedAudioTrackUrl) }
+    var selectedAudioTrackStreamUrl by remember { mutableStateOf(prefs.selectedAudioTrackStreamUrl) }
+    var selectedAudioTrackType by remember { mutableStateOf(prefs.selectedAudioTrackType) }
+    var isPhoneAudioPlaying by remember { mutableStateOf(prefs.isPhoneAudioPlaying) }
+    var isAudioAutoSyncEnabled by remember { mutableStateOf(prefs.isAudioAutoSyncEnabled) }
+    val availableAudioTracks by repository.availableAudioTracks.collectAsStateWithLifecycle()
     
     // Sub-category expand / collapse mapping (defaults to expanding all of them)
     val expandedSubCategories = remember { mutableStateMapOf<String, Boolean>() }
@@ -174,6 +185,12 @@ fun ObsidianTodoScreen(
         activeTimerIsPaused = prefs.activeTimerIsPaused
         activeTimerLineIndex = prefs.activeTimerLineIndex
         isAlarming = prefs.isAlarming
+        selectedAudioTrackLabel = prefs.selectedAudioTrackLabel
+        selectedAudioTrackUrl = prefs.selectedAudioTrackUrl
+        selectedAudioTrackStreamUrl = prefs.selectedAudioTrackStreamUrl
+        selectedAudioTrackType = prefs.selectedAudioTrackType
+        isPhoneAudioPlaying = prefs.isPhoneAudioPlaying
+        isAudioAutoSyncEnabled = prefs.isAudioAutoSyncEnabled
     }
     val makeDragModifier = @Composable { task: Task ->
         var itemPositionInRoot by remember(task) { mutableStateOf(Offset.Zero) }
@@ -227,6 +244,9 @@ fun ObsidianTodoScreen(
 
 
     LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            repository.fetchAudioTracks()
+        }
         var pollCounter = 0
         while (true) {
             currentTimeString = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
@@ -911,6 +931,208 @@ fun ObsidianTodoScreen(
                                 modifier = Modifier.height(36.dp)
                             ) {
                                 Text("Complete", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Focus Audio Control Section
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(ObsidianBorder.copy(alpha = 0.5f))
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    var showTrackMenu by remember { mutableStateOf(false) }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Track Info & Selector trigger
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    showTrackMenu = true
+                                    scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
+                                }
+                        ) {
+                            val audioIcon = when {
+                                selectedAudioTrackType == "spotify" -> "🎧"
+                                selectedAudioTrackUrl.contains("equisync") -> "🧠"
+                                selectedAudioTrackType == "youtube" || selectedAudioTrackUrl.contains("youtube") -> "🎵"
+                                else -> "🎙️"
+                            }
+                            Text(text = audioIcon, fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "FOCUS AUDIO",
+                                        color = ObsidianPurple,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    if (isPhoneAudioPlaying) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "• PLAYING",
+                                            color = ObsidianAccentGreen,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = selectedAudioTrackLabel.ifEmpty { "Select Track" },
+                                    color = ObsidianTextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        // Dropdown Track Menu
+                        DropdownMenu(
+                            expanded = showTrackMenu,
+                            onDismissRequest = { showTrackMenu = false },
+                            modifier = Modifier.background(ObsidianSurface)
+                        ) {
+                            if (availableAudioTracks.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Loading tracks from vault...", color = ObsidianTextMuted, fontSize = 12.sp) },
+                                    onClick = { }
+                                )
+                            } else {
+                                availableAudioTracks.forEach { track ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            val tIcon = when {
+                                                track.type == "spotify" -> "🎧"
+                                                track.url.contains("equisync") -> "🧠"
+                                                track.type == "youtube" || track.url.contains("youtube") -> "🎵"
+                                                else -> "🎙️"
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(tIcon, fontSize = 14.sp)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = track.label,
+                                                    color = if (track.label == selectedAudioTrackLabel) ObsidianPurple else ObsidianTextPrimary,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = if (track.label == selectedAudioTrackLabel) FontWeight.Bold else FontWeight.Normal,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            showTrackMenu = false
+                                            prefs.selectedAudioTrackLabel = track.label
+                                            prefs.selectedAudioTrackUrl = track.url
+                                            prefs.selectedAudioTrackStreamUrl = track.streamUrl ?: ""
+                                            prefs.selectedAudioTrackType = track.type
+                                            refreshPreferencesState()
+                                            if (isPhoneAudioPlaying) {
+                                                FocusMediaService.playTrack(
+                                                    context,
+                                                    track.label,
+                                                    track.url,
+                                                    track.streamUrl,
+                                                    track.type
+                                                )
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Controls
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Selector dropdown button
+                            IconButton(
+                                onClick = {
+                                    showTrackMenu = true
+                                    scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Select Track",
+                                    tint = ObsidianTextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            // Play / Pause / Launch button
+                            IconButton(
+                                onClick = {
+                                    if (selectedAudioTrackType == "external_web" && !selectedAudioTrackUrl.contains("equisync")) {
+                                        // YouTube Music external intent launch
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                            context.startActivity(webIntent)
+                                        }
+                                    } else if (selectedAudioTrackType == "spotify") {
+                                        // Spotify external intent launch
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
+                                            context.startActivity(webIntent)
+                                        }
+                                    } else {
+                                        // Native Media3 Player & EquiSync WebEngine
+                                        if (isPhoneAudioPlaying) {
+                                            FocusMediaService.pauseAudio(context)
+                                        } else {
+                                            FocusMediaService.playTrack(
+                                                context,
+                                                selectedAudioTrackLabel,
+                                                selectedAudioTrackUrl,
+                                                selectedAudioTrackStreamUrl,
+                                                selectedAudioTrackType
+                                            )
+                                        }
+                                    }
+                                    scope.launch(Dispatchers.Main) {
+                                        refreshPreferencesState()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(
+                                        color = if (isPhoneAudioPlaying) ObsidianPurple else ObsidianPurple.copy(alpha = 0.2f),
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = if (isPhoneAudioPlaying) Icons.Default.Close else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPhoneAudioPlaying) "Pause" else "Play",
+                                    tint = if (isPhoneAudioPlaying) ObsidianBg else ObsidianPurple,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                     }

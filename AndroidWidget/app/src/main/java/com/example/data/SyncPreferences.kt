@@ -67,6 +67,30 @@ class SyncPreferences(private val context: Context) {
         get() = prefs.getBoolean("is_alarming", false)
         set(value) = prefs.edit().putBoolean("is_alarming", value).apply()
 
+    var selectedAudioTrackLabel: String
+        get() = prefs.getString("selected_audio_track_label", "EquiSync Element") ?: "EquiSync Element"
+        set(value) = prefs.edit().putString("selected_audio_track_label", value).apply()
+
+    var selectedAudioTrackUrl: String
+        get() = prefs.getString("selected_audio_track_url", "https://equisync.eocinstitute.org/meditation/element/?creation=tNDo73jx_jEhpzGE4_VoJkhVjz_7dBe5gx3_je3HKjbz_I86VXfI=_TzNWtJaV_17") ?: "https://equisync.eocinstitute.org/meditation/element/?creation=tNDo73jx_jEhpzGE4_VoJkhVjz_7dBe5gx3_je3HKjbz_I86VXfI=_TzNWtJaV_17"
+        set(value) = prefs.edit().putString("selected_audio_track_url", value).apply()
+
+    var selectedAudioTrackStreamUrl: String
+        get() = prefs.getString("selected_audio_track_stream_url", "") ?: ""
+        set(value) = prefs.edit().putString("selected_audio_track_stream_url", value).apply()
+
+    var selectedAudioTrackType: String
+        get() = prefs.getString("selected_audio_track_type", "external_web") ?: "external_web"
+        set(value) = prefs.edit().putString("selected_audio_track_type", value).apply()
+
+    var isAudioAutoSyncEnabled: Boolean
+        get() = prefs.getBoolean("audio_auto_sync_enabled", true)
+        set(value) = prefs.edit().putBoolean("audio_auto_sync_enabled", value).apply()
+
+    var isPhoneAudioPlaying: Boolean
+        get() = prefs.getBoolean("is_phone_audio_playing", false)
+        set(value) = prefs.edit().putBoolean("is_phone_audio_playing", value).apply()
+
     fun getLogs(): List<String> {
         val serialized = prefs.getString("sync_logs", "") ?: ""
         if (serialized.isEmpty()) return emptyList()

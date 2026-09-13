@@ -31,6 +31,9 @@ class ObsidianSyncRepository(private val context: Context) {
     private val _todayHabits = MutableStateFlow<Map<String, List<HabitItem>>>(emptyMap())
     val todayHabits: StateFlow<Map<String, List<HabitItem>>> = _todayHabits
 
+    private val _availableAudioTracks = MutableStateFlow<List<FocusAudioTrack>>(emptyList())
+    val availableAudioTracks: StateFlow<List<FocusAudioTrack>> = _availableAudioTracks
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -887,6 +890,46 @@ class ObsidianSyncRepository(private val context: Context) {
             prefs.addLog("Network error completing timer: ${e.message}")
         }
         return false
+    }
+
+    suspend fun fetchAudioTracks(): List<FocusAudioTrack> {
+        val base = getBaseUrl()
+        val url = "$base/api/audio/tracks"
+        val request = Request.Builder().url(url).get()
+        if (prefs.apiToken.isNotEmpty()) {
+            request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+            request.addHeader("X-API-Key", prefs.apiToken)
+        }
+        try {
+            val response = client.newCall(request.build()).execute()
+            if (response.isSuccessful) {
+                val jsonStr = response.body?.string() ?: ""
+                val obj = JSONObject(jsonStr)
+                if (obj.optBoolean("success", false)) {
+                    val arr = obj.optJSONArray("tracks") ?: JSONArray()
+                    val list = mutableListOf<FocusAudioTrack>()
+                    for (i in 0 until arr.length()) {
+                        val item = arr.getJSONObject(i)
+                        list.add(
+                            FocusAudioTrack(
+                                label = item.optString("label", ""),
+                                url = item.optString("url", ""),
+                                streamUrl = if (item.has("streamUrl") && !item.isNull("streamUrl")) item.getString("streamUrl") else null,
+                                type = item.optString("type", "local"),
+                                isInternal = item.optBoolean("isInternal", false),
+                                videoId = if (item.has("videoId") && !item.isNull("videoId")) item.getString("videoId") else null,
+                                playlistId = if (item.has("playlistId") && !item.isNull("playlistId")) item.getString("playlistId") else null
+                            )
+                        )
+                    }
+                    _availableAudioTracks.value = list
+                    return list
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "Error fetching audio tracks: ${e.message}")
+        }
+        return _availableAudioTracks.value
     }
 
     suspend fun postponeTask(task: Task): Boolean {
