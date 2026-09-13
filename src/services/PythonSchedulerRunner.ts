@@ -12,6 +12,8 @@ import { DailyNoteManager } from './DailyNoteManager';
 import { SchedulerProgressModal } from '../views/SchedulerProgressModal';
 
 export class PythonSchedulerRunner {
+    public isRunning = false;
+
     constructor(
         private app: App,
         private getSettings: () => TaskTimerPluginSettings,
@@ -64,6 +66,12 @@ export class PythonSchedulerRunner {
     }
 
     public async runTaskLoader(autoApply = false, dateToMarkOnSuccess: string | null = null): Promise<void> {
+        if (this.isRunning) {
+            new Notice("Schedule Assistant: Schedule generation already running. Please wait...");
+            console.warn("[PythonSchedulerRunner] Schedule generation already in progress. Ignoring duplicate call.");
+            return;
+        }
+
         const vaultPath = (this.app.vault.adapter as any).getBasePath();
         const pluginDir = this.getPluginDir();
         const scriptPath = path.join(pluginDir, 'timeblocker.py');
@@ -73,6 +81,7 @@ export class PythonSchedulerRunner {
             return;
         }
 
+        this.isRunning = true;
         const settings = this.getSettings();
 
         // Retrieve secrets securely from Obsidian SecretStorage
@@ -130,13 +139,24 @@ export class PythonSchedulerRunner {
             : path.join(pluginDir, '.venv', 'bin', 'python');
         const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python';
 
-        const child = spawn(pythonCmd, args, {
-            cwd: pluginDir,
-            env: env as NodeJS.ProcessEnv
-        });
+        let child: any = null;
+        try {
+            child = spawn(pythonCmd, args, {
+                cwd: pluginDir,
+                env: env as NodeJS.ProcessEnv
+            });
+        } catch (spawnErr: any) {
+            this.isRunning = false;
+            console.error("[PythonSchedulerRunner] Failed to spawn python process:", spawnErr);
+            new Notice(`Failed to spawn schedule assistant: ${spawnErr.message}`);
+            return;
+        }
 
-        const progressModal = new SchedulerProgressModal(this.app, child);
-        progressModal.open();
+        let progressModal: SchedulerProgressModal | null = null;
+        if (!autoApply) {
+            progressModal = new SchedulerProgressModal(this.app, child);
+            progressModal.open();
+        }
 
         let stdout = '';
         let stderr = '';
@@ -148,7 +168,31 @@ export class PythonSchedulerRunner {
             console.error("Failed to init scheduler_run.log:", e);
         }
 
-        child.stdout?.on('data', (data) => {
+        const cleanup = () => {
+            clearTimeout(timeout);
+            this.isRunning = false;
+            if (progressModal) {
+                progressModal.setCompleted();
+                progressModal = null;
+            }
+        };
+
+        const timeout = setTimeout(() => {
+            if (this.isRunning) {
+                console.error("[PythonSchedulerRunner] Timeout (180s) reached while running timeblocker.py. Killing child process.");
+                new Notice("Schedule Assistant: Process timed out after 3 minutes.");
+                try {
+                    if (os.platform() === 'win32' && child.pid) {
+                        exec(`taskkill /pid ${child.pid} /T /F`, () => {});
+                    } else if (child) {
+                        child.kill('SIGTERM');
+                    }
+                } catch (e) {}
+                cleanup();
+            }
+        }, 180000);
+
+        child.stdout?.on('data', (data: any) => {
             const text = data.toString();
             stdout += text;
             console.log("[Scheduler stdout]:", text);
@@ -157,7 +201,7 @@ export class PythonSchedulerRunner {
             } catch (e) {}
         });
 
-        child.stderr?.on('data', (data) => {
+        child.stderr?.on('data', (data: any) => {
             const text = data.toString();
             stderr += text;
             console.error("[Scheduler stderr]:", text);
@@ -166,8 +210,14 @@ export class PythonSchedulerRunner {
             } catch (e) {}
         });
 
-        child.on('close', async (code) => {
-            progressModal.setCompleted();
+        child.on('error', (err: any) => {
+            console.error("[PythonSchedulerRunner] Process error:", err);
+            new Notice(`Schedule Assistant error: ${err.message}`);
+            cleanup();
+        });
+
+        child.on('close', async (code: number | null) => {
+            cleanup();
             try {
                 fs.appendFileSync(runLogPath, `=== Process Exited with Code ${code} ===\n`, 'utf8');
             } catch (e) {}
@@ -179,7 +229,7 @@ export class PythonSchedulerRunner {
                 new Notice("Schedule generated and applied successfully!");
                 console.log("Scheduler output:\n", stdout);
             } else {
-                new Notice(`Scheduler failed with exit code ${code}. Check console.`);
+                new Notice(`Scheduler failed with exit code ${code}. Check console or scheduler_run.log.`);
                 console.error("Scheduler error output:\n", stderr);
             }
         });

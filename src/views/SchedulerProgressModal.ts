@@ -3,7 +3,8 @@
  */
 
 import { App, Modal, Notice } from 'obsidian';
-import { ChildProcess } from 'child_process';
+import { ChildProcess, exec } from 'child_process';
+import * as os from 'os';
 
 export class SchedulerProgressModal extends Modal {
     private isCompleted = false;
@@ -53,7 +54,11 @@ export class SchedulerProgressModal extends Modal {
         const cancelBtn = loaderContainer.createEl('button', { text: 'Cancel Process', style: 'margin-top: 25px;' });
         cancelBtn.onclick = () => {
             if (this.childProcess && !this.isCompleted) {
-                this.childProcess.kill();
+                if (os.platform() === 'win32' && this.childProcess.pid) {
+                    exec(`taskkill /pid ${this.childProcess.pid} /T /F`, () => {});
+                } else {
+                    this.childProcess.kill();
+                }
                 new Notice("Schedule generation cancelled.");
             }
             this.close();
