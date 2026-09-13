@@ -757,7 +757,32 @@ export class RemoteServerService {
                         res.writeHead(500, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: e.message }));
                     }
-                    return;
+                    // Static vault file streaming & APK download handler
+                if (req.method === 'GET' && !pathname.startsWith('/api/')) {
+                    const relativePath = decodeURIComponent(pathname.replace(/^\//, ''));
+                    const file = this.app.vault.getAbstractFileByPath(relativePath);
+                    if (file && 'extension' in file) {
+                        const tFile = file as any;
+                        const binaryData = await this.app.vault.readBinary(tFile);
+                        const ext = (tFile.extension || '').toLowerCase();
+                        const mimeTypes: { [k: string]: string } = {
+                            'mp3': 'audio/mpeg',
+                            'm4a': 'audio/mp4',
+                            'wav': 'audio/wav',
+                            'ogg': 'audio/ogg',
+                            'apk': 'application/vnd.android.package-archive',
+                            'png': 'image/png',
+                            'jpg': 'image/jpeg'
+                        };
+                        const contentType = mimeTypes[ext] || 'application/octet-stream';
+                        setCorsHeaders();
+                        res.writeHead(200, {
+                            'Content-Type': contentType,
+                            'Content-Length': binaryData.byteLength
+                        });
+                        res.end(Buffer.from(binaryData));
+                        return;
+                    }
                 }
 
                 setCorsHeaders();
