@@ -165,7 +165,7 @@ export class RemoteServerService {
                                 label: plugin.focusAudioService.currentTrack.label,
                                 url: plugin.focusAudioService.currentTrack.url,
                                 streamUrl: plugin.focusAudioService.currentTrack.type === 'local' && plugin.focusAudioService.currentTrack.localFile
-                                    ? `http://${req.headers.host || `127.0.0.1:${settings.port || 8090}`}/${encodeURIComponent(plugin.focusAudioService.currentTrack.localFile.path).replace(/%2F/g, '/')}`
+                                    ? `http://${req.headers.host || `127.0.0.1:${settings.port || 8090}`}/api/audio/stream?file=${encodeURIComponent(plugin.focusAudioService.currentTrack.localFile.path)}`
                                     : plugin.focusAudioService.currentTrack.url,
                                 type: plugin.focusAudioService.currentTrack.type,
                                 isInternal: plugin.focusAudioService.currentTrack.isInternal
@@ -203,7 +203,7 @@ export class RemoteServerService {
                         tracks = rawTracks.map(t => {
                             let streamUrl = t.url;
                             if (t.type === 'local' && t.localFile) {
-                                streamUrl = `${proto}://${host}/${encodeURIComponent(t.localFile.path).replace(/%2F/g, '/')}`;
+                                streamUrl = `${proto}://${host}/api/audio/stream?file=${encodeURIComponent(t.localFile.path)}`;
                             }
                             return {
                                 label: t.label,
@@ -363,7 +363,7 @@ export class RemoteServerService {
                     const files = this.app.vault.getFiles();
                     const audioFiles = files.filter(f => {
                         const ext = f.extension?.toLowerCase();
-                        return ext === 'mp3' || ext === 'm4a' || ext === 'wav' || ext === 'ogg';
+                        return (ext === 'mp3' || ext === 'm4a' || ext === 'wav' || ext === 'ogg') && (f.stat?.size || 0) > 1000;
                     });
                     audioFiles.sort((a, b) => b.stat.mtime - a.stat.mtime);
 

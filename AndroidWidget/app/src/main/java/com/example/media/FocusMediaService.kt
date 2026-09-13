@@ -1,23 +1,29 @@
 package com.example.media
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.media.AudioManager
 import android.net.Uri
-import android.os.Bundle
+import android.os.Build
 import android.util.Log
+import android.view.KeyEvent
 import androidx.annotation.OptIn
+import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import android.media.AudioManager
-import android.view.KeyEvent
 import com.example.MainActivity
 import com.example.data.SyncPreferences
 
@@ -53,7 +59,7 @@ class FocusMediaService : MediaSessionService() {
                 putExtra(EXTRA_STREAM_URL, streamUrl)
                 putExtra(EXTRA_TYPE, type)
             }
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
@@ -65,7 +71,7 @@ class FocusMediaService : MediaSessionService() {
                 action = ACTION_PAUSE
             }
             try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
                 } else {
                     context.startService(intent)
@@ -78,7 +84,7 @@ class FocusMediaService : MediaSessionService() {
                 action = ACTION_RESUME
             }
             try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
                 } else {
                     context.startService(intent)
@@ -91,7 +97,7 @@ class FocusMediaService : MediaSessionService() {
                 action = ACTION_TOGGLE
             }
             try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
                 } else {
                     context.startService(intent)
@@ -121,6 +127,82 @@ class FocusMediaService : MediaSessionService() {
         }
     }
 
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Focus Audio Playback",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Background audio streaming for focus tracks and podcasts"
+                setShowBadge(false)
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(title: String = prefs.selectedAudioTrackLabel, isPlaying: Boolean = prefs.isPhoneAudioPlaying): Notification {
+        createNotificationChannel()
+
+        val openIntent = Intent(this, MainActivity::class.java)
+        val openPendingIntent = PendingIntent.getActivity(
+            this, 0, openIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val toggleIntent = Intent(this, FocusMediaService::class.java).apply { action = ACTION_TOGGLE }
+        val togglePendingIntent = PendingIntent.getService(
+            this, 1, toggleIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val stopIntent = Intent(this, FocusMediaService::class.java).apply { action = ACTION_STOP }
+        val stopPendingIntent = PendingIntent.getService(
+            this, 2, stopIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val cleanTitle = title.ifEmpty { "Focus Audio" }.replace(Regex("^🎙️\\s*"), "")
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(cleanTitle)
+            .setContentText(if (isPlaying) "Playing via kilPC Stream" else "Paused")
+            .setContentIntent(openPendingIntent)
+            .setOngoing(isPlaying)
+            .setOnlyAlertOnce(true)
+            .addAction(
+                if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                if (isPlaying) "Pause" else "Play",
+                togglePendingIntent
+            )
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
+            .build()
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e("FocusMediaService", "startForeground failed: ${e.message}")
+        }
+    }
+
+    private fun updateForegroundNotification(title: String = prefs.selectedAudioTrackLabel, isPlaying: Boolean = prefs.isPhoneAudioPlaying) {
+        try {
+            val notification = buildNotification(title, isPlaying)
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e("FocusMediaService", "updateNotification failed: ${e.message}")
+        }
+    }
+
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
@@ -142,6 +224,7 @@ class FocusMediaService : MediaSessionService() {
                 super.onIsPlayingChanged(isPlaying)
                 prefs.isPhoneAudioPlaying = isPlaying || (equiSyncEngine?.isPlaying == true)
                 prefs.addLog("Playback isPlaying: $isPlaying")
+                updateForegroundNotification(isPlaying = prefs.isPhoneAudioPlaying)
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -149,7 +232,16 @@ class FocusMediaService : MediaSessionService() {
                 if (playbackState == Player.STATE_ENDED) {
                     prefs.isPhoneAudioPlaying = false
                     prefs.addLog("Track playback completed.")
+                    updateForegroundNotification(isPlaying = false)
                 }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                super.onPlayerError(error)
+                prefs.isPhoneAudioPlaying = false
+                prefs.addLog("ExoPlayer error: ${error.message} (${error.errorCodeName})")
+                Log.e("FocusMediaService", "ExoPlayer error", error)
+                updateForegroundNotification(isPlaying = false)
             }
         })
 
@@ -171,6 +263,9 @@ class FocusMediaService : MediaSessionService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // ALWAYS start foreground immediately to satisfy Android 14+ FGS requirements
+        startForegroundCompat(buildNotification())
+
         val action = intent?.action
         when (action) {
             ACTION_PLAY -> {
@@ -220,8 +315,24 @@ class FocusMediaService : MediaSessionService() {
             equiSyncEngine?.play(url)
             prefs.isPhoneAudioPlaying = true
             prefs.addLog("Playing EquiSync via Web Audio Engine: $title")
+            updateForegroundNotification(title, true)
+        } else if (type == "spotify" || type == "youtube" || url.contains("spotify.com") || url.contains("music.youtube.com") || url.contains("youtube.com") || url.contains("youtu.be")) {
+            // Web/app links that cannot be parsed as raw byte streams by ExoPlayer
+            player.pause()
+            equiSyncEngine?.pause()
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+                prefs.isPhoneAudioPlaying = true
+                prefs.addLog("Opened app for phone audio: $title")
+                updateForegroundNotification(title, true)
+            } catch (e: Exception) {
+                prefs.addLog("Error opening app: ${e.message}")
+            }
         } else {
-            // Direct streaming with ExoPlayer
+            // Direct streaming with ExoPlayer (vault podcasts, MP3s, HTTP byte-range audio)
             equiSyncEngine?.pause()
             val playbackUrl = if (!streamUrl.isNullOrEmpty()) streamUrl else url
             if (playbackUrl.isNotEmpty()) {
@@ -242,6 +353,7 @@ class FocusMediaService : MediaSessionService() {
                 player.play()
                 prefs.isPhoneAudioPlaying = true
                 prefs.addLog("Streaming audio track: $title ($playbackUrl)")
+                updateForegroundNotification(title, true)
             }
         }
     }
@@ -260,10 +372,11 @@ class FocusMediaService : MediaSessionService() {
         }
         prefs.isPhoneAudioPlaying = false
         prefs.addLog("Audio playback paused.")
+        updateForegroundNotification(isPlaying = false)
     }
 
     private fun resumeInternal() {
-        if (prefs.selectedAudioTrackType == "spotify" || (prefs.selectedAudioTrackType == "external_web" && !prefs.selectedAudioTrackUrl.contains("equisync"))) {
+        if (prefs.selectedAudioTrackType == "spotify" || (prefs.selectedAudioTrackType == "external_web" && !prefs.selectedAudioTrackUrl.contains("equisync")) || prefs.selectedAudioTrackType == "youtube") {
             try {
                 val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
@@ -289,6 +402,7 @@ class FocusMediaService : MediaSessionService() {
             }
         }
         prefs.addLog("Audio playback resumed.")
+        updateForegroundNotification(isPlaying = true)
     }
 
     private fun stopInternal() {
@@ -304,6 +418,10 @@ class FocusMediaService : MediaSessionService() {
         }
         prefs.isPhoneAudioPlaying = false
         prefs.addLog("Audio playback stopped.")
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (e: Exception) {}
+        stopSelf()
     }
 
     override fun onDestroy() {

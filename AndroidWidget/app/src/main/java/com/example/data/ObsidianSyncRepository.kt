@@ -931,11 +931,18 @@ class ObsidianSyncRepository(private val context: Context) {
                     val list = mutableListOf<FocusAudioTrack>()
                     for (i in 0 until arr.length()) {
                         val item = arr.getJSONObject(i)
+                        val rawStreamUrl = if (item.has("streamUrl") && !item.isNull("streamUrl")) item.getString("streamUrl") else null
+                        val resolvedStreamUrl = when {
+                            rawStreamUrl != null && rawStreamUrl.contains("127.0.0.1:8090") -> rawStreamUrl.replace("http://127.0.0.1:8090", base)
+                            rawStreamUrl != null && rawStreamUrl.startsWith("http") -> rawStreamUrl
+                            item.optString("type") == "local" -> "$base/api/audio/stream?file=${android.net.Uri.encode(item.optString("url"))}"
+                            else -> rawStreamUrl
+                        }
                         list.add(
                             FocusAudioTrack(
                                 label = item.optString("label", ""),
                                 url = item.optString("url", ""),
-                                streamUrl = if (item.has("streamUrl") && !item.isNull("streamUrl")) item.getString("streamUrl") else null,
+                                streamUrl = resolvedStreamUrl,
                                 type = item.optString("type", "local"),
                                 isInternal = item.optBoolean("isInternal", false),
                                 videoId = if (item.has("videoId") && !item.isNull("videoId")) item.getString("videoId") else null,

@@ -221,7 +221,7 @@ export class FocusAudioService {
             const files = this.app.vault.getFiles();
             const audioFiles = files.filter(f => {
                 const ext = f.extension?.toLowerCase();
-                return ext === 'mp3' || ext === 'm4a' || ext === 'wav' || ext === 'ogg';
+                return (ext === 'mp3' || ext === 'm4a' || ext === 'wav' || ext === 'ogg') && (f.stat?.size || 0) > 1000;
             });
 
             // Sort newest first

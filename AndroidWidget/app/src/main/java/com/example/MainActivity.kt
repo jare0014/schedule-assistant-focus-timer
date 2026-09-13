@@ -1274,10 +1274,13 @@ fun ObsidianTodoScreen(
                                             prefs.isPhoneAudioPlaying = false
                                             isPhoneAudioPlaying = false
                                         } else {
-                                            val streamUrl = if (selectedAudioTrackStreamUrl.isNotEmpty()) {
+                                            val isVaultAudio = selectedAudioTrackType == "local" || selectedAudioTrackUrl.endsWith(".mp3") || selectedAudioTrackUrl.endsWith(".m4a") || selectedAudioTrackUrl.endsWith(".wav")
+                                            val streamUrl = if (selectedAudioTrackStreamUrl.isNotEmpty() && !selectedAudioTrackStreamUrl.contains("127.0.0.1")) {
                                                 selectedAudioTrackStreamUrl
-                                            } else {
+                                            } else if (isVaultAudio) {
                                                 "${repository.getBaseUrl()}/api/audio/stream?file=${Uri.encode(selectedAudioTrackUrl)}"
+                                            } else {
+                                                selectedAudioTrackUrl
                                             }
                                             FocusMediaService.playTrack(
                                                 context,
