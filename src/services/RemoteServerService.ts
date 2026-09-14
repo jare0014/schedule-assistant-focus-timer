@@ -283,6 +283,27 @@ export class RemoteServerService {
                     return;
                 }
 
+                if (req.method === 'POST' && pathname === '/api/audio/stop') {
+                    if (plugin.focusAudioService) {
+                        plugin.focusAudioService.stop();
+                    }
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, isPlaying: false }));
+                    return;
+                }
+
+                if (req.method === 'POST' && pathname === '/api/audio/autosync') {
+                    const body = await readBody();
+                    if (plugin.focusAudioService && typeof body.enabled === 'boolean') {
+                        plugin.focusAudioService.setAutoSync(body.enabled);
+                    }
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, autoSyncWithTimer: plugin.focusAudioService?.autoSyncWithTimer }));
+                    return;
+                }
+
                 // Audio Streaming Endpoint with full HTTP 206 Partial Content (Byte-Range)
                 if (req.method === 'GET' && pathname === '/api/audio/stream') {
                     const parsedUrl = new URL(req.url || '', `http://${req.headers.host || '127.0.0.1'}`);
@@ -441,6 +462,19 @@ ${itemsXml}  </channel>
                             if (!matchedTask && body.taskName) {
                                 matchedTask = tasks.find(t => t.description.toLowerCase() === body.taskName.toLowerCase());
                             }
+                            if (!matchedTask && !body.taskName) {
+                                const now = new Date();
+                                let nowMinutes = now.getHours() * 60 + now.getMinutes();
+                                if (now.getHours() < 5) nowMinutes += 1440;
+                                matchedTask = tasks.find(t =>
+                                    t.status !== 'completed' &&
+                                    !t.isUntimed &&
+                                    t.startMinutes !== null &&
+                                    t.endMinutes !== null &&
+                                    nowMinutes >= t.startMinutes &&
+                                    nowMinutes < t.endMinutes
+                                );
+                            }
                         }
 
                         const taskInput = matchedTask || body.taskName || "Focus Block";
@@ -481,7 +515,7 @@ ${itemsXml}  </channel>
                             plugin.activeTimer.isPaused = true;
                             plugin.activeTimer.pausedRemainingMs = Math.max(0, (plugin.activeTimer.targetEndTime || Date.now()) - Date.now());
                             plugin.activeTimer.remainingSeconds = Math.ceil(plugin.activeTimer.pausedRemainingMs / 1000);
-                            if (plugin.focusLogService) await plugin.focusLogService.logPause();
+                            if (plugin.focusLogService) plugin.focusLogService.logPause().catch((e: any) => console.error(e));
                             if (plugin.focusAudioService) plugin.focusAudioService.onTimerPause();
                         }
                         setCorsHeaders();
@@ -521,7 +555,7 @@ ${itemsXml}  </channel>
                                 : (plugin.activeTimer.remainingSeconds * 1000);
                             plugin.activeTimer.targetEndTime = Date.now() + remainingMs;
                             plugin.activeTimer.pausedRemainingMs = null;
-                            if (plugin.focusLogService) await plugin.focusLogService.logResume();
+                            if (plugin.focusLogService) plugin.focusLogService.logResume().catch((e: any) => console.error(e));
                             if (plugin.focusAudioService) plugin.focusAudioService.onTimerResume();
                         }
                         setCorsHeaders();
@@ -531,6 +565,77 @@ ${itemsXml}  </channel>
                     }
 
                     throw new Error("No timer currently active.");
+                }
+
+                if (req.method === 'POST' && pathname === '/api/timer/media-sync') {
+                    const body = await readBody();
+                    const state = String(body.state || '').toLowerCase().trim();
+                    const app = String(body.app || 'unknown').trim();
+
+                    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+                    let activeView = leaves.map(l => l.view as any).find(v => v && v.currentTimer);
+                    if (!activeView && leaves.length > 0) {
+                        activeView = leaves[0].view as any;
+                        if (!activeView.currentTimer && plugin.activeTimer) {
+                            activeView.currentTimer = plugin.activeTimer;
+                        }
+                    }
+
+                    const currentTimer = (activeView && activeView.currentTimer) ? activeView.currentTimer : plugin.activeTimer;
+
+                    if (state === 'playing') {
+                        if (currentTimer && currentTimer.isPaused) {
+                            if (activeView && activeView.currentTimer) {
+                                await activeView.togglePause();
+                            } else if (plugin.activeTimer) {
+                                plugin.activeTimer.isPaused = false;
+                                const remainingMs = (plugin.activeTimer.pausedRemainingMs !== null && plugin.activeTimer.pausedRemainingMs !== undefined)
+                                    ? plugin.activeTimer.pausedRemainingMs
+                                    : (plugin.activeTimer.remainingSeconds * 1000);
+                                plugin.activeTimer.targetEndTime = Date.now() + remainingMs;
+                                plugin.activeTimer.pausedRemainingMs = null;
+                                if (plugin.focusLogService) plugin.focusLogService.logResume().catch((e: any) => console.error(e));
+                                if (plugin.focusAudioService) plugin.focusAudioService.onTimerResume();
+                            }
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true, action: 'resumed', app }));
+                            return;
+                        }
+
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, action: 'none', isRunning: !!(currentTimer && !currentTimer.isPaused) }));
+                        return;
+                    }
+
+                    if (state === 'paused' || state === 'stopped') {
+                        if (currentTimer && !currentTimer.isPaused) {
+                            if (activeView && activeView.currentTimer) {
+                                await activeView.togglePause();
+                            } else if (plugin.activeTimer) {
+                                plugin.activeTimer.isPaused = true;
+                                plugin.activeTimer.pausedRemainingMs = Math.max(0, (plugin.activeTimer.targetEndTime || Date.now()) - Date.now());
+                                plugin.activeTimer.remainingSeconds = Math.ceil(plugin.activeTimer.pausedRemainingMs / 1000);
+                                if (plugin.focusLogService) plugin.focusLogService.logPause().catch((e: any) => console.error(e));
+                                if (plugin.focusAudioService) plugin.focusAudioService.onTimerPause();
+                            }
+                            setCorsHeaders();
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true, action: 'paused', app }));
+                            return;
+                        }
+
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, action: 'none', isRunning: false }));
+                        return;
+                    }
+
+                    setCorsHeaders();
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: "Invalid state. Expected 'playing' or 'paused'." }));
+                    return;
                 }
 
                 if ((req.method === 'POST' || req.method === 'GET') && (pathname === '/api/timer/toggle' || pathname === '/api/timer/play-pause')) {
@@ -984,11 +1089,26 @@ ${itemsXml}  </channel>
                 // Static vault file streaming & APK download handler
                 if (req.method === 'GET' && !pathname.startsWith('/api/')) {
                     const relativePath = decodeURIComponent(pathname.replace(/^\//, ''));
+                    let binaryData: Buffer | null = null;
+                    let fileName = path.basename(relativePath);
+                    let ext = path.extname(relativePath).replace(/^\./, '').toLowerCase();
+
                     const file = this.app.vault.getAbstractFileByPath(relativePath);
                     if (file && 'extension' in file) {
                         const tFile = file as any;
-                        const binaryData = await this.app.vault.readBinary(tFile);
-                        const ext = (tFile.extension || '').toLowerCase();
+                        const arrayBuffer = await this.app.vault.readBinary(tFile);
+                        binaryData = Buffer.from(arrayBuffer);
+                        ext = (tFile.extension || ext).toLowerCase();
+                        fileName = path.basename(tFile.name || relativePath);
+                    } else {
+                        const basePath = (this.app.vault.adapter as any).basePath || process.cwd();
+                        const diskPath = path.resolve(basePath, relativePath);
+                        if (fs.existsSync(diskPath) && fs.statSync(diskPath).isFile()) {
+                            binaryData = fs.readFileSync(diskPath);
+                        }
+                    }
+
+                    if (binaryData) {
                         const mimeTypes: { [k: string]: string } = {
                             'mp3': 'audio/mpeg',
                             'm4a': 'audio/mp4',
@@ -1002,9 +1122,10 @@ ${itemsXml}  </channel>
                         setCorsHeaders();
                         res.writeHead(200, {
                             'Content-Type': contentType,
-                            'Content-Length': binaryData.byteLength
+                            'Content-Length': binaryData.length,
+                            'Content-Disposition': `attachment; filename="${fileName}"`
                         });
-                        res.end(Buffer.from(binaryData));
+                        res.end(binaryData);
                         return;
                     }
                 }

@@ -657,6 +657,12 @@ class ObsidianSyncRepository(private val context: Context) {
                 }
                 val desktopPlaying = audioObj.optBoolean("isPlaying", false)
                 prefs.isDesktopAudioPlaying = desktopPlaying
+                if (audioObj.has("autoSyncWithTimer")) {
+                    prefs.isAudioAutoSyncEnabled = audioObj.optBoolean("autoSyncWithTimer", true)
+                }
+                if (audioObj.has("volume")) {
+                    prefs.focusAudioVolume = audioObj.optDouble("volume", 0.8).toFloat()
+                }
                 if (prefs.activeTimerIsPaused || prefs.activeTimerTaskName.isEmpty()) {
                     prefs.isPhoneAudioPlaying = false
                 }
@@ -784,14 +790,48 @@ class ObsidianSyncRepository(private val context: Context) {
     }
 
     suspend fun startTimer(task: Task, durationMinutes: Int? = null): Boolean {
-        prefs.addLog("Starting timer for: ${task.text} (${durationMinutes ?: "default"}m)")
+        val taskTitle = task.displayTitle.ifEmpty { task.text }
+        prefs.addLog("Starting timer for: $taskTitle (${durationMinutes ?: "default"}m)")
         val base = getBaseUrl()
         val url = "$base/api/timer/start"
         val payload = JSONObject().apply {
-            put("lineIndex", task.lineNumber - 1)
+            if (task.lineNumber > 0) {
+                put("lineIndex", task.lineNumber - 1)
+            }
+            put("taskName", taskTitle)
             if (durationMinutes != null) {
                 put("durationMinutes", durationMinutes)
             }
+        }
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val body = payload.toString().toRequestBody(mediaType)
+        val request = Request.Builder().url(url).post(body)
+        if (prefs.apiToken.isNotEmpty()) {
+            request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+            request.addHeader("X-API-Key", prefs.apiToken)
+        }
+        try {
+            val response = client.newCall(request.build()).execute()
+            if (response.isSuccessful) {
+                prefs.addLog("Timer started successfully.")
+                syncActiveTimer()
+                return true
+            } else {
+                prefs.addLog("Failed to start timer: HTTP ${response.code}")
+            }
+        } catch (e: Exception) {
+            prefs.addLog("Network error starting timer: ${e.message}")
+        }
+        return false
+    }
+
+    suspend fun startTimer(taskName: String, durationMinutes: Int = 15): Boolean {
+        prefs.addLog("Starting timer for habit/taskName: $taskName (${durationMinutes}m)")
+        val base = getBaseUrl()
+        val url = "$base/api/timer/start"
+        val payload = JSONObject().apply {
+            put("taskName", taskName)
+            put("durationMinutes", durationMinutes)
         }
         val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
         val body = payload.toString().toRequestBody(mediaType)
@@ -1018,6 +1058,78 @@ class ObsidianSyncRepository(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e("SyncRepository", "Error toggling desktop audio: ${e.message}")
+        }
+        return false
+    }
+
+    suspend fun stopDesktopAudio(): Boolean {
+        try {
+            val base = getBaseUrl()
+            val targetUrl = "$base/api/audio/stop"
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val body = "{}".toRequestBody(mediaType)
+            val request = Request.Builder().url(targetUrl).post(body)
+            if (prefs.apiToken.isNotEmpty()) {
+                request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+                request.addHeader("X-API-Key", prefs.apiToken)
+            }
+            val response = client.newCall(request.build()).execute()
+            if (response.isSuccessful) {
+                prefs.isDesktopAudioPlaying = false
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "Error stopping desktop audio: ${e.message}")
+        }
+        return false
+    }
+
+    suspend fun setDesktopAudioVolume(volume: Float): Boolean {
+        try {
+            val base = getBaseUrl()
+            val targetUrl = "$base/api/audio/volume"
+            val payload = JSONObject().apply {
+                put("volume", volume.toDouble())
+            }
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val body = payload.toString().toRequestBody(mediaType)
+            val request = Request.Builder().url(targetUrl).post(body)
+            if (prefs.apiToken.isNotEmpty()) {
+                request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+                request.addHeader("X-API-Key", prefs.apiToken)
+            }
+            val response = client.newCall(request.build()).execute()
+            if (response.isSuccessful) {
+                prefs.focusAudioVolume = volume
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "Error setting desktop audio volume: ${e.message}")
+        }
+        return false
+    }
+
+    suspend fun setDesktopAudioAutoSync(enabled: Boolean): Boolean {
+        try {
+            val base = getBaseUrl()
+            val targetUrl = "$base/api/audio/autosync"
+            val payload = JSONObject().apply {
+                put("enabled", enabled)
+            }
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val body = payload.toString().toRequestBody(mediaType)
+            val request = Request.Builder().url(targetUrl).post(body)
+            if (prefs.apiToken.isNotEmpty()) {
+                request.addHeader("Authorization", "Bearer ${prefs.apiToken}")
+                request.addHeader("X-API-Key", prefs.apiToken)
+            }
+            val response = client.newCall(request.build()).execute()
+            if (response.isSuccessful) {
+                prefs.isAudioAutoSyncEnabled = enabled
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "Error setting desktop audio autoSync: ${e.message}")
         }
         return false
     }

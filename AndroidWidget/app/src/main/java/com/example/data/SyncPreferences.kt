@@ -8,7 +8,7 @@ class SyncPreferences(private val context: Context) {
     private val prefs = context.getSharedPreferences("obsidian_sync_prefs", Context.MODE_PRIVATE)
 
     var serverIp: String
-        get() = prefs.getString("server_ip", "10.0.0.75") ?: "10.0.0.75"
+        get() = prefs.getString("server_ip", "100.93.91.76") ?: "100.93.91.76"
         set(value) = prefs.edit().putString("server_ip", value).apply()
 
     var serverPort: String
@@ -98,6 +98,10 @@ class SyncPreferences(private val context: Context) {
     var playbackDeviceTarget: String
         get() = prefs.getString("playback_device_target", "kilPC") ?: "kilPC"
         set(value) = prefs.edit().putString("playback_device_target", value).apply()
+
+    var focusAudioVolume: Float
+        get() = prefs.getFloat("focus_audio_volume", 0.8f)
+        set(value) = prefs.edit().putFloat("focus_audio_volume", value).apply()
 
     fun getLogs(): List<String> {
         val serialized = prefs.getString("sync_logs", "") ?: ""

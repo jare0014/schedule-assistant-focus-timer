@@ -170,6 +170,7 @@ fun ObsidianTodoScreen(
     var isDesktopAudioPlaying by remember { mutableStateOf(prefs.isDesktopAudioPlaying) }
     var playbackDeviceTarget by remember { mutableStateOf(prefs.playbackDeviceTarget) }
     var isAudioAutoSyncEnabled by remember { mutableStateOf(prefs.isAudioAutoSyncEnabled) }
+    var focusAudioVolume by remember { mutableFloatStateOf(prefs.focusAudioVolume) }
     val availableAudioTracks by repository.availableAudioTracks.collectAsStateWithLifecycle()
     
     // Sub-category expand / collapse mapping (defaults to expanding all of them)
@@ -198,6 +199,7 @@ fun ObsidianTodoScreen(
         isDesktopAudioPlaying = prefs.isDesktopAudioPlaying
         playbackDeviceTarget = prefs.playbackDeviceTarget
         isAudioAutoSyncEnabled = prefs.isAudioAutoSyncEnabled
+        focusAudioVolume = prefs.focusAudioVolume
     }
     val makeDragModifier = @Composable { task: Task ->
         var itemPositionInRoot by remember(task) { mutableStateOf(Offset.Zero) }
@@ -632,7 +634,7 @@ fun ObsidianTodoScreen(
                             serverIp = it
                             prefs.serverIp = it
                         },
-                        label = { Text("Server PC IP (e.g. 10.0.0.75)", color = ObsidianTextMuted) },
+                        label = { Text("Server PC IP (e.g. 100.93.91.76)", color = ObsidianTextMuted) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)
@@ -967,381 +969,67 @@ fun ObsidianTodoScreen(
                         }
                     }
 
-                    // Focus Audio Control Section
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(ObsidianBorder.copy(alpha = 0.5f))
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    var showTrackMenu by remember { mutableStateOf(false) }
-                    var showDeviceMenu by remember { mutableStateOf(false) }
-
-                    // Playback Device Target Selector Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "PLAYBACK TARGET",
-                            color = ObsidianTextMuted,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
-                        Box {
-                            Surface(
-                                color = ObsidianSurface,
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, ObsidianBorder),
-                                modifier = Modifier.clickable { showDeviceMenu = true }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val targetLabel = when (playbackDeviceTarget) {
-                                        "phone_stream" -> "📱 Stream to Phone (API)"
-                                        "phone_app" -> "📱 Open in Phone App"
-                                        else -> "🖥️ kilPC (Desktop)"
-                                    }
-                                    Text(
-                                        text = targetLabel,
-                                        color = if (playbackDeviceTarget == "kilPC") ObsidianPurple else ObsidianAccentGreen,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("▾", color = ObsidianTextMuted, fontSize = 10.sp)
-                                }
-                            }
-                            DropdownMenu(
-                                expanded = showDeviceMenu,
-                                onDismissRequest = { showDeviceMenu = false },
-                                modifier = Modifier.background(ObsidianSurface)
-                            ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text("🖥️ kilPC (Desktop)", color = if (playbackDeviceTarget == "kilPC") ObsidianPurple else ObsidianTextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                            Text("Sound plays through kilPC speakers / soundcard", color = ObsidianTextMuted, fontSize = 10.sp)
-                                        }
-                                    },
-                                    onClick = {
-                                        showDeviceMenu = false
-                                        playbackDeviceTarget = "kilPC"
-                                        prefs.playbackDeviceTarget = "kilPC"
-                                        refreshPreferencesState()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text("📱 Stream to Phone (API)", color = if (playbackDeviceTarget == "phone_stream") ObsidianPurple else ObsidianTextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                            Text("Stream audio byte-range from kilPC into phone earbuds", color = ObsidianTextMuted, fontSize = 10.sp)
-                                        }
-                                    },
-                                    onClick = {
-                                        showDeviceMenu = false
-                                        playbackDeviceTarget = "phone_stream"
-                                        prefs.playbackDeviceTarget = "phone_stream"
-                                        refreshPreferencesState()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text("🚀 Open in Phone App", color = if (playbackDeviceTarget == "phone_app") ObsidianPurple else ObsidianTextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                            Text("Launch native Spotify / YouTube Music Android app", color = ObsidianTextMuted, fontSize = 10.sp)
-                                        }
-                                    },
-                                    onClick = {
-                                        showDeviceMenu = false
-                                        playbackDeviceTarget = "phone_app"
-                                        prefs.playbackDeviceTarget = "phone_app"
-                                        refreshPreferencesState()
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Track Info: tapping opens track selector or external app
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable {
-                                    if (playbackDeviceTarget == "kilPC") {
-                                        showTrackMenu = true
-                                        scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
-                                    } else if (playbackDeviceTarget == "phone_app") {
-                                        if (selectedAudioTrackType == "spotify" || (selectedAudioTrackType == "external_web" && !selectedAudioTrackUrl.contains("equisync")) || selectedAudioTrackType == "youtube") {
-                                            try {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                                context.startActivity(webIntent)
-                                            }
-                                        } else {
-                                            showTrackMenu = true
-                                            scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
-                                        }
-                                    } else {
-                                        showTrackMenu = true
-                                        scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
-                                    }
-                                }
-                        ) {
-                            val audioIcon = when {
-                                selectedAudioTrackType == "spotify" -> "🎧"
-                                selectedAudioTrackUrl.contains("equisync") -> "🧠"
-                                selectedAudioTrackType == "youtube" || selectedAudioTrackUrl.contains("youtube") -> "🎵"
-                                else -> "🎙️"
-                            }
-                            Text(text = audioIcon, fontSize = 16.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "FOCUS AUDIO",
-                                        color = ObsidianPurple,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        letterSpacing = 0.5.sp
-                                    )
-                                    val isCurrentPlaying = if (playbackDeviceTarget == "kilPC") isDesktopAudioPlaying else isPhoneAudioPlaying
-                                    if (isCurrentPlaying) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = if (playbackDeviceTarget == "kilPC") "• KILPC PLAYING" else "• PLAYING",
-                                            color = ObsidianAccentGreen,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = selectedAudioTrackLabel.ifEmpty { "Select Track" },
-                                        color = ObsidianTextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    )
-                                    if (playbackDeviceTarget == "phone_app" && (selectedAudioTrackType == "spotify" || selectedAudioTrackType == "external_web" || selectedAudioTrackType == "youtube")) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "↗",
-                                            color = ObsidianTextMuted,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Dropdown Track Menu
-                        DropdownMenu(
-                            expanded = showTrackMenu,
-                            onDismissRequest = { showTrackMenu = false },
-                            modifier = Modifier.background(ObsidianSurface)
-                        ) {
-                            if (availableAudioTracks.isEmpty()) {
-                                DropdownMenuItem(
-                                    text = { Text("Loading tracks from vault...", color = ObsidianTextMuted, fontSize = 12.sp) },
-                                    onClick = { }
-                                )
-                            } else {
-                                availableAudioTracks.forEach { track ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            val tIcon = when {
-                                                track.type == "spotify" -> "🎧"
-                                                track.url.contains("equisync") -> "🧠"
-                                                track.type == "youtube" || track.url.contains("youtube") -> "🎵"
-                                                else -> "🎙️"
-                                            }
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(tIcon, fontSize = 14.sp)
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = track.label,
-                                                    color = if (track.label == selectedAudioTrackLabel) ObsidianPurple else ObsidianTextPrimary,
-                                                    fontSize = 13.sp,
-                                                    fontWeight = if (track.label == selectedAudioTrackLabel) FontWeight.Bold else FontWeight.Normal,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        },
-                                        onClick = {
-                                            showTrackMenu = false
-                                            prefs.selectedAudioTrackLabel = track.label
-                                            prefs.selectedAudioTrackUrl = track.url
-                                            prefs.selectedAudioTrackStreamUrl = track.streamUrl ?: ""
-                                            prefs.selectedAudioTrackType = track.type
-                                            refreshPreferencesState()
-
-                                            // Always notify desktop so kilPC stays in sync
-                                            scope.launch(Dispatchers.IO) {
-                                                repository.selectAudioTrackOnDesktop(track.label, track.url, track.type)
-                                            }
-
-                                            if (playbackDeviceTarget == "phone_stream") {
-                                                val streamUrl = if (!track.streamUrl.isNullOrEmpty()) track.streamUrl else "${repository.getBaseUrl()}/api/audio/stream?file=${Uri.encode(track.url)}"
-                                                FocusMediaService.playTrack(
-                                                    context,
-                                                    track.label,
-                                                    track.url,
-                                                    streamUrl,
-                                                    track.type
-                                                )
-                                                prefs.isPhoneAudioPlaying = true
-                                                refreshPreferencesState()
-                                            } else if (playbackDeviceTarget == "phone_app" && isPhoneAudioPlaying) {
-                                                try {
-                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(track.url))
-                                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                    context.startActivity(intent)
-                                                } catch (e: Exception) {
-                                                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(track.url))
-                                                    context.startActivity(webIntent)
-                                                }
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Controls
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Selector dropdown button
-                            IconButton(
-                                onClick = {
-                                    showTrackMenu = true
-                                    scope.launch(Dispatchers.IO) { repository.fetchAudioTracks() }
-                                },
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Select Track",
-                                    tint = ObsidianTextMuted,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            // Dedicated Play / Pause button
-                            val isCurrentActive = if (playbackDeviceTarget == "kilPC") isDesktopAudioPlaying else isPhoneAudioPlaying
-                            IconButton(
-                                onClick = {
-                                    if (playbackDeviceTarget == "kilPC") {
-                                        // TOGGLE AUDIO REMOTELY ON KILPC
-                                        scope.launch(Dispatchers.IO) {
-                                            val newPlaying = repository.toggleDesktopAudio()
-                                            scope.launch(Dispatchers.Main) {
-                                                isDesktopAudioPlaying = newPlaying
-                                                refreshPreferencesState()
-                                            }
-                                        }
-                                    } else if (playbackDeviceTarget == "phone_stream") {
-                                        // STREAM AUDIO CHUNKS ON PHONE VIA EXOPLAYER
-                                        if (isPhoneAudioPlaying) {
-                                            FocusMediaService.pauseAudio(context)
-                                            prefs.isPhoneAudioPlaying = false
-                                            isPhoneAudioPlaying = false
-                                        } else {
-                                            val isVaultAudio = selectedAudioTrackType == "local" || selectedAudioTrackUrl.endsWith(".mp3") || selectedAudioTrackUrl.endsWith(".m4a") || selectedAudioTrackUrl.endsWith(".wav")
-                                            val streamUrl = if (selectedAudioTrackStreamUrl.isNotEmpty() && !selectedAudioTrackStreamUrl.contains("127.0.0.1")) {
-                                                selectedAudioTrackStreamUrl
-                                            } else if (isVaultAudio) {
-                                                "${repository.getBaseUrl()}/api/audio/stream?file=${Uri.encode(selectedAudioTrackUrl)}"
-                                            } else {
-                                                selectedAudioTrackUrl
-                                            }
-                                            FocusMediaService.playTrack(
-                                                context,
-                                                selectedAudioTrackLabel,
-                                                selectedAudioTrackUrl,
-                                                streamUrl,
-                                                selectedAudioTrackType
-                                            )
-                                            prefs.isPhoneAudioPlaying = true
-                                            isPhoneAudioPlaying = true
-                                        }
-                                        refreshPreferencesState()
-                                    } else {
-                                        // PHONE APP LAUNCHER
-                                        if (isPhoneAudioPlaying) {
-                                            try {
-                                                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
-                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
-                                            } catch (e: Exception) {}
-                                            FocusMediaService.pauseAudio(context)
-                                            prefs.isPhoneAudioPlaying = false
-                                            isPhoneAudioPlaying = false
-                                        } else {
-                                            try {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(selectedAudioTrackUrl))
-                                                context.startActivity(webIntent)
-                                            }
-                                            prefs.isPhoneAudioPlaying = true
-                                            isPhoneAudioPlaying = true
-                                        }
-                                        refreshPreferencesState()
-                                    }
-                                },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(
-                                        color = if (isCurrentActive) ObsidianPurple else ObsidianPurple.copy(alpha = 0.2f),
-                                        shape = CircleShape
-                                    )
-                            ) {
-                                if (isCurrentActive) {
-                                    PauseIcon(tint = ObsidianBg, modifier = Modifier.size(18.dp))
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = "Play",
-                                        tint = ObsidianPurple,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
+
+        // Dedicated Focus Audio Playback Card (Streaming remote control for kilPC)
+        FocusAudioPlaybackCard(
+            currentTrackLabel = selectedAudioTrackLabel,
+            currentTrackUrl = selectedAudioTrackUrl,
+            currentTrackType = selectedAudioTrackType,
+            isPlaying = isDesktopAudioPlaying,
+            isAutoSync = isAudioAutoSyncEnabled,
+            volume = focusAudioVolume,
+            availableTracks = availableAudioTracks,
+            onTogglePlay = {
+                scope.launch(Dispatchers.IO) {
+                    val newPlaying = repository.toggleDesktopAudio()
+                    scope.launch(Dispatchers.Main) {
+                        isDesktopAudioPlaying = newPlaying
+                        refreshPreferencesState()
+                    }
+                }
+            },
+            onStop = {
+                scope.launch(Dispatchers.IO) {
+                    repository.stopDesktopAudio()
+                    scope.launch(Dispatchers.Main) {
+                        isDesktopAudioPlaying = false
+                        refreshPreferencesState()
+                    }
+                }
+            },
+            onSelectTrack = { track ->
+                prefs.selectedAudioTrackLabel = track.label
+                prefs.selectedAudioTrackUrl = track.url
+                prefs.selectedAudioTrackStreamUrl = track.streamUrl ?: ""
+                prefs.selectedAudioTrackType = track.type
+                selectedAudioTrackLabel = track.label
+                selectedAudioTrackUrl = track.url
+                selectedAudioTrackStreamUrl = track.streamUrl ?: ""
+                selectedAudioTrackType = track.type
+                refreshPreferencesState()
+                scope.launch(Dispatchers.IO) {
+                    repository.selectAudioTrackOnDesktop(track.label, track.url, track.type)
+                }
+            },
+            onVolumeChange = { newVol ->
+                focusAudioVolume = newVol
+                prefs.focusAudioVolume = newVol
+                scope.launch(Dispatchers.IO) {
+                    repository.setDesktopAudioVolume(newVol)
+                }
+            },
+            onToggleAutoSync = {
+                val newAutoSync = !isAudioAutoSyncEnabled
+                isAudioAutoSyncEnabled = newAutoSync
+                prefs.isAudioAutoSyncEnabled = newAutoSync
+                scope.launch(Dispatchers.IO) {
+                    repository.setDesktopAudioAutoSync(newAutoSync)
+                }
+            }
+        )
 
         // Quick Log Nutrition Panel
         var isLoggingFood by remember { mutableStateOf<String?>(null) }
@@ -1440,17 +1128,37 @@ fun ObsidianTodoScreen(
                 .padding(bottom = 12.dp)
         )
 
-        // Split lists by Focus Blocks and Untimed general tasks (filtering out completed tasks)
-        val focusBlocks = remember(tasks) { tasks.filter { it.category == "FOCUS BLOCKS" && !it.isCompleted } }
-        val floatingTasks = remember(tasks) { tasks.filter { it.category != "FOCUS BLOCKS" && !it.isCompleted } }
+        val subtasksByParent = remember(tasks) {
+            tasks.filter { it.parentLineNumber != null }
+                .groupBy { it.parentLineNumber!! }
+        }
+
+        // Split lists by Focus Blocks and Untimed general tasks (filtering out completed tasks and child subtasks)
+        val focusBlocks = remember(tasks) { tasks.filter { it.category == "FOCUS BLOCKS" && it.parentLineNumber == null && !it.isCompleted } }
+        val floatingTasks = remember(tasks) { tasks.filter { it.category != "FOCUS BLOCKS" && it.parentLineNumber == null && !it.isCompleted } }
 
         if (selectedViewMode == "GRID") {
             NativeTimelineGridView(
                 tasks = tasks,
                 todayHabits = todayHabits,
+                activeTimerTaskName = activeTimerTaskName,
                 onStartTimer = { task ->
                     scope.launch(Dispatchers.IO) {
-                        repository.startTimer(task)
+                        if (activeTimerLineIndex == task.lineNumber || (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(task.displayTitle.ifEmpty { task.text }, ignoreCase = true))) {
+                            repository.cancelTimer()
+                        } else {
+                            repository.startTimer(task)
+                        }
+                        scope.launch(Dispatchers.Main) { refreshPreferencesState() }
+                    }
+                },
+                onStartHabitTimer = { name, duration ->
+                    scope.launch(Dispatchers.IO) {
+                        if (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(name, ignoreCase = true)) {
+                            repository.cancelTimer()
+                        } else {
+                            repository.startTimer(taskName = name, durationMinutes = duration)
+                        }
                         scope.launch(Dispatchers.Main) { refreshPreferencesState() }
                     }
                 },
@@ -1626,11 +1334,17 @@ fun ObsidianTodoScreen(
                                             verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             val displayedTasks = if (showAll) projectTasks else projectTasks.take(maxItems)
-                                            
                                             displayedTasks.forEach { task ->
+                                                val subtasks = subtasksByParent[task.lineNumber] ?: emptyList()
+                                                val secKey = getHabitSectionKey(task.displayTitle.ifEmpty { task.text })
+                                                val habits = if (subtasks.isEmpty() && secKey != null) todayHabits[secKey] ?: emptyList() else emptyList()
+
                                                 FocusBlockItemCard(
                                                     task = task,
-                                                    isActiveTimer = (activeTimerLineIndex == task.lineNumber),
+                                                    isActiveTimer = (activeTimerLineIndex == task.lineNumber || (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(task.displayTitle.ifEmpty { task.text }, ignoreCase = true))),
+                                                    subtasks = subtasks,
+                                                    habits = habits,
+                                                    activeTimerTaskName = activeTimerTaskName,
                                                     modifier = makeDragModifier(task),
                                                     onToggle = { isChecked ->
                                                         scope.launch(Dispatchers.IO) {
@@ -1642,7 +1356,7 @@ fun ObsidianTodoScreen(
                                                     },
                                                     onPlayClick = {
                                                         scope.launch(Dispatchers.IO) {
-                                                            if (activeTimerLineIndex == task.lineNumber) {
+                                                            if (activeTimerLineIndex == task.lineNumber || (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(task.displayTitle.ifEmpty { task.text }, ignoreCase = true))) {
                                                                 repository.cancelTimer()
                                                             } else {
                                                                 repository.startTimer(task)
@@ -1671,6 +1385,46 @@ fun ObsidianTodoScreen(
                                                     onSkipClick = {
                                                         scope.launch(Dispatchers.IO) {
                                                             repository.skipTask(task)
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    },
+                                                    onToggleSubtask = { sub ->
+                                                        scope.launch(Dispatchers.IO) {
+                                                            repository.toggleTask(sub, !sub.isCompleted)
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    },
+                                                    onStartSubtaskTimer = { sub ->
+                                                        scope.launch(Dispatchers.IO) {
+                                                            if (activeTimerLineIndex == sub.lineNumber || (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(sub.displayTitle.ifEmpty { sub.text }, ignoreCase = true))) {
+                                                                repository.cancelTimer()
+                                                            } else {
+                                                                repository.startTimer(sub)
+                                                            }
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    },
+                                                    onToggleHabit = { section, name, completed ->
+                                                        scope.launch(Dispatchers.IO) {
+                                                            repository.toggleHabit(section, name, completed)
+                                                            scope.launch(Dispatchers.Main) {
+                                                                refreshPreferencesState()
+                                                            }
+                                                        }
+                                                    },
+                                                    onStartHabitTimer = { name, duration ->
+                                                        scope.launch(Dispatchers.IO) {
+                                                            if (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(name, ignoreCase = true)) {
+                                                                repository.cancelTimer()
+                                                            } else {
+                                                                repository.startTimer(taskName = name, durationMinutes = duration)
+                                                            }
                                                             scope.launch(Dispatchers.Main) {
                                                                 refreshPreferencesState()
                                                             }
@@ -1824,8 +1578,14 @@ fun ObsidianTodoScreen(
                                                     )
 
                                                     projectTasks.forEach { task ->
+                                                        val subtasks = subtasksByParent[task.lineNumber] ?: emptyList()
+                                                        val isTaskActive = (activeTimerLineIndex == task.lineNumber || (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(task.displayTitle.ifEmpty { task.text }, ignoreCase = true)))
+
                                                         FloatingTaskItemRow(
                                                             task = task,
+                                                            isActiveTimer = isTaskActive,
+                                                            subtasks = subtasks,
+                                                            activeTimerTaskName = activeTimerTaskName,
                                                             modifier = makeDragModifier(task),
                                                             onToggle = { isChecked ->
                                                                 scope.launch(Dispatchers.IO) {
@@ -1837,7 +1597,11 @@ fun ObsidianTodoScreen(
                                                             },
                                                             onPlayClick = {
                                                                 scope.launch(Dispatchers.IO) {
-                                                                    repository.startTimer(task, 15)
+                                                                    if (isTaskActive) {
+                                                                        repository.cancelTimer()
+                                                                    } else {
+                                                                        repository.startTimer(task, 15)
+                                                                    }
                                                                     scope.launch(Dispatchers.Main) {
                                                                         refreshPreferencesState()
                                                                     }
@@ -1854,6 +1618,26 @@ fun ObsidianTodoScreen(
                                                             onSkipClick = {
                                                                 scope.launch(Dispatchers.IO) {
                                                                     repository.skipTask(task)
+                                                                    scope.launch(Dispatchers.Main) {
+                                                                        refreshPreferencesState()
+                                                                    }
+                                                                }
+                                                            },
+                                                            onToggleSubtask = { sub ->
+                                                                scope.launch(Dispatchers.IO) {
+                                                                    repository.toggleTask(sub, !sub.isCompleted)
+                                                                    scope.launch(Dispatchers.Main) {
+                                                                        refreshPreferencesState()
+                                                                    }
+                                                                }
+                                                            },
+                                                            onStartSubtaskTimer = { sub ->
+                                                                scope.launch(Dispatchers.IO) {
+                                                                    if (activeTimerLineIndex == sub.lineNumber || (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(sub.displayTitle.ifEmpty { sub.text }, ignoreCase = true))) {
+                                                                        repository.cancelTimer()
+                                                                    } else {
+                                                                        repository.startTimer(sub, 15)
+                                                                    }
                                                                     scope.launch(Dispatchers.Main) {
                                                                         refreshPreferencesState()
                                                                     }
@@ -2009,12 +1793,19 @@ fun ObsidianTodoScreen(
 fun FocusBlockItemCard(
     task: Task,
     isActiveTimer: Boolean,
+    subtasks: List<Task> = emptyList(),
+    habits: List<HabitItem> = emptyList(),
+    activeTimerTaskName: String = "",
     modifier: Modifier = Modifier,
     onToggle: (Boolean) -> Unit,
     onPlayClick: () -> Unit,
     onPostponeClick: () -> Unit,
     onMoveClick: () -> Unit,
-    onSkipClick: () -> Unit
+    onSkipClick: () -> Unit,
+    onToggleSubtask: ((Task) -> Unit)? = null,
+    onStartSubtaskTimer: ((Task) -> Unit)? = null,
+    onToggleHabit: ((section: String, name: String, completed: Boolean) -> Unit)? = null,
+    onStartHabitTimer: ((name: String, duration: Int) -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -2023,41 +1814,272 @@ fun FocusBlockItemCard(
         colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
         shape = RoundedCornerShape(12.dp)
     ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Time Range
+                    Text(
+                        text = task.timeRange ?: "18:00 - 18:30",
+                        color = ObsidianPurple,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    // Title
+                    Text(
+                        text = task.displayTitle,
+                        color = if (task.isCompleted) ObsidianTextMuted else ObsidianTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                    )
+                }
+
+                // Right Actions Block (matches Obsidian web dashboard layout exactly)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Checkbox
+                    Checkbox(
+                        checked = task.isCompleted,
+                        onCheckedChange = { onToggle(it) },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = ObsidianPurple,
+                            uncheckedColor = ObsidianTextMuted,
+                            checkmarkColor = ObsidianBg
+                        ),
+                        modifier = Modifier.size(24.dp)
+                    )
+
+                    // Circle 1: Play/Cancel Timer
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(ObsidianBg)
+                            .border(1.dp, ObsidianBorder, CircleShape)
+                            .clickable { onPlayClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isActiveTimer) Icons.Default.Close else Icons.Default.PlayArrow,
+                            contentDescription = if (isActiveTimer) "Cancel Timer Button" else "Start Timer Button",
+                            tint = if (isActiveTimer) ObsidianPurple else ObsidianTextDark,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+
+                    // Circle 2: Postpone
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(ObsidianBg)
+                            .border(1.dp, ObsidianBorder, CircleShape)
+                            .clickable { onPostponeClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Postpone Task Button",
+                            tint = ObsidianTextDark,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+
+                    // Circle 3: Move to Floating
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(ObsidianBg)
+                            .border(1.dp, ObsidianBorder, CircleShape)
+                            .clickable { onMoveClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Move to Floating Tasks",
+                            tint = ObsidianTextDark,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+
+                    // Circle 4: Not Today (Skip)
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(ObsidianBg)
+                            .border(1.dp, ObsidianBorder, CircleShape)
+                            .clickable { onSkipClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Skip Task Button",
+                            tint = ObsidianTextDark,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                }
+            }
+
+            // Subtasks or Habit Matrix rendering for List View
+            if (subtasks.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(ObsidianBorder.copy(alpha = 0.5f))
+                        .padding(horizontal = 14.dp)
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    subtasks.forEach { sub ->
+                        val isSubActive = activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(sub.displayTitle.ifEmpty { sub.text }, ignoreCase = true)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onToggleSubtask?.invoke(sub) },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (sub.isCompleted) "☑ " else "☐ ",
+                                    color = if (sub.isCompleted) ObsidianAccentGreen else ObsidianTextMuted,
+                                    fontSize = 13.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = sub.displayTitle.ifEmpty { sub.text },
+                                    color = if (sub.isCompleted) ObsidianTextMuted else ObsidianTextPrimary,
+                                    fontSize = 13.sp,
+                                    textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            IconButton(
+                                onClick = { onStartSubtaskTimer?.invoke(sub) },
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Text(
+                                    text = if (isSubActive) "⏹" else "▶",
+                                    color = if (isSubActive) ObsidianPurple else ObsidianAccentGreen,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            } else if (habits.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(ObsidianBorder.copy(alpha = 0.5f))
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    habits.forEach { habit ->
+                        val isHabitActive = activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(habit.name, ignoreCase = true)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        onToggleHabit?.invoke(habit.section, habit.name, !habit.completed)
+                                    },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (habit.completed) "☑ " else "☐ ",
+                                    color = if (habit.completed) ObsidianAccentGreen else ObsidianTextMuted,
+                                    fontSize = 13.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = habit.name,
+                                    color = if (habit.completed) ObsidianTextMuted else ObsidianTextPrimary,
+                                    fontSize = 13.sp,
+                                    textDecoration = if (habit.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            IconButton(
+                                onClick = { onStartHabitTimer?.invoke(habit.name, 15) },
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Text(
+                                    text = if (isHabitActive) "⏹" else "▶",
+                                    color = if (isHabitActive) ObsidianPurple else ObsidianAccentGreen,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FloatingTaskItemRow(
+    task: Task,
+    isActiveTimer: Boolean = false,
+    subtasks: List<Task> = emptyList(),
+    activeTimerTaskName: String = "",
+    modifier: Modifier = Modifier,
+    onToggle: (Boolean) -> Unit,
+    onPlayClick: () -> Unit,
+    onMoveClick: () -> Unit,
+    onSkipClick: () -> Unit,
+    onToggleSubtask: ((Task) -> Unit)? = null,
+    onStartSubtaskTimer: ((Task) -> Unit)? = null
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                // Time Range
-                Text(
-                    text = task.timeRange ?: "18:00 - 18:30",
-                    color = ObsidianPurple,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                // Title
-                Text(
-                    text = task.displayTitle,
-                    color = if (task.isCompleted) ObsidianTextMuted else ObsidianTextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
-                )
-            }
-
-            // Right Actions Block (matches Obsidian web dashboard layout exactly)
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Checkbox
                 Checkbox(
                     checked = task.isCompleted,
                     onCheckedChange = { onToggle(it) },
@@ -2068,179 +2090,124 @@ fun FocusBlockItemCard(
                     ),
                     modifier = Modifier.size(24.dp)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = task.displayTitle.ifEmpty { task.text },
+                    color = if (task.isCompleted) ObsidianTextMuted else ObsidianTextPrimary,
+                    fontSize = 13.sp,
+                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                )
+            }
 
-                // Circle 1: Play/Cancel Timer
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(ObsidianBg)
-                        .border(1.dp, ObsidianBorder, CircleShape)
-                        .clickable { onPlayClick() },
-                    contentAlignment = Alignment.Center
+            if (!task.isCompleted) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        imageVector = if (isActiveTimer) Icons.Default.Close else Icons.Default.PlayArrow,
-                        contentDescription = if (isActiveTimer) "Cancel Timer Button" else "Start Timer Button",
-                        tint = if (isActiveTimer) ObsidianPurple else ObsidianTextDark,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
+                    // Circle 1: Play/Start or Cancel if active
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(ObsidianBg)
+                            .border(1.dp, ObsidianBorder, CircleShape)
+                            .clickable { onPlayClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isActiveTimer) Icons.Default.Close else Icons.Default.PlayArrow,
+                            contentDescription = if (isActiveTimer) "Cancel Timer" else "Quick Start Timer",
+                            tint = if (isActiveTimer) ObsidianPurple else ObsidianTextDark,
+                            modifier = Modifier.size(10.dp)
+                        )
+                    }
 
-                // Circle 2: Postpone
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(ObsidianBg)
-                        .border(1.dp, ObsidianBorder, CircleShape)
-                        .clickable { onPostponeClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Postpone Task Button",
-                        tint = ObsidianTextDark,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
+                    // Circle 2: Move to Timed (Focus Blocks)
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(ObsidianBg)
+                            .border(1.dp, ObsidianBorder, CircleShape)
+                            .clickable { onMoveClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Move to Focus Blocks",
+                            tint = ObsidianTextDark,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
 
-                // Circle 3: Move to Floating
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(ObsidianBg)
-                        .border(1.dp, ObsidianBorder, CircleShape)
-                        .clickable { onMoveClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Move to Floating Tasks",
-                        tint = ObsidianTextDark,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
-
-                // Circle 4: Not Today (Skip)
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(ObsidianBg)
-                        .border(1.dp, ObsidianBorder, CircleShape)
-                        .clickable { onSkipClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Skip Task Button",
-                        tint = ObsidianTextDark,
-                        modifier = Modifier.size(12.dp)
-                    )
+                    // Circle 3: Skip / Not Today
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(ObsidianBg)
+                            .border(1.dp, ObsidianBorder, CircleShape)
+                            .clickable { onSkipClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Skip Task",
+                            tint = ObsidianTextDark,
+                            modifier = Modifier.size(10.dp)
+                        )
+                    }
                 }
             }
         }
-    }
-}
 
-@Composable
-fun FloatingTaskItemRow(
-    task: Task,
-    modifier: Modifier = Modifier,
-    onToggle: (Boolean) -> Unit,
-    onPlayClick: () -> Unit,
-    onMoveClick: () -> Unit,
-    onSkipClick: () -> Unit
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = task.isCompleted,
-                onCheckedChange = { onToggle(it) },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = ObsidianPurple,
-                    uncheckedColor = ObsidianTextMuted,
-                    checkmarkColor = ObsidianBg
-                ),
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = task.text,
-                color = if (task.isCompleted) ObsidianTextMuted else ObsidianTextPrimary,
-                fontSize = 13.sp,
-                textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
-            )
-        }
-
-        if (!task.isCompleted) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+        // Subtasks under floating task if any
+        if (subtasks.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 32.dp, top = 4.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Circle 1: Play/Start (Quick start default 15m session)
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(ObsidianBg)
-                        .border(1.dp, ObsidianBorder, CircleShape)
-                        .clickable { onPlayClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Quick Start Timer",
-                        tint = ObsidianTextDark,
-                        modifier = Modifier.size(10.dp)
-                    )
-                }
-
-                // Circle 2: Move to Timed (Focus Blocks)
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(ObsidianBg)
-                        .border(1.dp, ObsidianBorder, CircleShape)
-                        .clickable { onMoveClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowUp,
-                        contentDescription = "Move to Focus Blocks",
-                        tint = ObsidianTextDark,
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
-
-                // Circle 3: Skip / Not Today
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(ObsidianBg)
-                        .border(1.dp, ObsidianBorder, CircleShape)
-                        .clickable { onSkipClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Skip Task",
-                        tint = ObsidianTextDark,
-                        modifier = Modifier.size(10.dp)
-                    )
+                subtasks.forEach { sub ->
+                    val isSubActive = activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(sub.displayTitle.ifEmpty { sub.text }, ignoreCase = true)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onToggleSubtask?.invoke(sub) },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (sub.isCompleted) "☑ " else "☐ ",
+                                color = if (sub.isCompleted) ObsidianAccentGreen else ObsidianTextMuted,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = sub.displayTitle.ifEmpty { sub.text },
+                                color = if (sub.isCompleted) ObsidianTextMuted else ObsidianTextPrimary,
+                                fontSize = 12.sp,
+                                textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        IconButton(
+                            onClick = { onStartSubtaskTimer?.invoke(sub) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Text(
+                                text = if (isSubActive) "⏹" else "▶",
+                                color = if (isSubActive) ObsidianPurple else ObsidianAccentGreen,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -2261,11 +2228,23 @@ data class TimedClusterItem(
     var totalCols: Int = 1
 )
 
+fun getHabitSectionKey(description: String): String? {
+    val d = description.lowercase()
+    return when {
+        d.contains("house") || d.contains("chore") -> "house"
+        d.contains("work") -> "work"
+        d.contains("morning") || d.contains("midday") || d.contains("routine") || d.contains("habit") -> "morning"
+        else -> null
+    }
+}
+
 @Composable
 fun NativeTimelineGridView(
     tasks: List<Task>,
     todayHabits: Map<String, List<HabitItem>> = emptyMap(),
+    activeTimerTaskName: String = "",
     onStartTimer: (Task) -> Unit,
+    onStartHabitTimer: ((String, Int) -> Unit)? = null,
     onToggleTask: (Task) -> Unit,
     onToggleHabit: ((section: String, name: String, completed: Boolean) -> Unit)? = null,
     onDeleteTask: ((Task) -> Unit)? = null,
@@ -2357,16 +2336,6 @@ fun NativeTimelineGridView(
             }
         }
         sorted
-    }
-
-    fun getHabitSectionKey(description: String): String? {
-        val d = description.lowercase()
-        return when {
-            d.contains("morning") -> "morning"
-            d.contains("house") || d.contains("chore") -> "house"
-            d.contains("work") -> "work"
-            else -> null
-        }
     }
 
     val untimedTasks = remember(tasks, timedTasks) {
@@ -2665,11 +2634,16 @@ fun NativeTimelineGridView(
                                                                 overflow = TextOverflow.Ellipsis
                                                             )
                                                         }
+                                                        val isSubActive = activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(sub.displayTitle.ifEmpty { sub.text }, ignoreCase = true)
                                                         IconButton(
                                                             onClick = { onStartTimer(sub) },
                                                             modifier = Modifier.size(20.dp)
                                                         ) {
-                                                            Text("▶", color = ObsidianAccentGreen, fontSize = 8.sp)
+                                                            Text(
+                                                                text = if (isSubActive) "⏹" else "▶",
+                                                                color = if (isSubActive) ObsidianPurple else ObsidianAccentGreen,
+                                                                fontSize = 8.sp
+                                                            )
                                                         }
                                                     }
                                                 }
@@ -2682,27 +2656,44 @@ fun NativeTimelineGridView(
                                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                                             ) {
                                                 habits.forEach { habit ->
+                                                    val isHabitActive = activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(habit.name, ignoreCase = true)
                                                     Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .clickable {
-                                                                onToggleHabit?.invoke(habit.section, habit.name, !habit.completed)
-                                                            },
-                                                        verticalAlignment = Alignment.CenterVertically
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
                                                     ) {
-                                                        Text(
-                                                            text = if (habit.completed) "☑ " else "☐ ",
-                                                            color = if (habit.completed) ObsidianAccentGreen else com.example.ui.theme.ObsidianTextMuted,
-                                                            fontSize = 10.sp
-                                                        )
-                                                        Text(
-                                                            text = habit.name,
-                                                            color = if (habit.completed) com.example.ui.theme.ObsidianTextMuted else com.example.ui.theme.ObsidianTextPrimary,
-                                                            fontSize = 10.sp,
-                                                            textDecoration = if (habit.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .clickable {
+                                                                    onToggleHabit?.invoke(habit.section, habit.name, !habit.completed)
+                                                                },
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                text = if (habit.completed) "☑ " else "☐ ",
+                                                                color = if (habit.completed) ObsidianAccentGreen else com.example.ui.theme.ObsidianTextMuted,
+                                                                fontSize = 10.sp
+                                                            )
+                                                            Text(
+                                                                text = habit.name,
+                                                                color = if (habit.completed) com.example.ui.theme.ObsidianTextMuted else com.example.ui.theme.ObsidianTextPrimary,
+                                                                fontSize = 10.sp,
+                                                                textDecoration = if (habit.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                        IconButton(
+                                                            onClick = { onStartHabitTimer?.invoke(habit.name, 15) },
+                                                            modifier = Modifier.size(20.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = if (isHabitActive) "⏹" else "▶",
+                                                                color = if (isHabitActive) ObsidianPurple else ObsidianAccentGreen,
+                                                                fontSize = 8.sp
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -2774,5 +2765,337 @@ fun PauseIcon(tint: Color, modifier: Modifier = Modifier) {
                 .height(13.dp)
                 .background(tint, RoundedCornerShape(1.dp))
         )
+    }
+}
+
+@Composable
+fun FocusAudioPlaybackCard(
+    currentTrackLabel: String,
+    currentTrackUrl: String,
+    currentTrackType: String,
+    isPlaying: Boolean,
+    isAutoSync: Boolean,
+    volume: Float,
+    availableTracks: List<FocusAudioTrack>,
+    onTogglePlay: () -> Unit,
+    onStop: () -> Unit,
+    onSelectTrack: (FocusAudioTrack) -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onToggleAutoSync: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var showTrackDropdown by remember { mutableStateOf(false) }
+    var localVolume by remember(volume) { mutableFloatStateOf(volume) }
+
+    val trackIcon = when {
+        currentTrackType == "spotify" -> "🎧"
+        currentTrackUrl.contains("equisync") -> "🧠"
+        currentTrackType == "youtube" || currentTrackUrl.contains("youtube") -> "🎵"
+        else -> "🎙️"
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+            .border(
+                width = 1.dp,
+                color = if (isPlaying) ObsidianPurple.copy(alpha = 0.8f) else ObsidianBorder,
+                shape = RoundedCornerShape(14.dp)
+            ),
+        colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            ObsidianSurface,
+                            if (isPlaying) ObsidianPurple.copy(alpha = 0.12f) else ObsidianSurface
+                        )
+                    )
+                )
+                .padding(14.dp)
+        ) {
+            // Row 1: Header (Title, kilPC Status Badge, AutoSync Badge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "🎵",
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "FOCUS AUDIO",
+                        color = ObsidianPurple,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // kilPC playback status badge
+                    Surface(
+                        color = if (isPlaying) ObsidianAccentGreen.copy(alpha = 0.15f) else Color(0xFF27272A),
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(0.5.dp, if (isPlaying) ObsidianAccentGreen.copy(alpha = 0.5f) else Color(0xFF3F3F46))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(
+                                        color = if (isPlaying) ObsidianAccentGreen else Color(0xFF71717A),
+                                        shape = CircleShape
+                                    )
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isPlaying) "kilPC PLAYING" else "PAUSED",
+                                color = if (isPlaying) ObsidianAccentGreen else ObsidianTextMuted,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                }
+
+                // AutoSync toggle badge
+                Surface(
+                    color = if (isAutoSync) ObsidianPurple.copy(alpha = 0.2f) else Color(0xFF27272A),
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(1.dp, if (isAutoSync) ObsidianPurple.copy(alpha = 0.6f) else ObsidianBorder),
+                    modifier = Modifier.clickable { onToggleAutoSync() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isAutoSync) "⚡ Synced" else "⚪ Manual",
+                            color = if (isAutoSync) ObsidianPurple else ObsidianTextMuted,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Row 2: Track Selector Dropdown & Main Play/Stop Controls
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Dropdown trigger box (clickable)
+                Box(modifier = Modifier.weight(1f)) {
+                    Surface(
+                        color = ObsidianBg,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, ObsidianBorder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showTrackDropdown = true }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = trackIcon, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = currentTrackLabel.ifEmpty { "Select Focus Track..." },
+                                color = ObsidianTextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("▾", color = ObsidianTextMuted, fontSize = 12.sp)
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showTrackDropdown,
+                        onDismissRequest = { showTrackDropdown = false },
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .background(ObsidianSurface)
+                    ) {
+                        if (availableTracks.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No tracks found on kilPC", color = ObsidianTextMuted, fontSize = 12.sp) },
+                                onClick = { showTrackDropdown = false }
+                            )
+                        } else {
+                            availableTracks.forEach { track ->
+                                val itemIcon = when {
+                                    track.type == "spotify" -> "🎧"
+                                    track.url.contains("equisync") -> "🧠"
+                                    track.type == "youtube" || track.url.contains("youtube") -> "🎵"
+                                    else -> "🎙️"
+                                }
+                                val isSelected = track.label == currentTrackLabel || track.url == currentTrackUrl
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(itemIcon, fontSize = 14.sp)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = track.label,
+                                                    color = if (isSelected) ObsidianPurple else ObsidianTextPrimary,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                if (track.type.isNotEmpty()) {
+                                                    Text(
+                                                        text = track.type.uppercase(),
+                                                        color = ObsidianTextMuted,
+                                                        fontSize = 9.sp
+                                                    )
+                                                }
+                                            }
+                                            if (isSelected) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("✓", color = ObsidianPurple, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        showTrackDropdown = false
+                                        onSelectTrack(track)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Play / Pause Button (Controls kilPC)
+                IconButton(
+                    onClick = onTogglePlay,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(
+                            color = if (isPlaying) ObsidianPurple else ObsidianPurple.copy(alpha = 0.2f),
+                            shape = CircleShape
+                        )
+                ) {
+                    if (isPlaying) {
+                        PauseIcon(tint = ObsidianBg, modifier = Modifier.size(16.dp))
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play on kilPC",
+                            tint = ObsidianPurple,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // Stop Button (Controls kilPC)
+                IconButton(
+                    onClick = onStop,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(
+                            color = Color(0xFF27272A),
+                            shape = CircleShape
+                        )
+                        .border(1.dp, ObsidianBorder, CircleShape)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(ObsidianTextMuted, RoundedCornerShape(2.dp))
+                    )
+                }
+
+                // External popout button (if URL is external web/youtube/spotify)
+                if (currentTrackUrl.startsWith("http://") || currentTrackUrl.startsWith("https://")) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(currentTrackUrl)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Could not open link: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Text("↗", color = ObsidianTextMuted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Row 3: kilPC Volume Slider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (localVolume <= 0.01f) "🔇" else if (localVolume < 0.5f) "🔉" else "🔊",
+                    fontSize = 13.sp,
+                    modifier = Modifier.clickable {
+                        val newVol = if (localVolume > 0f) 0f else 0.8f
+                        localVolume = newVol
+                        onVolumeChange(newVol)
+                    }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Slider(
+                    value = localVolume,
+                    onValueChange = { localVolume = it },
+                    onValueChangeFinished = { onVolumeChange(localVolume) },
+                    valueRange = 0f..1f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = ObsidianPurple,
+                        activeTrackColor = ObsidianPurple,
+                        inactiveTrackColor = ObsidianBorder
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${(localVolume * 100).toInt()}%",
+                    color = ObsidianTextMuted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.width(34.dp)
+                )
+            }
+        }
     }
 }
