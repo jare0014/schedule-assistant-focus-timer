@@ -340,11 +340,25 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
             e.stopPropagation();
             await viewInstance.toggleTaskCompletion(task, cb.checked);
         };
+        const isCurrentActive = Boolean(viewInstance.currentTimer && (
+            (viewInstance.currentTimer.task && viewInstance.currentTimer.task.lineIndex === task.lineIndex) ||
+            (viewInstance.currentTimer.taskName && viewInstance.currentTimer.taskName.toLowerCase().trim() === task.description.toLowerCase().trim())
+        ));
+        const isTimerPaused = Boolean(viewInstance.currentTimer?.isPaused);
 
-        const playBtn = controls.createEl('button', { cls: 'timeblock-play-btn', text: '▶', title: 'Start Focus Session' });
-        playBtn.onclick = (e) => {
+        const playBtn = controls.createEl('button', {
+            cls: `timeblock-play-btn${isCurrentActive ? (isTimerPaused ? ' is-paused' : ' is-active') : ''}`,
+            text: isCurrentActive ? (isTimerPaused ? '▶' : '⏸') : '▶',
+            title: isCurrentActive ? (isTimerPaused ? 'Resume Focus Session' : 'Pause Focus Session') : 'Start Focus Session'
+        });
+        playBtn.onclick = async (e) => {
             e.stopPropagation();
-            viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+            if (isCurrentActive) {
+                await viewInstance.togglePause();
+                viewInstance.renderSchedule();
+            } else {
+                await viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+            }
         };
 
         const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
@@ -377,14 +391,24 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
                 subtaskEl.createDiv({ cls: 'timeblock-subtask-title', text: subtask.description });
 
                 if (subtask.status !== 'completed') {
+                    const isSubActive = Boolean(viewInstance.currentTimer && (
+                        (viewInstance.currentTimer.task && viewInstance.currentTimer.task.lineIndex === subtask.lineIndex) ||
+                        (viewInstance.currentTimer.taskName && viewInstance.currentTimer.taskName.toLowerCase().trim() === subtask.description.toLowerCase().trim())
+                    ));
+                    const isSubPaused = Boolean(viewInstance.currentTimer?.isPaused);
                     const subPlayBtn = subtaskEl.createEl('button', {
-                        cls: 'timeblock-subtask-play-btn',
-                        text: '▶',
-                        title: 'Start Subtask Timer'
+                        cls: `timeblock-subtask-play-btn${isSubActive ? (isSubPaused ? ' is-paused' : ' is-active') : ''}`,
+                        text: isSubActive ? (isSubPaused ? '▶' : '⏸') : '▶',
+                        title: isSubActive ? (isSubPaused ? 'Resume Subtask Timer' : 'Pause Subtask Timer') : 'Start Subtask Timer'
                     });
-                    subPlayBtn.onclick = (e) => {
+                    subPlayBtn.onclick = async (e) => {
                         e.stopPropagation();
-                        viewInstance.startTimer(subtask, subtask.duration || 15);
+                        if (isSubActive) {
+                            await viewInstance.togglePause();
+                            viewInstance.renderSchedule();
+                        } else {
+                            await viewInstance.startTimer(subtask, subtask.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+                        }
                     };
                 }
             });

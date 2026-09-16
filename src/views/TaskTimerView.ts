@@ -139,6 +139,9 @@ export class TaskTimerView extends ItemView {
             this.plugin.runTaskLoader();
         };
 
+        // Hosted Media Card at the top of schedule view outside active focus sessions
+        this.renderHostedMediaCard(viewContainer);
+
         const dailyFile = this.getDailyNoteFile();
         if (!dailyFile) {
             this.renderIdleView(viewContainer);
@@ -309,10 +312,28 @@ export class TaskTimerView extends ItemView {
                                 btn.onclick = () => this.startTimer(task, m);
                             });
                         } else {
-                            const playBtn = right.createEl('button', { cls: 'task-card-play-btn', title: 'Start Timer' });
-                            playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-                            playBtn.onclick = () => {
-                                this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+                            const isCurrentActive = Boolean(this.currentTimer && (
+                                (this.currentTimer.task && this.currentTimer.task.lineIndex === task.lineIndex) ||
+                                (this.currentTimer.taskName && this.currentTimer.taskName.toLowerCase().trim() === task.description.toLowerCase().trim())
+                            ));
+                            const isTimerPaused = Boolean(this.currentTimer?.isPaused);
+
+                            const playBtn = right.createEl('button', {
+                                cls: `task-card-play-btn${isCurrentActive ? (isTimerPaused ? ' is-paused' : ' is-active') : ''}`,
+                                title: isCurrentActive ? (isTimerPaused ? 'Resume Timer' : 'Pause Timer') : 'Start Timer'
+                            });
+                            if (isCurrentActive && !isTimerPaused) {
+                                playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+                            } else {
+                                playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+                            }
+                            playBtn.onclick = async () => {
+                                if (isCurrentActive) {
+                                    await this.togglePause();
+                                    this.renderSchedule();
+                                } else {
+                                    this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+                                }
                             };
 
                             const postBtn = right.createEl('button', { cls: 'task-card-postpone-btn', title: 'Postpone' });
@@ -349,13 +370,28 @@ export class TaskTimerView extends ItemView {
 
                             const subRight = subtaskEl.createDiv({ cls: 'task-subtask-controls' });
                             if (subtask.status !== 'completed') {
+                                const isSubActive = Boolean(this.currentTimer && (
+                                    (this.currentTimer.task && this.currentTimer.task.lineIndex === subtask.lineIndex) ||
+                                    (this.currentTimer.taskName && this.currentTimer.taskName.toLowerCase().trim() === subtask.description.toLowerCase().trim())
+                                ));
+                                const isSubPaused = Boolean(this.currentTimer?.isPaused);
+
                                 const playBtn = subRight.createEl('button', {
-                                    cls: 'task-subtask-play-btn',
-                                    title: 'Start Timer'
+                                    cls: `task-subtask-play-btn${isSubActive ? (isSubPaused ? ' is-paused' : ' is-active') : ''}`,
+                                    title: isSubActive ? (isSubPaused ? 'Resume Timer' : 'Pause Timer') : 'Start Timer'
                                 });
-                                playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-                                playBtn.onclick = () => {
-                                    this.startTimer(subtask, subtask.duration || parseInt(this.plugin.settings.defaultDuration));
+                                if (isSubActive && !isSubPaused) {
+                                    playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+                                } else {
+                                    playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+                                }
+                                playBtn.onclick = async () => {
+                                    if (isSubActive) {
+                                        await this.togglePause();
+                                        this.renderSchedule();
+                                    } else {
+                                        this.startTimer(subtask, subtask.duration || parseInt(this.plugin.settings.defaultDuration));
+                                    }
                                 };
                             }
                         });

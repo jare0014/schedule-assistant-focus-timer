@@ -73,6 +73,24 @@ class ObsidianSyncRepository(private val context: Context) {
         }
     }
 
+    suspend fun fetchMediaStatus(): Pair<Boolean, String> {
+        return try {
+            val request = Request.Builder().url("${getBaseUrl()}/api/media/status").get().build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val json = JSONObject(response.body?.string() ?: "{}")
+                    val isPlaying = json.optString("state") == "playing"
+                    val title = json.optString("title", "")
+                    Pair(isPlaying, title)
+                } else {
+                    Pair(false, "")
+                }
+            }
+        } catch (e: Exception) {
+            Pair(false, "")
+        }
+    }
+
     fun getResolvedPathOrEndpoint(): String {
         val raw = prefs.pathOrEndpoint.trim()
         val calendar = java.util.Calendar.getInstance()

@@ -58,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.ObsidianSyncRepository
 import com.example.data.SyncPreferences
 import com.example.data.Task
+import com.example.ui.theme.*
 import com.example.data.HabitItem
 import com.example.data.FocusAudioTrack
 import com.example.media.FocusMediaService
@@ -203,6 +204,8 @@ fun ObsidianTodoScreen(
         isAudioAutoSyncEnabled = prefs.isAudioAutoSyncEnabled
         focusAudioVolume = prefs.focusAudioVolume
     }
+    var isHostedMediaPlaying by remember { mutableStateOf(false) }
+    var hostedMediaTitle by remember { mutableStateOf("") }
     val makeDragModifier = @Composable { task: Task ->
         var itemPositionInRoot by remember(task) { mutableStateOf(Offset.Zero) }
         Modifier
@@ -295,7 +298,10 @@ fun ObsidianTodoScreen(
                 pollCounter = 0
                 scope.launch(Dispatchers.IO) {
                     repository.syncActiveTimer()
+                    val (mediaPlaying, mediaTitle) = repository.fetchMediaStatus()
                     scope.launch(Dispatchers.Main) {
+                        isHostedMediaPlaying = mediaPlaying
+                        hostedMediaTitle = mediaTitle
                         refreshPreferencesState()
                     }
                 }
@@ -1146,60 +1152,21 @@ fun ObsidianTodoScreen(
             }
         }
 
-        // Dedicated Focus Audio Playback Card (Streaming remote control for kilPC)
-        FocusAudioPlaybackCard(
-            currentTrackLabel = selectedAudioTrackLabel,
-            currentTrackUrl = selectedAudioTrackUrl,
-            currentTrackType = selectedAudioTrackType,
-            isPlaying = isDesktopAudioPlaying,
-            isAutoSync = isAudioAutoSyncEnabled,
-            volume = focusAudioVolume,
-            availableTracks = availableAudioTracks,
+        // Dedicated kilPC Hosted Media Card (Windows GSMTC + Spotify Connect control)
+        HostedMediaPlaybackCard(
+            isPlaying = isHostedMediaPlaying,
+            title = hostedMediaTitle,
             onTogglePlay = {
+                val action = if (isHostedMediaPlaying) "pause" else "play"
                 scope.launch(Dispatchers.IO) {
-                    val newPlaying = repository.toggleDesktopAudio()
-                    scope.launch(Dispatchers.Main) {
-                        isDesktopAudioPlaying = newPlaying
-                        refreshPreferencesState()
+                    val success = repository.controlHostedMedia(action)
+                    if (success) {
+                        val (mediaPlaying, mediaTitle) = repository.fetchMediaStatus()
+                        scope.launch(Dispatchers.Main) {
+                            isHostedMediaPlaying = mediaPlaying
+                            hostedMediaTitle = mediaTitle
+                        }
                     }
-                }
-            },
-            onStop = {
-                scope.launch(Dispatchers.IO) {
-                    repository.stopDesktopAudio()
-                    scope.launch(Dispatchers.Main) {
-                        isDesktopAudioPlaying = false
-                        refreshPreferencesState()
-                    }
-                }
-            },
-            onSelectTrack = { track ->
-                prefs.selectedAudioTrackLabel = track.label
-                prefs.selectedAudioTrackUrl = track.url
-                prefs.selectedAudioTrackStreamUrl = track.streamUrl ?: ""
-                prefs.selectedAudioTrackType = track.type
-                selectedAudioTrackLabel = track.label
-                selectedAudioTrackUrl = track.url
-                selectedAudioTrackStreamUrl = track.streamUrl ?: ""
-                selectedAudioTrackType = track.type
-                refreshPreferencesState()
-                scope.launch(Dispatchers.IO) {
-                    repository.selectAudioTrackOnDesktop(track.label, track.url, track.type)
-                }
-            },
-            onVolumeChange = { newVol ->
-                focusAudioVolume = newVol
-                prefs.focusAudioVolume = newVol
-                scope.launch(Dispatchers.IO) {
-                    repository.setDesktopAudioVolume(newVol)
-                }
-            },
-            onToggleAutoSync = {
-                val newAutoSync = !isAudioAutoSyncEnabled
-                isAudioAutoSyncEnabled = newAutoSync
-                prefs.isAudioAutoSyncEnabled = newAutoSync
-                scope.launch(Dispatchers.IO) {
-                    repository.setDesktopAudioAutoSync(newAutoSync)
                 }
             }
         )
@@ -2942,32 +2909,12 @@ fun PauseIcon(tint: Color, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun FocusAudioPlaybackCard(
-    currentTrackLabel: String,
-    currentTrackUrl: String,
-    currentTrackType: String,
+fun HostedMediaPlaybackCard(
     isPlaying: Boolean,
-    isAutoSync: Boolean,
-    volume: Float,
-    availableTracks: List<FocusAudioTrack>,
+    title: String,
     onTogglePlay: () -> Unit,
-    onStop: () -> Unit,
-    onSelectTrack: (FocusAudioTrack) -> Unit,
-    onVolumeChange: (Float) -> Unit,
-    onToggleAutoSync: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    var showTrackDropdown by remember { mutableStateOf(false) }
-    var localVolume by remember(volume) { mutableFloatStateOf(volume) }
-
-    val trackIcon = when {
-        currentTrackType == "spotify" -> "🎧"
-        currentTrackUrl.contains("equisync") -> "🧠"
-        currentTrackType == "youtube" || currentTrackUrl.contains("youtube") -> "🎵"
-        else -> "🎙️"
-    }
-
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -2980,7 +2927,7 @@ fun FocusAudioPlaybackCard(
         colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
         shape = RoundedCornerShape(14.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
@@ -2991,283 +2938,44 @@ fun FocusAudioPlaybackCard(
                         )
                     )
                 )
-                .padding(14.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Row 1: Header (Title, kilPC Status Badge, AutoSync Badge)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "🎵",
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "FOCUS AUDIO",
-                        color = ObsidianPurple,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    // kilPC playback status badge
-                    Surface(
-                        color = if (isPlaying) ObsidianAccentGreen.copy(alpha = 0.15f) else Color(0xFF27272A),
-                        shape = RoundedCornerShape(4.dp),
-                        border = BorderStroke(0.5.dp, if (isPlaying) ObsidianAccentGreen.copy(alpha = 0.5f) else Color(0xFF3F3F46))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .background(
-                                        color = if (isPlaying) ObsidianAccentGreen else Color(0xFF71717A),
-                                        shape = CircleShape
-                                    )
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (isPlaying) "kilPC PLAYING" else "PAUSED",
-                                color = if (isPlaying) ObsidianAccentGreen else ObsidianTextMuted,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                    }
-                }
-
-                // AutoSync toggle badge
-                Surface(
-                    color = if (isAutoSync) ObsidianPurple.copy(alpha = 0.2f) else Color(0xFF27272A),
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, if (isAutoSync) ObsidianPurple.copy(alpha = 0.6f) else ObsidianBorder),
-                    modifier = Modifier.clickable { onToggleAutoSync() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isAutoSync) "⚡ Synced" else "⚪ Manual",
-                            color = if (isAutoSync) ObsidianPurple else ObsidianTextMuted,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Row 2: Track Selector Dropdown & Main Play/Stop Controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Dropdown trigger box (clickable)
-                Box(modifier = Modifier.weight(1f)) {
-                    Surface(
-                        color = ObsidianBg,
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, ObsidianBorder),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showTrackDropdown = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = trackIcon, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = currentTrackLabel.ifEmpty { "Select Focus Track..." },
-                                color = ObsidianTextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("▾", color = ObsidianTextMuted, fontSize = 12.sp)
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = showTrackDropdown,
-                        onDismissRequest = { showTrackDropdown = false },
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .background(ObsidianSurface)
-                    ) {
-                        if (availableTracks.isEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("No tracks found on kilPC", color = ObsidianTextMuted, fontSize = 12.sp) },
-                                onClick = { showTrackDropdown = false }
-                            )
-                        } else {
-                            availableTracks.forEach { track ->
-                                val itemIcon = when {
-                                    track.type == "spotify" -> "🎧"
-                                    track.url.contains("equisync") -> "🧠"
-                                    track.type == "youtube" || track.url.contains("youtube") -> "🎵"
-                                    else -> "🎙️"
-                                }
-                                val isSelected = track.label == currentTrackLabel || track.url == currentTrackUrl
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text(itemIcon, fontSize = 14.sp)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = track.label,
-                                                    color = if (isSelected) ObsidianPurple else ObsidianTextPrimary,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                if (track.type.isNotEmpty()) {
-                                                    Text(
-                                                        text = track.type.uppercase(),
-                                                        color = ObsidianTextMuted,
-                                                        fontSize = 9.sp
-                                                    )
-                                                }
-                                            }
-                                            if (isSelected) {
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("✓", color = ObsidianPurple, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-                                    },
-                                    onClick = {
-                                        showTrackDropdown = false
-                                        onSelectTrack(track)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Play / Pause Button (Controls kilPC)
-                IconButton(
-                    onClick = onTogglePlay,
-                    modifier = Modifier
-                        .size(38.dp)
-                        .background(
-                            color = if (isPlaying) ObsidianPurple else ObsidianPurple.copy(alpha = 0.2f),
-                            shape = CircleShape
-                        )
-                ) {
-                    if (isPlaying) {
-                        PauseIcon(tint = ObsidianBg, modifier = Modifier.size(16.dp))
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play on kilPC",
-                            tint = ObsidianPurple,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Stop Button (Controls kilPC)
-                IconButton(
-                    onClick = onStop,
-                    modifier = Modifier
-                        .size(38.dp)
-                        .background(
-                            color = Color(0xFF27272A),
-                            shape = CircleShape
-                        )
-                        .border(1.dp, ObsidianBorder, CircleShape)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(ObsidianTextMuted, RoundedCornerShape(2.dp))
+                        text = if (isPlaying) "Streaming from kilPC" else "kilPC Media",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isPlaying) ObsidianPurple else ObsidianTextMuted,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
-
-                // External popout button (if URL is external web/youtube/spotify)
-                if (currentTrackUrl.startsWith("http://") || currentTrackUrl.startsWith("https://")) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(currentTrackUrl)).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Could not open link: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Text("↗", color = ObsidianTextMuted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Row 3: kilPC Volume Slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (localVolume <= 0.01f) "🔇" else if (localVolume < 0.5f) "🔉" else "🔊",
-                    fontSize = 13.sp,
-                    modifier = Modifier.clickable {
-                        val newVol = if (localVolume > 0f) 0f else 0.8f
-                        localVolume = newVol
-                        onVolumeChange(newVol)
-                    }
+                    text = title.ifBlank { if (isPlaying) "Active Media Session" else "Ready (Spotify / Windows GSMTC)" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ObsidianTextPrimary,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Slider(
-                    value = localVolume,
-                    onValueChange = { localVolume = it },
-                    onValueChangeFinished = { onVolumeChange(localVolume) },
-                    valueRange = 0f..1f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = ObsidianPurple,
-                        activeTrackColor = ObsidianPurple,
-                        inactiveTrackColor = ObsidianBorder
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "${(localVolume * 100).toInt()}%",
-                    color = ObsidianTextMuted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.width(34.dp)
-                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            IconButton(
+                onClick = onTogglePlay,
+                modifier = Modifier
+                    .size(42.dp)
+                    .background(
+                        if (isPlaying) ObsidianPurple else ObsidianBorder,
+                        CircleShape
+                    )
+            ) {
+                if (isPlaying) {
+                    PauseIcon(tint = Color.White)
+                } else {
+                    Text("▶", color = ObsidianTextPrimary, fontSize = 16.sp)
+                }
             }
         }
     }
