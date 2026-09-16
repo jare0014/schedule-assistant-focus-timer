@@ -27,7 +27,8 @@ export default class TaskTimerPlugin extends Plugin {
     public externalTaskSyncService!: ExternalTaskSyncService;
     public pythonSchedulerRunner!: PythonSchedulerRunner;
     public remoteServerService!: RemoteServerService;
-    public focusAudioService!: FocusAudioService;
+    public focusAudioService: FocusAudioService | null = null;
+    public hostedMediaState: 'playing' | 'paused' | null = null;
 
     async onload(): Promise<void> {
         await this.loadSettings();
@@ -51,15 +52,8 @@ export default class TaskTimerPlugin extends Plugin {
             () => this,
             () => this.settings
         );
-        this.focusAudioService = new FocusAudioService(
-            this.app,
-            () => this.settings,
-            () => this.saveSettings()
-        );
-        this.focusAudioService.setTimerToggleHandler(async () => {
-            const res = await this.toggleFocusSession();
-            return res.success;
-        });
+        // Playback belongs to the active system media app. The focus timer does not
+        // publish a competing media session or launch a saved track.
 
         this.pythonSchedulerRunner.ensureVenv();
 
@@ -151,8 +145,7 @@ export default class TaskTimerPlugin extends Plugin {
         // Add Toggle Focus Timer & Media command
         this.addCommand({
             id: 'toggle-timer-and-media',
-            name: 'Toggle Focus Timer & Media (Play/Pause)',
-            hotkeys: [{ modifiers: ['Mod'], key: 'k' }],
+            name: 'Toggle Focus Timer',
             callback: async () => {
                 await this.toggleFocusSession();
             }
@@ -303,7 +296,9 @@ export default class TaskTimerPlugin extends Plugin {
             if (this.activeTimer.isPaused) {
                 this.activeTimer.pausedRemainingMs = Math.max(0, (this.activeTimer.targetEndTime || Date.now()) - Date.now());
                 this.activeTimer.remainingSeconds = Math.ceil(this.activeTimer.pausedRemainingMs / 1000);
-                if (this.focusLogService) await this.focusLogService.logPause();
+                if (this.focusLogService) {
+                    this.focusLogService.logPause().catch((e: any) => console.error("Error in logPause:", e));
+                }
                 if (this.focusAudioService) this.focusAudioService.onTimerPause();
             } else {
                 const remainingMs = (this.activeTimer.pausedRemainingMs !== null && this.activeTimer.pausedRemainingMs !== undefined)
@@ -311,7 +306,9 @@ export default class TaskTimerPlugin extends Plugin {
                     : (this.activeTimer.remainingSeconds * 1000);
                 this.activeTimer.targetEndTime = Date.now() + remainingMs;
                 this.activeTimer.pausedRemainingMs = null;
-                if (this.focusLogService) await this.focusLogService.logResume();
+                if (this.focusLogService) {
+                    this.focusLogService.logResume().catch((e: any) => console.error("Error in logResume:", e));
+                }
                 if (this.focusAudioService) this.focusAudioService.onTimerResume();
             }
             const handledInternalAudio = Boolean(
@@ -487,6 +484,53 @@ export default class TaskTimerPlugin extends Plugin {
         return DailyNoteManager.getDailyNoteFile(this.app);
     }
 
+    async startTaskTimer(taskOrName: any, durationMinutes: number): Promise<void> {
+        let taskName = typeof taskOrName === 'object' ? (taskOrName.description || taskOrName.taskName || "") : String(taskOrName || "");
+        let taskObj = typeof taskOrName === 'object' ? taskOrName : null;
+
+        const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
+        if (dailyFile) {
+            try {
+                const content = await this.app.vault.read(dailyFile);
+                const allTasks = TaskParserService.parseAllTasks(content);
+                const targetClean = taskName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (targetClean) {
+                    const matched = allTasks.find(t => {
+                        const descClean = t.description.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        return descClean === targetClean || descClean.includes(targetClean) || targetClean.includes(descClean);
+                    });
+                    if (matched) {
+                        taskObj = { ...matched, ...(taskObj || {}) };
+                        if (!taskName) taskName = matched.description;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to match task against daily note in startTaskTimer:", e);
+            }
+        }
+
+        if (!taskObj) {
+            taskObj = {
+                description: taskName || `Focus Block (${durationMinutes}m)`,
+                duration: durationMinutes,
+                sourceFile: dailyFile ? dailyFile.path : undefined
+            };
+        } else if (!taskObj.sourceFile && dailyFile) {
+            taskObj.sourceFile = dailyFile.path;
+        }
+
+        let leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        if (leaves.length === 0) {
+            await this.activateView();
+            leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        }
+
+        if (leaves.length > 0) {
+            const view = leaves[0].view as any;
+            await view.startTimer(taskObj, durationMinutes);
+        }
+    }
+
     async startTimerForActiveOrCurrent(durationMinutes: number): Promise<void> {
         const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
         const lineContent = DailyNoteManager.getClickedLineContent(activeView);
@@ -513,72 +557,112 @@ export default class TaskTimerPlugin extends Plugin {
             }
         }
 
-        taskName = taskName || `Focus Block (${durationMinutes}m)`;
         let matchedTask: any = null;
         const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
 
-        if (dailyFile && lineContent) {
+        if (dailyFile) {
             try {
                 const content = await this.app.vault.read(dailyFile);
                 const allTasks = TaskParserService.parseAllTasks(content);
-                const timeRangeRegex = /\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\b/i;
-                const match = lineContent.match(timeRangeRegex);
 
-                if (match) {
-                    let startH = parseInt(match[1]);
-                    const startM = parseInt(match[2]);
-                    const startAmpm = match[3];
-                    let endH = parseInt(match[4]);
-                    const endM = parseInt(match[5]);
-                    const endAmpm = match[6];
+                if (lineContent) {
+                    const timeRangeRegex = /\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\b/i;
+                    const match = lineContent.match(timeRangeRegex);
 
-                    if (startAmpm) {
-                        const ampm = startAmpm.toLowerCase();
-                        if (ampm === 'pm' && startH < 12) startH += 12;
-                        if (ampm === 'am' && startH === 12) startH = 0;
+                    if (match) {
+                        let startH = parseInt(match[1]);
+                        const startM = parseInt(match[2]);
+                        const startAmpm = match[3];
+                        let endH = parseInt(match[4]);
+                        const endM = parseInt(match[5]);
+                        const endAmpm = match[6];
+
+                        if (startAmpm) {
+                            const ampm = startAmpm.toLowerCase();
+                            if (ampm === 'pm' && startH < 12) startH += 12;
+                            if (ampm === 'am' && startH === 12) startH = 0;
+                        }
+                        if (endAmpm) {
+                            const ampm = endAmpm.toLowerCase();
+                            if (ampm === 'pm' && endH < 12) endH += 12;
+                            if (ampm === 'am' && endH === 12) endH = 0;
+                        }
+
+                        const clickedStartMinutes = startH * 60 + startM;
+                        const clickedEndMinutes = endH * 60 + endM;
+
+                        let clickedDescription = lineContent.replace(match[0], '').trim();
+                        clickedDescription = clickedDescription.replace(/^\s*-\s+\[[ x]\]\s*/, '');
+                        clickedDescription = clickedDescription.replace(/^\s*-\s*/, '');
+                        clickedDescription = clickedDescription.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
+                        clickedDescription = clickedDescription.replace(/\[src\]\(.*?\)/g, '').trim();
+                        clickedDescription = clickedDescription.replace(/\s+src$/i, '').trim();
+                        clickedDescription = clickedDescription.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
+                        clickedDescription = clickedDescription.replace(/#\w+/g, '').trim();
+                        clickedDescription = clickedDescription.replace(/\s+/g, ' ').trim().toLowerCase();
+
+                        matchedTask = allTasks.find(t => {
+                            const timeMatches = (t.startMinutes === clickedStartMinutes && t.endMinutes === clickedEndMinutes);
+                            if (!timeMatches) return false;
+                            const fileDesc = t.description.toLowerCase();
+                            return fileDesc === clickedDescription || fileDesc.includes(clickedDescription) || clickedDescription.includes(fileDesc);
+                        });
+                    } else if (taskName) {
+                        const clickedDescription = taskName.toLowerCase();
+                        matchedTask = allTasks.find(t => {
+                            const fileDesc = t.description.toLowerCase();
+                            return fileDesc === clickedDescription || fileDesc.includes(clickedDescription) || clickedDescription.includes(fileDesc);
+                        });
                     }
-                    if (endAmpm) {
-                        const ampm = endAmpm.toLowerCase();
-                        if (ampm === 'pm' && endH < 12) endH += 12;
-                        if (ampm === 'am' && endH === 12) endH = 0;
+                }
+
+                // If no task was matched from clicked line, check the active scheduled block for right now!
+                if (!matchedTask && !taskName) {
+                    const now = new Date();
+                    let nowMinutes = now.getHours() * 60 + now.getMinutes();
+                    if (now.getHours() < 5) nowMinutes += 1440;
+
+                    matchedTask = allTasks.find(t =>
+                        t.status !== 'completed' &&
+                        !t.isUntimed &&
+                        t.startMinutes !== null &&
+                        t.endMinutes !== null &&
+                        nowMinutes >= t.startMinutes &&
+                        nowMinutes < t.endMinutes
+                    );
+
+                    if (matchedTask) {
+                        taskName = matchedTask.description;
+                    } else {
+                        // Check next upcoming scheduled task
+                        const nextTask = allTasks.find(t =>
+                            t.status !== 'completed' &&
+                            !t.isUntimed &&
+                            t.startMinutes !== null &&
+                            t.startMinutes >= nowMinutes
+                        );
+                        if (nextTask) {
+                            matchedTask = nextTask;
+                            taskName = nextTask.description;
+                        }
                     }
-
-                    const clickedStartMinutes = startH * 60 + startM;
-                    const clickedEndMinutes = endH * 60 + endM;
-
-                    let clickedDescription = lineContent.replace(match[0], '').trim();
-                    clickedDescription = clickedDescription.replace(/^\s*-\s+\[[ x]\]\s*/, '');
-                    clickedDescription = clickedDescription.replace(/^\s*-\s*/, '');
-                    clickedDescription = clickedDescription.replace(/`?BUTTON\[[^\]]+\]`?/g, '').trim();
-                    clickedDescription = clickedDescription.replace(/\[src\]\(.*?\)/g, '').trim();
-                    clickedDescription = clickedDescription.replace(/\s+src$/i, '').trim();
-                    clickedDescription = clickedDescription.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
-                    clickedDescription = clickedDescription.replace(/#\w+/g, '').trim();
-                    clickedDescription = clickedDescription.replace(/\s+/g, ' ').trim().toLowerCase();
-
-                    matchedTask = allTasks.find(t => {
-                        const timeMatches = (t.startMinutes === clickedStartMinutes && t.endMinutes === clickedEndMinutes);
-                        if (!timeMatches) return false;
-                        const fileDesc = t.description.toLowerCase();
-                        return fileDesc === clickedDescription || fileDesc.includes(clickedDescription) || clickedDescription.includes(fileDesc);
-                    });
-                } else {
-                    const clickedDescription = taskName.toLowerCase();
-                    matchedTask = allTasks.find(t => {
-                        const fileDesc = t.description.toLowerCase();
-                        return fileDesc === clickedDescription || fileDesc.includes(clickedDescription) || clickedDescription.includes(fileDesc);
-                    });
                 }
             } catch (e) {
                 console.error("Failed to match clicked task against daily note schedule", e);
             }
         }
 
-        await this.activateView();
-        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        taskName = taskName || `Focus Block (${durationMinutes}m)`;
+        const finalTask = matchedTask || { description: taskName, duration: durationMinutes, sourceFile: dailyFile ? dailyFile.path : undefined };
+
+        let leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        if (leaves.length === 0) {
+            await this.activateView();
+            leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        }
         if (leaves.length > 0) {
             const view = leaves[0].view as any;
-            await view.startTimer(matchedTask || taskName, durationMinutes);
+            await view.startTimer(finalTask, durationMinutes);
         }
     }
 

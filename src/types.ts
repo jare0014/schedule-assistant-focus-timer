@@ -21,6 +21,13 @@ export interface TaskTimerPluginSettings {
     ollamaUrl: string;
     enableServer: boolean;
     serverPort: string;
+    focusAudioTrackUrl?: string;
+    focusAudioTrackLabel?: string;
+    focusAudioTrackType?: string;
+    focusAudioTrackEmbedUrl?: string;
+    focusAudioAutoSync?: boolean;
+    focusAudioVolume?: number;
+    focusAudioMiniPlayerExpanded?: boolean;
 }
 
 export const DEFAULT_SETTINGS: TaskTimerPluginSettings = {
@@ -39,7 +46,14 @@ export const DEFAULT_SETTINGS: TaskTimerPluginSettings = {
     customModel: '',
     ollamaUrl: 'http://localhost:11434',
     enableServer: true,
-    serverPort: '8089'
+    serverPort: '8089',
+    focusAudioTrackUrl: '',
+    focusAudioTrackLabel: '',
+    focusAudioTrackType: '',
+    focusAudioTrackEmbedUrl: '',
+    focusAudioAutoSync: true,
+    focusAudioVolume: 0.8,
+    focusAudioMiniPlayerExpanded: false
 };
 
 export interface TaskItem {
@@ -60,15 +74,21 @@ export interface TaskItem {
     isUntimed: boolean;
     project: string;
     parentLineIndex?: number;
+    items?: string[];
 }
 
 export interface ActiveTimerState {
     task: TaskItem | null;
+    taskName?: string;
     totalSeconds: number;
     remainingSeconds: number;
+    targetEndTime?: number;
     isPaused: boolean;
-    intervalId: any;
-    startTime: number;
+    pausedRemainingMs?: number | null;
+    intervalId?: any;
+    startTime?: number;
+    items?: string[];
+    completedItems?: number[];
     alarmIntervalId?: any;
     flashIntervalId?: any;
     alarmAudioCtx?: any;

@@ -429,6 +429,24 @@
   max-width: 90%;
 }
 
+.timer-task-title-link {
+  color: var(--text-accent) !important;
+  text-decoration: none !important;
+  border-bottom: 1px dashed var(--text-accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.timer-task-title-link:hover {
+  background-color: var(--background-modifier-hover);
+  border-bottom: 1px solid var(--interactive-accent);
+  color: var(--interactive-accent) !important;
+  transform: translateY(-1px);
+}
+
 .timer-circle-container {
   position: relative;
   width: 180px;
@@ -505,6 +523,26 @@
 .timer-focus-audio-card.is-playing {
   border-color: var(--interactive-accent);
   box-shadow: 0 4px 20px rgba(var(--interactive-accent-rgb, 120, 80, 240), 0.25);
+}
+
+.task-timer-audio-host .hosted-media-card {
+  box-sizing: border-box;
+  max-width: none;
+  margin: 10px 0;
+}
+
+.hosted-media-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.hosted-media-status {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .timer-audio-header {
@@ -1144,4 +1182,109 @@
   border-color: var(--interactive-accent);
   background-color: var(--background-modifier-hover);
   box-shadow: 0 0 12px rgba(168, 130, 221, 0.3);
+}
+
+/* ==========================================================================
+   Timer Movement Protocol / Checklist Card Styles
+   ========================================================================== */
+.timer-checklist-container {
+  margin-top: 24px;
+  width: 100%;
+  max-width: 440px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.timer-checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.timer-checklist-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timer-checklist-toggle-icon {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.timer-checklist-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-accent);
+  letter-spacing: 0.2px;
+}
+
+.timer-checklist-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}
+
+.timer-checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.timer-checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--background-primary);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.timer-checklist-item:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border-hover);
+}
+
+.timer-checklist-item.is-completed {
+  opacity: 0.55;
+  background: var(--background-secondary-alt);
+}
+
+.timer-checklist-item.is-completed .timer-checklist-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.timer-checklist-cb {
+  margin-top: 3px;
+  cursor: pointer;
+  accent-color: var(--interactive-accent);
+}
+
+.timer-checklist-text {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--text-normal);
+  word-break: break-word;
 }
