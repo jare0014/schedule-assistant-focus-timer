@@ -1049,15 +1049,32 @@ function stopLocalAlarm() {
 }
 
 // Setup Event Listeners for Controls
+async function controlHostedMedia(action) {
+    try {
+        const response = await fetch(`${API_BASE}/api/media/control`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+        return response.ok;
+    } catch (e) {
+        return false;
+    }
+}
+
 pauseBtn.onclick = async () => {
     initAudio();
     const action = pauseBtn.textContent === 'Pause' ? 'pause' : 'resume';
-    await fetch(`${API_BASE}/api/timer/${action}`, { method: 'POST' });
+    const mediaAction = action === 'resume' ? 'play' : 'pause';
+    if (!await controlHostedMedia(mediaAction)) {
+        await fetch(`${API_BASE}/api/timer/${action}`, { method: 'POST' });
+    }
     checkStatus();
 };
 
 completeBtn.onclick = async () => {
     initAudio();
+    await controlHostedMedia('pause');
     await fetch(`${API_BASE}/api/timer/complete`, { method: 'POST' });
     checkStatus();
 };
@@ -1065,6 +1082,7 @@ completeBtn.onclick = async () => {
 cancelBtn.onclick = async () => {
     initAudio();
     if (confirm('Cancel this active focus session?')) {
+        await controlHostedMedia('pause');
         await fetch(`${API_BASE}/api/timer/cancel`, { method: 'POST' });
         checkStatus();
     }
@@ -1074,6 +1092,7 @@ cancelBtn.onclick = async () => {
 alarmCompleteBtn.onclick = async () => {
     initAudio();
     stopLocalAlarm();
+    await controlHostedMedia('pause');
     await fetch(`${API_BASE}/api/timer/complete`, { method: 'POST' });
     checkStatus();
 };

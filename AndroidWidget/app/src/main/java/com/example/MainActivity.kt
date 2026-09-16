@@ -258,6 +258,15 @@ fun ObsidianTodoScreen(
         scope.launch(Dispatchers.IO) {
             repository.fetchAudioTracks()
         }
+    }
+
+    LaunchedEffect(prefs.activeTimerTaskName) {
+        if (prefs.activeTimerTaskName.isNotEmpty()) {
+            com.example.media.HostedMediaCardService.show(context)
+        }
+    }
+
+    LaunchedEffect(Unit) {
         var pollCounter = 0
         while (true) {
             currentTimeString = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())

@@ -75,6 +75,10 @@
 
         <!-- Focus Audio MediaSession Service -->
         <service
+            android:name=".media.HostedMediaCardService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
+        <service
             android:name=".media.FocusMediaService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true">

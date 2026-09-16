@@ -30,6 +30,40 @@ export class RemoteServerService {
         const vaultPath = (this.app.vault.adapter as any).getBasePath();
         const pluginDir = path.join(vaultPath, '.obsidian', 'plugins', 'schedule-assistant-focus-timer');
         const webDir = path.join(pluginDir, 'web');
+        const mediaHelper = path.join(vaultPath, '99_System', 'Remote Device Set Up', 'hosted-media-control.ps1');
+        let mediaCache: any = null;
+        let mediaCacheAt = 0;
+        let mediaStatusRead: Promise<any> | null = null;
+
+        const runMedia = (action: 'status' | 'play' | 'pause' | 'toggle'): Promise<any> => new Promise(resolve => {
+            const child = spawn('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+                ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', mediaHelper, action],
+                { windowsHide: true });
+            let output = '';
+            child.stdout.on('data', chunk => { output += chunk.toString(); });
+            child.once('error', () => resolve({ success: false, state: 'unknown', title: '' }));
+            child.once('exit', code => {
+                try {
+                    const result = JSON.parse(output.trim());
+                    resolve(code === 0 ? result : { ...result, success: false });
+                } catch (e) {
+                    resolve({ success: false, state: 'unknown', title: '' });
+                }
+            });
+        });
+
+        const readMedia = (): Promise<any> => {
+            if (mediaCache && Date.now() - mediaCacheAt < 3000) return Promise.resolve(mediaCache);
+            if (mediaStatusRead) return mediaStatusRead;
+            mediaStatusRead = runMedia('status').then(result => {
+                if (result.success) {
+                    mediaCache = result;
+                    mediaCacheAt = Date.now();
+                }
+                return result;
+            }).finally(() => { mediaStatusRead = null; });
+            return mediaStatusRead;
+        };
 
         this.server = http.createServer(async (req, res) => {
             const setCorsHeaders = () => {
@@ -244,6 +278,49 @@ export class RemoteServerService {
                         }
                     });
                 });
+
+                if (req.method === 'POST' && pathname === '/api/media/control') {
+                    const body = await readBody();
+                    const action = String(body.action || '').toLowerCase();
+                    if (!['play', 'pause', 'toggle'].includes(action)) {
+                        setCorsHeaders();
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Expected play, pause, or toggle.' }));
+                        return;
+                    }
+
+                    const result = await runMedia(action as 'play' | 'pause' | 'toggle');
+                    const success = Boolean(result.success);
+                    if (success && action !== 'toggle') {
+                        const timer = plugin.activeTimer;
+                        if (timer && Boolean(timer.isPaused) === (action === 'play')) {
+                            await plugin.toggleFocusSession();
+                        }
+                        plugin.hostedMediaState = action === 'play' ? 'playing' : 'paused';
+                    }
+                    if (success) {
+                        mediaCache = { ...result, state: action === 'toggle' ? result.state : action === 'play' ? 'playing' : 'paused' };
+                        mediaCacheAt = Date.now();
+                    }
+                    setCorsHeaders();
+                    res.writeHead(success ? 200 : 503, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success, action, state: result.state, title: result.title, error: result.error }));
+                    return;
+                }
+
+                if (req.method === 'GET' && pathname === '/api/media/status') {
+                    const timer = plugin.activeTimer;
+                    const media = await readMedia();
+                    setCorsHeaders();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        state: media.success ? media.state : plugin.hostedMediaState || (timer && !timer.isPaused ? 'playing' : 'paused'),
+                        title: media.title || '',
+                        taskName: timer?.taskName || timer?.task?.description || 'Focus Session',
+                        timerIsPaused: timer ? Boolean(timer.isPaused) : null
+                    }));
+                    return;
+                }
 
                 if (req.method === 'POST' && pathname === '/api/audio/select') {
                     const body = await readBody();
@@ -1222,5 +1299,52 @@ ${itemsXml}  </channel>
                 done();
             }
         });
+    }
+
+    public resolveExerciseProtocolItems(taskName: string): string[] {
+        if (!taskName) return [];
+        const clean = taskName.toLowerCase();
+        const exMatch = clean.match(/exercises?:\s*phase\s*([123])/i) || clean.match(/phase\s*([123])\s*exercises?/i) || clean.match(/^phase\s*([123])/i);
+        if (!exMatch) return [];
+
+        const phaseNum = exMatch[1];
+        const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const todayKey = days[new Date().getDay()];
+
+        if (phaseNum === '1') {
+            return [
+                "Sun Salute: Reach overhead, lift sternum, 3–5 deep breaths",
+                "Hamstring Scoops: 10 dynamic alternating sweeps",
+                "Standing Quad Stretch: 30s/side (knees together, glute squeeze)",
+                "Wall-Arm Chest Opener: 30s/side (at/below shoulder level)",
+                "Forearm Plank: 1 set × 35–45s (glutes tight, neutral neck)",
+                "Deep Neck Flexors: 1 set × 8–10 reps (5–10s chin-tuck holds)",
+                "Banded Wall Slides: 1–2 sets × 10–12 reps (serratus upward rotation)",
+                "Nerve Glides & Pelvic Floor: Median, ulnar, radial + Kegels"
+            ];
+        } else if (phaseNum === '2') {
+            const p2Schedules: Record<string, string[]> = {
+                "mon": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
+                "wed": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
+                "fri": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
+                "tue": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
+                "thu": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
+                "sat": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
+                "sun": ["20-30 min gentle walk or outdoor stroll", "Light diaphragmatic breathing & nerve glides"]
+            };
+            return p2Schedules[todayKey] || p2Schedules["mon"];
+        } else if (phaseNum === '3') {
+            const p3Schedules: Record<string, string[]> = {
+                "mon": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
+                "wed": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
+                "fri": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
+                "tue": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
+                "thu": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
+                "sat": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
+                "sun": ["Pelvic floor down-training & supine belly breathing", "Gentle median, ulnar, radial nerve flossing"]
+            };
+            return p3Schedules[todayKey] || p3Schedules["mon"];
+        }
+        return [];
     }
 }

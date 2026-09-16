@@ -21,6 +21,7 @@ export class TaskTimerView extends ItemView {
     private timeTextEl: HTMLElement | null = null;
     private pauseBtn: HTMLButtonElement | null = null;
     private audioUnsubscribe: (() => void) | null = null;
+    private hostedMediaInterval: any = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: any) {
         super(leaf);
@@ -47,6 +48,10 @@ export class TaskTimerView extends ItemView {
         if (this.audioUnsubscribe) {
             this.audioUnsubscribe();
             this.audioUnsubscribe = null;
+        }
+        if (this.hostedMediaInterval !== null) {
+            window.clearInterval(this.hostedMediaInterval);
+            this.hostedMediaInterval = null;
         }
         this.clearTimer();
         this.stopAlarm();
@@ -825,6 +830,7 @@ export class TaskTimerView extends ItemView {
         const taskObj = this.currentTimer ? this.currentTimer.task : null;
         const taskName = this.currentTimer ? this.currentTimer.taskName : "Focus Block";
 
+        this.controlHostedMedia('pause').catch(() => {});
         if (this.plugin.focusAudioService) {
             this.plugin.focusAudioService.onTimerComplete();
         }
@@ -844,6 +850,7 @@ export class TaskTimerView extends ItemView {
 
     public async cancelTimer(): Promise<void> {
         const taskName = this.currentTimer ? this.currentTimer.taskName : "Focus Block";
+        this.controlHostedMedia('pause').catch(() => {});
         if (this.plugin.focusAudioService) {
             this.plugin.focusAudioService.onTimerCancel();
         }
@@ -944,7 +951,20 @@ export class TaskTimerView extends ItemView {
             return;
         }
 
-        if (!this.timerInterval && !this.currentTimer.isPaused) {
+        if (this.currentTimer.totalSeconds <= 0) {
+            this.currentTimer.totalSeconds = this.currentTimer.remainingSeconds > 0 ? this.currentTimer.remainingSeconds : 25 * 60;
+        }
+
+        if (this.currentTimer.remainingSeconds === undefined || this.currentTimer.remainingSeconds === null) {
+            this.currentTimer.remainingSeconds = this.currentTimer.totalSeconds;
+        }
+
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+
+        if (!this.currentTimer.isPaused) {
             this.timerInterval = setInterval(async () => {
                 if (this.currentTimer && !this.currentTimer.isPaused) {
                     const curNow = Date.now();
@@ -997,8 +1017,8 @@ export class TaskTimerView extends ItemView {
         const cancelBtn = controls.createEl('button', { cls: 'timer-btn warning', text: 'Cancel' });
         cancelBtn.onclick = () => this.cancelTimer();
 
-        // Focus Audio Player Card (Timer-Synced)
-        this.renderFocusAudioCard(timerContainer);
+        // System Media Card (kilPC GSMTC & Spotify Connect controls)
+        this.renderHostedMediaCard(timerContainer);
 
         // Active task checklist / movement protocol items
         this.renderTimerChecklist(timerContainer);
@@ -1139,6 +1159,7 @@ export class TaskTimerView extends ItemView {
             if (circle) circle.removeClass('pulsing');
             if (this.plugin.focusLogService) await this.plugin.focusLogService.logPause();
             if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerPause();
+            this.controlHostedMedia('pause').catch(() => {});
         } else {
             const remainingMs = (this.currentTimer.pausedRemainingMs !== null && this.currentTimer.pausedRemainingMs !== undefined)
                 ? this.currentTimer.pausedRemainingMs
@@ -1150,6 +1171,7 @@ export class TaskTimerView extends ItemView {
             if (circle) circle.addClass('pulsing');
             if (this.plugin.focusLogService) await this.plugin.focusLogService.logResume();
             if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerResume();
+            this.controlHostedMedia('play').catch(() => {});
         }
 
         if (this.plugin) {
@@ -1247,256 +1269,57 @@ export class TaskTimerView extends ItemView {
         }
     }
 
-    private renderFocusAudioCard(parent: HTMLElement): void {
-        if (!this.plugin.focusAudioService) return;
-        const audioService: FocusAudioService = this.plugin.focusAudioService;
+    private mediaBaseUrl(): string {
+        return `http://127.0.0.1:${parseInt(this.plugin.settings?.serverPort) || 8089}`;
+    }
 
-        // Wire bidirectional timer toggle handler
-        audioService.setTimerToggleHandler(async (targetState = 'toggle') => {
-            if (!this.currentTimer) return false;
-
-            if (targetState === 'pause') {
-                if (!this.currentTimer.isPaused) {
-                    await this.togglePause();
-                }
-                return true;
-            } else if (targetState === 'resume') {
-                if (this.currentTimer.isPaused) {
-                    await this.togglePause();
-                }
-                return true;
-            } else {
-                await this.togglePause();
-                return true;
-            }
-        });
-
-        if (this.audioUnsubscribe) {
-            this.audioUnsubscribe();
-            this.audioUnsubscribe = null;
-        }
-
-        const card = parent.createDiv({ cls: 'timer-focus-audio-card' });
-        if (audioService.isPlaying) {
-            card.addClass('is-playing');
-        }
-
-        // Row 1: Header (Title, Soundwave, AutoSync Toggle)
-        const header = card.createDiv({ cls: 'timer-audio-header' });
-        const titleGroup = header.createDiv({ cls: 'timer-audio-title-group' });
-        titleGroup.createSpan({ text: '🎵 Focus Audio' });
-
-        const waveContainer = titleGroup.createDiv({ cls: 'sound-wave-icon' });
-        waveContainer.createDiv({ cls: 'sound-wave-bar' });
-        waveContainer.createDiv({ cls: 'sound-wave-bar' });
-        waveContainer.createDiv({ cls: 'sound-wave-bar' });
-
-        const syncBadge = header.createDiv({
-            cls: `timer-audio-sync-badge${audioService.autoSyncWithTimer ? ' active' : ''}`,
-            title: 'Toggle auto play/pause synchronization with the timer'
-        });
-        syncBadge.setText(audioService.autoSyncWithTimer ? '⚡ Synced' : '⚪ Manual');
-        syncBadge.onclick = () => {
-            audioService.setAutoSync(!audioService.autoSyncWithTimer);
-        };
-
-        // Row 2: Main Row (Select dropdown, Play/Pause button, Stop button)
-        const mainRow = card.createDiv({ cls: 'timer-audio-main-row' });
-        const selectEl = mainRow.createEl('select', { cls: 'timer-audio-select' });
-        selectEl.createEl('option', { value: '', text: 'Select Focus Audio / Track...' });
-
-        const playBtn = mainRow.createEl('button', {
-            cls: `timer-audio-btn primary${audioService.isPlaying ? ' playing' : ''}`,
-            title: audioService.isPlaying ? 'Pause Audio' : 'Play Audio'
-        });
-        playBtn.setText(audioService.isPlaying ? '⏸' : '▶');
-
-        const stopBtn = mainRow.createEl('button', {
-            cls: 'timer-audio-btn',
-            title: 'Stop Audio'
-        });
-        stopBtn.setText('⏹');
-
-        const launchBtn = mainRow.createEl('button', {
-            cls: 'timer-audio-btn',
-            title: 'Open in YouTube / External App (Popout)'
-        });
-        launchBtn.setText('↗');
-        launchBtn.onclick = () => {
-            if (audioService.currentTrack?.url) {
-                window.open(audioService.currentTrack.url, '_blank');
-            }
-        };
-
-        // Populate track dropdown
-        const dailyFile = this.getDailyNoteFile();
-        let availableTracks: FocusTrackItem[] = [];
-        audioService.scanAvailableTracks(dailyFile).then(tracks => {
-            availableTracks = tracks;
-            tracks.forEach(track => {
-                const opt = selectEl.createEl('option', { value: track.url, text: track.label });
-                if (audioService.currentTrack?.url === track.url) {
-                    opt.selected = true;
-                }
+    public async controlHostedMedia(action: 'play' | 'pause' | 'toggle'): Promise<boolean> {
+        try {
+            const response = await fetch(`${this.mediaBaseUrl()}/api/media/control`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
             });
+            return response.ok;
+        } catch (e) {
+            return false;
+        }
+    }
 
-            // Pre-select track: either already selected, or Tipper, or first track
-            if (!audioService.currentTrack && tracks.length > 0) {
-                const tipperTrack = tracks.find(t => t.label.toLowerCase().includes('tipper'));
-                const defaultTrack = tipperTrack || tracks[0];
-                audioService.selectTrack(defaultTrack);
-                selectEl.value = defaultTrack.url;
-            } else if (audioService.currentTrack) {
-                selectEl.value = audioService.currentTrack.url;
-            }
-        });
+    public renderHostedMediaCard(parent: HTMLElement): void {
+        const card = parent.createDiv({ cls: 'timer-focus-audio-card hosted-media-card' });
+        const header = card.createDiv({ cls: 'hosted-media-header' });
+        header.createSpan({ text: '🎵 kilPC Media' });
+        const status = header.createSpan({ cls: 'hosted-media-status', text: 'Checking…' });
+        const button = card.createEl('button', { cls: 'timer-audio-btn primary', text: '▶ Play' });
+        let isPlaying = false;
 
-        selectEl.onchange = () => {
-            const selectedUrl = selectEl.value;
-            const chosen = availableTracks.find(t => t.url === selectedUrl) || null;
-            audioService.selectTrack(chosen);
-        };
-
-        playBtn.onclick = async () => {
-            if (this.currentTimer && audioService.autoSyncWithTimer) {
-                if (audioService.isPlaying) {
-                    await this.togglePause();
-                } else {
-                    if (this.currentTimer.isPaused) {
-                        await this.togglePause();
-                    } else {
-                        await audioService.play();
-                    }
-                }
-            } else {
-                await audioService.togglePlay();
+        const refresh = async () => {
+            try {
+                const response = await fetch(`${this.mediaBaseUrl()}/api/media/status`);
+                if (!response.ok) throw new Error(String(response.status));
+                const state = await response.json();
+                isPlaying = state.state === 'playing';
+                const trackTitle = state.title ? ` (${state.title})` : '';
+                status.setText((isPlaying ? 'Playing' : 'Paused') + trackTitle);
+                button.setText(isPlaying ? '⏸ Pause' : '▶ Play');
+                if (isPlaying) card.addClass('is-playing');
+                else card.removeClass('is-playing');
+            } catch (e) {
+                status.setText('kilPC unavailable');
             }
         };
 
-        stopBtn.onclick = () => {
-            audioService.stop();
+        button.onclick = async () => {
+            button.disabled = true;
+            const success = await this.controlHostedMedia(isPlaying ? 'pause' : 'play');
+            if (!success) new Notice('Could not control kilPC media. Check the focus timer server and AutoHotkey helper.');
+            await refresh();
+            button.disabled = false;
         };
-
-        // Row 3: Sub Row (Volume slider & Embed Drawer toggle)
-        const subRow = card.createDiv({ cls: 'timer-audio-sub-row' });
-        const volGroup = subRow.createDiv({ cls: 'timer-audio-volume-group' });
-        const muteBtn = volGroup.createEl('span', {
-            text: audioService.isMuted ? '🔇' : '🔊',
-            cls: 'timer-audio-mute-btn',
-            attr: { style: 'cursor: pointer;' }
-        });
-        muteBtn.onclick = () => {
-            audioService.toggleMute();
-        };
-
-        const volSlider = volGroup.createEl('input', {
-            type: 'range',
-            cls: 'timer-audio-vol-slider',
-            attr: { min: '0', max: '100', value: String(Math.round(audioService.volume * 100)) }
-        });
-        volSlider.oninput = () => {
-            audioService.setVolume(parseInt(volSlider.value, 10) / 100);
-        };
-
-        const drawerToggle = subRow.createEl('button', {
-            cls: 'timer-audio-toggle-embed',
-            text: 'Mini Player ▼'
-        });
-
-        // Row 4: Collapsible Embed Drawer (for YouTube / web iframe / external web notice)
-        const embedDrawer = card.createDiv({ cls: 'timer-audio-embed-drawer' });
-        audioService.setContainer(embedDrawer);
-
-        const updateEmbedDrawerContent = () => {
-            const track = audioService.currentTrack;
-            if (track?.type === 'external_web') {
-                embedDrawer.empty();
-                const externalNotice = embedDrawer.createDiv({ cls: 'timer-audio-external-notice' });
-                externalNotice.style.padding = '14px 16px';
-                externalNotice.style.backgroundColor = 'var(--background-secondary)';
-                externalNotice.style.borderRadius = '8px';
-                externalNotice.style.border = '1px solid var(--background-modifier-border)';
-                externalNotice.style.textAlign = 'center';
-
-                const titleEl = externalNotice.createDiv({ style: 'font-weight: 600; margin-bottom: 6px; font-size: 13px; color: var(--text-normal);' });
-                titleEl.setText(`🌐 ${track.label}`);
-
-                const descEl = externalNotice.createDiv({ style: 'font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;' });
-                if (track.label.toLowerCase().includes('eoto') || track.url.includes('privately_owned') || track.url.includes('channel/FE')) {
-                    descEl.setText('🔒 Requires your logged-in Google account for private EOTO tracks. Plays in your browser and toggles via Ctrl+K.');
-                } else if (track.url.includes('equisync')) {
-                    descEl.setText('🎧 EquiSync Element Web Audio synthesizer. Runs in your browser with full audio engine support.');
-                } else {
-                    descEl.setText('🌐 External web audio player. Plays in your browser and toggles via Ctrl+K.');
-                }
-
-                const openBtn = externalNotice.createEl('button', {
-                    cls: 'mod-cta',
-                    text: 'Open Web Player in Browser ↗',
-                    attr: { style: 'width: 100%; font-size: 12px; font-weight: bold; padding: 7px 12px; cursor: pointer;' }
-                });
-                openBtn.onclick = () => {
-                    window.open(track.url, '_blank');
-                };
-            } else {
-                const notice = embedDrawer.querySelector('.timer-audio-external-notice');
-                if (notice) notice.remove();
-                audioService.setContainer(embedDrawer);
-                if (track?.embedUrl) {
-                    audioService.ensureIframe(track.embedUrl);
-                }
-            }
-        };
-
-        audioService.setOnEnsureVisible(() => {
-            updateEmbedDrawerContent();
-            if (!embedDrawer.hasClass('expanded')) {
-                embedDrawer.addClass('expanded');
-                drawerToggle.setText('Hide Player ▲');
-            }
-        });
-
-        drawerToggle.onclick = () => {
-            const isExpanded = embedDrawer.hasClass('expanded');
-            if (isExpanded) {
-                embedDrawer.removeClass('expanded');
-                drawerToggle.setText('Mini Player ▼');
-            } else {
-                updateEmbedDrawerContent();
-                embedDrawer.addClass('expanded');
-                drawerToggle.setText('Hide Player ▲');
-            }
-        };
-
-        // Subscribe to audioService state changes to update UI in real-time
-        this.audioUnsubscribe = audioService.onStateChange(service => {
-            if (service.isPlaying) {
-                card.addClass('is-playing');
-                playBtn.addClass('playing');
-                playBtn.setText('⏸');
-                playBtn.title = 'Pause Audio';
-            } else {
-                card.removeClass('is-playing');
-                playBtn.removeClass('playing');
-                playBtn.setText('▶');
-                playBtn.title = 'Play Audio';
-            }
-
-            syncBadge.setText(service.autoSyncWithTimer ? '⚡ Synced' : '⚪ Manual');
-            if (service.autoSyncWithTimer) {
-                syncBadge.addClass('active');
-            } else {
-                syncBadge.removeClass('active');
-            }
-
-            muteBtn.setText(service.isMuted ? '🔇' : '🔊');
-            volSlider.value = String(Math.round(service.volume * 100));
-
-            if (service.currentTrack && selectEl.value !== service.currentTrack.url) {
-                selectEl.value = service.currentTrack.url;
-            }
-            updateEmbedDrawerContent();
-        });
+        refresh();
+        if (this.hostedMediaInterval !== null) window.clearInterval(this.hostedMediaInterval);
+        this.hostedMediaInterval = window.setInterval(refresh, 2000);
     }
 
     public renderTimerChecklist(container: HTMLElement): void {

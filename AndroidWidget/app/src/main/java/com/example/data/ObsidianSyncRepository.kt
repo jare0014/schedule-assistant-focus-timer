@@ -57,6 +57,22 @@ class ObsidianSyncRepository(private val context: Context) {
         }
     }
 
+    suspend fun controlHostedMedia(action: String): Boolean {
+        if (action !in listOf("play", "pause", "toggle")) return false
+        return try {
+            val body = JSONObject().put("action", action).toString()
+                .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+            val request = Request.Builder()
+                .url("${getBaseUrl()}/api/media/control")
+                .post(body)
+                .build()
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "Hosted media $action failed: ${e.message}")
+            false
+        }
+    }
+
     fun getResolvedPathOrEndpoint(): String {
         val raw = prefs.pathOrEndpoint.trim()
         val calendar = java.util.Calendar.getInstance()
