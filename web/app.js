@@ -177,83 +177,10 @@ function updateUI(state) {
             pauseBtn.className = 'timer-btn btn-secondary'; // grey
             document.querySelector('.progress-ring-container')?.classList.add('pulsing');
         }
-
-        // Render Checklist / Movement Protocol if available
-        const checklistContainer = document.getElementById('webTimerChecklist');
-        const checklistItemsEl = document.getElementById('webChecklistItems');
-        const checklistBadge = document.getElementById('webChecklistBadge');
-        const checklistHeader = document.getElementById('webTimerChecklistHeader');
-        const toggleIcon = document.getElementById('webChecklistToggleIcon');
-
-        const items = state.activeTimer.items || [];
-        if (items && items.length > 0) {
-            if (checklistContainer) checklistContainer.style.display = 'flex';
-            if (!state.activeTimer.completedItems) state.activeTimer.completedItems = [];
-            const completedSet = new Set(state.activeTimer.completedItems);
-
-            if (checklistBadge) {
-                checklistBadge.textContent = `${completedSet.size} / ${items.length}`;
-            }
-
-            if (checklistHeader && !checklistHeader.dataset.bound) {
-                checklistHeader.dataset.bound = 'true';
-                let isExpanded = true;
-                checklistHeader.onclick = () => {
-                    isExpanded = !isExpanded;
-                    if (checklistItemsEl) checklistItemsEl.style.display = isExpanded ? 'flex' : 'none';
-                    if (toggleIcon) toggleIcon.textContent = isExpanded ? '▼ ' : '▶ ';
-                };
-            }
-
-            const currentItemCount = checklistItemsEl ? checklistItemsEl.children.length : 0;
-            if (checklistItemsEl && currentItemCount !== items.length) {
-                checklistItemsEl.innerHTML = '';
-                items.forEach((itemText, idx) => {
-                    const row = document.createElement('div');
-                    row.className = `timer-checklist-item${completedSet.has(idx) ? ' is-completed' : ''}`;
-                    row.id = `web-checklist-item-${idx}`;
-
-                    const cb = document.createElement('input');
-                    cb.type = 'checkbox';
-                    cb.className = 'timer-checklist-cb';
-                    cb.checked = completedSet.has(idx);
-
-                    const textSpan = document.createElement('span');
-                    textSpan.className = 'timer-checklist-text';
-                    textSpan.textContent = itemText;
-
-                    const toggle = (e) => {
-                        if (e) e.stopPropagation();
-                        if (completedSet.has(idx)) {
-                            completedSet.delete(idx);
-                        } else {
-                            completedSet.add(idx);
-                        }
-                        state.activeTimer.completedItems = Array.from(completedSet);
-                        cb.checked = completedSet.has(idx);
-                        row.classList.toggle('is-completed', completedSet.has(idx));
-                        if (checklistBadge) {
-                            checklistBadge.textContent = `${completedSet.size} / ${items.length}`;
-                        }
-                    };
-
-                    cb.onclick = toggle;
-                    row.onclick = toggle;
-
-                    row.appendChild(cb);
-                    row.appendChild(textSpan);
-                    checklistItemsEl.appendChild(row);
-                });
-            }
-        } else if (checklistContainer) {
-            checklistContainer.style.display = 'none';
-        }
     } else {
         if (timerSection) timerSection.style.display = 'none';
         timerIdleCard.style.display = 'none';
         timerActiveCard.style.display = 'none';
-        const webChecklist = document.getElementById('webTimerChecklist');
-        if (webChecklist) webChecklist.style.display = 'none';
         document.querySelector('.progress-ring-container')?.classList.remove('pulsing');
     }
 
@@ -1048,32 +975,15 @@ function stopLocalAlarm() {
 }
 
 // Setup Event Listeners for Controls
-async function controlHostedMedia(action) {
-    try {
-        const response = await fetch(`${API_BASE}/api/media/control`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action })
-        });
-        return response.ok;
-    } catch (e) {
-        return false;
-    }
-}
-
 pauseBtn.onclick = async () => {
     initAudio();
     const action = pauseBtn.textContent === 'Pause' ? 'pause' : 'resume';
-    const mediaAction = action === 'resume' ? 'play' : 'pause';
-    if (!await controlHostedMedia(mediaAction)) {
-        await fetch(`${API_BASE}/api/timer/${action}`, { method: 'POST' });
-    }
+    await fetch(`${API_BASE}/api/timer/${action}`, { method: 'POST' });
     checkStatus();
 };
 
 completeBtn.onclick = async () => {
     initAudio();
-    await controlHostedMedia('pause');
     await fetch(`${API_BASE}/api/timer/complete`, { method: 'POST' });
     checkStatus();
 };
@@ -1081,7 +991,6 @@ completeBtn.onclick = async () => {
 cancelBtn.onclick = async () => {
     initAudio();
     if (confirm('Cancel this active focus session?')) {
-        await controlHostedMedia('pause');
         await fetch(`${API_BASE}/api/timer/cancel`, { method: 'POST' });
         checkStatus();
     }
@@ -1091,7 +1000,6 @@ cancelBtn.onclick = async () => {
 alarmCompleteBtn.onclick = async () => {
     initAudio();
     stopLocalAlarm();
-    await controlHostedMedia('pause');
     await fetch(`${API_BASE}/api/timer/complete`, { method: 'POST' });
     checkStatus();
 };

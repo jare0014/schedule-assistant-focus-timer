@@ -433,18 +433,6 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
                     };
 
                     habitItemEl.createDiv({ cls: 'timeblock-subtask-title', text: habit.name });
-
-                    if (!habit.completed) {
-                        const habitPlayBtn = habitItemEl.createEl('button', {
-                            cls: 'timeblock-subtask-play-btn',
-                            text: '▶',
-                            title: 'Start Habit Timer'
-                        });
-                        habitPlayBtn.onclick = (e) => {
-                            e.stopPropagation();
-                            viewInstance.startTimer(habit.name, 15);
-                        };
-                    }
                 });
 
                 const naturalHeight = Math.max(28, durationMins * (hourHeight / 60));

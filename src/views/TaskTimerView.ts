@@ -2,7 +2,7 @@
  * TaskTimerView.ts - Main ItemView for focus timer, schedule timeline, and alarms.
  */
 
-import { ItemView, WorkspaceLeaf, Notice, TFile, MarkdownView } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, TFile } from 'obsidian';
 import { VIEW_TYPE_TASK_TIMER, TaskItem } from '../types';
 import { DailyNoteManager } from '../services/DailyNoteManager';
 import { TaskParserService } from '../services/TaskParserService';
@@ -21,10 +21,6 @@ export class TaskTimerView extends ItemView {
     private timeTextEl: HTMLElement | null = null;
     private pauseBtn: HTMLButtonElement | null = null;
     private audioUnsubscribe: (() => void) | null = null;
-    private audioHostEl: HTMLElement | null = null;
-    private hostedMediaInterval: number | null = null;
-    private mainBodyEl: HTMLElement | null = null;
-    private timerFooterEl: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: any) {
         super(leaf);
@@ -48,10 +44,6 @@ export class TaskTimerView extends ItemView {
     }
 
     async onClose(): Promise<void> {
-        if (this.hostedMediaInterval !== null) {
-            window.clearInterval(this.hostedMediaInterval);
-            this.hostedMediaInterval = null;
-        }
         if (this.audioUnsubscribe) {
             this.audioUnsubscribe();
             this.audioUnsubscribe = null;
@@ -64,94 +56,16 @@ export class TaskTimerView extends ItemView {
         return DailyNoteManager.getDailyNoteFile(this.app);
     }
 
-    private ensureStructure(): { audioHost: HTMLElement; mainBody: HTMLElement; footer: HTMLElement } {
-        const root = (this.containerEl ? (this.containerEl.children[1] || this.contentEl) : this.contentEl) as HTMLElement;
-        if (!this.audioHostEl || !this.mainBodyEl || !this.timerFooterEl || !root.contains(this.audioHostEl) || !root.contains(this.mainBodyEl)) {
-            root.empty();
-            root.addClass('task-timer-view-container');
-            root.style.display = 'flex';
-            root.style.flexDirection = 'column';
-            root.style.height = '100%';
-
-            this.mainBodyEl = root.createDiv({ cls: 'task-timer-main-body' });
-            this.mainBodyEl.style.flex = '1';
-            this.mainBodyEl.style.minHeight = '0';
-            this.mainBodyEl.style.overflowY = 'auto';
-
-            this.audioHostEl = root.createDiv({ cls: 'task-timer-audio-host' });
-            this.renderHostedMediaCard(this.audioHostEl);
-
-            this.timerFooterEl = root.createDiv({ cls: 'task-timer-footer' });
-        }
-        return { audioHost: this.audioHostEl, mainBody: this.mainBodyEl, footer: this.timerFooterEl };
-    }
-
-    private mediaBaseUrl(): string {
-        return `http://127.0.0.1:${parseInt(this.plugin.settings?.serverPort) || 8090}`;
-    }
-
-    private async controlHostedMedia(action: 'play' | 'pause'): Promise<boolean> {
-        try {
-            const response = await fetch(`${this.mediaBaseUrl()}/api/media/control`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action })
-            });
-            return response.ok;
-        } catch (e) {
-            return false;
-        }
-    }
-
-    private renderHostedMediaCard(parent: HTMLElement): void {
-        const card = parent.createDiv({ cls: 'timer-focus-audio-card hosted-media-card' });
-        const header = card.createDiv({ cls: 'hosted-media-header' });
-        header.createSpan({ text: '🎵 kilPC Media' });
-        const status = header.createSpan({ cls: 'hosted-media-status', text: 'Checking…' });
-        const button = card.createEl('button', { cls: 'timer-audio-btn primary', text: '▶ Play' });
-        let isPlaying = false;
-
-        const refresh = async () => {
-            try {
-                const response = await fetch(`${this.mediaBaseUrl()}/api/media/status`);
-                if (!response.ok) throw new Error(String(response.status));
-                const state = await response.json();
-                isPlaying = state.state === 'playing';
-                status.setText(isPlaying ? 'Playing' : 'Paused');
-                button.setText(isPlaying ? '⏸ Pause' : '▶ Play');
-                if (isPlaying) card.addClass('is-playing');
-                else card.removeClass('is-playing');
-            } catch (e) {
-                status.setText('kilPC unavailable');
-            }
-        };
-
-        button.onclick = async () => {
-            button.disabled = true;
-            const success = await this.controlHostedMedia(isPlaying ? 'pause' : 'play');
-            if (!success) new Notice('Could not control kilPC media. Check the focus timer server and AutoHotkey helper.');
-            await refresh();
-            button.disabled = false;
-        };
-        refresh();
-        if (this.hostedMediaInterval !== null) window.clearInterval(this.hostedMediaInterval);
-        this.hostedMediaInterval = window.setInterval(refresh, 2000);
-    }
-
     public renderSchedule(): void {
-        const { audioHost, mainBody, footer } = this.ensureStructure();
+        const container = (this.containerEl ? (this.containerEl.children[1] || this.contentEl) : this.contentEl) as HTMLElement;
+        if (!container) return;
+        container.empty();
+        container.addClass('task-timer-view-container');
 
         if (this.currentTimer || this.plugin.activeTimer) {
             this.renderTimer();
         } else {
-            audioHost.style.order = '1';
-            mainBody.style.order = '2';
-            footer.style.order = '3';
-            footer.empty();
-            footer.style.display = 'none';
-
-            mainBody.empty();
-            this.renderScheduleTimeline(mainBody);
+            this.renderScheduleTimeline(container);
         }
     }
 
@@ -756,23 +670,16 @@ export class TaskTimerView extends ItemView {
 
         const totalSeconds = durationMinutes * 60;
         const now = Date.now();
-        const items = (typeof task === 'object' && Array.isArray(task.items) && task.items.length > 0)
-            ? task.items
-            : this.resolveExerciseProtocolItems(taskName);
-
         this.currentTimer = {
-            task: typeof task === 'object' ? task : { description: taskName, duration: durationMinutes, items },
+            task: typeof task === 'object' ? task : { description: taskName, duration: durationMinutes },
             taskName,
             remainingSeconds: totalSeconds,
             totalSeconds,
             targetEndTime: now + (totalSeconds * 1000),
             isPaused: false,
-            pausedRemainingMs: null,
-            items: items || [],
-            completedItems: []
+            pausedRemainingMs: null
         };
         this.plugin.activeTimer = this.currentTimer;
-        this.notifyTimerChange(this.currentTimer);
 
         this.renderTimer();
 
@@ -794,7 +701,6 @@ export class TaskTimerView extends ItemView {
                     this.clearTimer();
                     this.currentTimer = null;
                     this.plugin.activeTimer = null;
-                    this.notifyTimerChange(null);
                     if (this.plugin.focusLogService) {
                         await this.plugin.focusLogService.logUpdate(true);
                     }
@@ -802,17 +708,6 @@ export class TaskTimerView extends ItemView {
                 }
             }
         }, 500);
-    }
-
-    public notifyTimerChange(timerState: any): void {
-        try {
-            window.dispatchEvent(new CustomEvent('schedule-assistant-timer-changed', {
-                detail: timerState
-            }));
-            (this.app.workspace as any).trigger('schedule-assistant:timer-changed', timerState);
-        } catch (e) {
-            console.error("Error dispatching timer change event:", e);
-        }
     }
 
     public clearTimer(): void {
@@ -823,7 +718,6 @@ export class TaskTimerView extends ItemView {
         if (this.plugin) {
             this.plugin.activeTimer = null;
         }
-        this.notifyTimerChange(null);
     }
 
     public async completeTimer(): Promise<void> {
@@ -835,7 +729,6 @@ export class TaskTimerView extends ItemView {
         }
         this.clearTimer();
         this.currentTimer = null;
-        this.notifyTimerChange(null);
         if (this.plugin.focusLogService) {
             await this.plugin.focusLogService.logUpdate(true);
         }
@@ -855,7 +748,6 @@ export class TaskTimerView extends ItemView {
         }
         this.clearTimer();
         this.currentTimer = null;
-        this.notifyTimerChange(null);
         if (this.plugin.focusLogService) {
             await this.plugin.focusLogService.logUpdate(false);
         }
@@ -941,65 +833,6 @@ export class TaskTimerView extends ItemView {
         return results;
     }
 
-    public resolveExerciseProtocolItems(taskName: string): string[] {
-        if (!taskName) return [];
-        const clean = taskName.toLowerCase();
-        const exMatch = clean.match(/exercises?:\s*phase\s*([123])/i) || clean.match(/phase\s*([123])\s*exercises?/i) || clean.match(/^phase\s*([123])/i);
-        if (!exMatch) return [];
-
-        const phaseNum = exMatch[1];
-        const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-        const todayKey = days[new Date().getDay()];
-
-        if (phaseNum === '1') {
-            return [
-                "Sun Salute: Reach overhead, lift sternum, 3–5 deep breaths",
-                "Hamstring Scoops: 10 dynamic alternating sweeps",
-                "Standing Quad Stretch: 30s/side (knees together, glute squeeze)",
-                "Wall-Arm Chest Opener: 30s/side (at/below shoulder level)",
-                "Forearm Plank: 1 set × 35–45s (glutes tight, neutral neck)",
-                "Deep Neck Flexors: 1 set × 8–10 reps (5–10s chin-tuck holds)",
-                "Banded Wall Slides: 1–2 sets × 10–12 reps (serratus upward rotation)",
-                "Nerve Glides & Pelvic Floor: Median, ulnar, radial + Kegels"
-            ];
-        } else if (phaseNum === '2') {
-            const p2Schedules: Record<string, string[]> = {
-                "mon": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
-                "wed": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
-                "fri": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
-                "tue": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
-                "thu": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
-                "sat": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
-                "sun": ["20-30 min gentle walk or outdoor stroll", "Light diaphragmatic breathing & nerve glides"]
-            };
-            return p2Schedules[todayKey] || p2Schedules["mon"];
-        } else if (phaseNum === '3') {
-            const p3Schedules: Record<string, string[]> = {
-                "mon": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
-                "wed": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
-                "fri": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
-                "tue": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
-                "thu": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
-                "sat": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
-                "sun": ["Pelvic floor down-training & supine belly breathing", "Gentle median, ulnar, radial nerve flossing"]
-            };
-            return p3Schedules[todayKey] || p3Schedules["mon"];
-        }
-        return [];
-    }
-
-    public getTimerChecklistItems(): string[] {
-        if (!this.currentTimer) return [];
-        if (Array.isArray(this.currentTimer.items) && this.currentTimer.items.length > 0) {
-            return this.currentTimer.items;
-        }
-        if (this.currentTimer.task && Array.isArray(this.currentTimer.task.items) && this.currentTimer.task.items.length > 0) {
-            return this.currentTimer.task.items;
-        }
-        const taskName = this.currentTimer.taskName || (this.currentTimer.task ? this.currentTimer.task.description : "");
-        return this.resolveExerciseProtocolItems(taskName);
-    }
-
     public renderTimer(): void {
         if (!this.currentTimer && this.plugin?.activeTimer) {
             this.currentTimer = this.plugin.activeTimer;
@@ -1033,24 +866,13 @@ export class TaskTimerView extends ItemView {
             }, 500);
         }
 
-        const { audioHost, mainBody, footer } = this.ensureStructure();
-        mainBody.style.order = '1';
-        audioHost.style.order = '2';
-        footer.style.order = '3';
-        footer.style.display = 'block';
+        const container = this.contentEl;
+        container.empty();
 
-        mainBody.empty();
-        const timerContainer = mainBody.createDiv({ cls: 'timer-view-container' });
+        const viewContainer = container.createDiv({ cls: 'task-timer-view-container' });
+        const timerContainer = viewContainer.createDiv({ cls: 'timer-view-container' });
 
-        const titleEl = timerContainer.createEl('a', {
-            cls: 'timer-task-title timer-task-title-link',
-            text: this.currentTimer.taskName
-        });
-        titleEl.title = "Click to jump to this task in note";
-        titleEl.onclick = async (e) => {
-            e.preventDefault();
-            await this.jumpToActiveTask();
-        };
+        timerContainer.createDiv({ cls: 'timer-task-title', text: this.currentTimer.taskName });
 
         const circle = timerContainer.createDiv({ cls: 'timer-circle-container pulsing' });
         this.timeTextEl = circle.createDiv({ cls: 'timer-countdown-text' });
@@ -1066,12 +888,7 @@ export class TaskTimerView extends ItemView {
         const controls = timerContainer.createDiv({ cls: 'timer-controls' });
 
         this.pauseBtn = controls.createEl('button', { cls: 'timer-btn', text: this.currentTimer.isPaused ? 'Resume' : 'Pause' });
-        this.pauseBtn.onclick = async () => {
-            const action = this.currentTimer?.isPaused ? 'play' : 'pause';
-            if (!await this.controlHostedMedia(action)) {
-                new Notice('Could not control kilPC media. Timer and music remain together.');
-            }
-        };
+        this.pauseBtn.onclick = () => this.togglePause();
 
         const completeBtn = controls.createEl('button', { cls: 'timer-btn primary', text: 'Complete' });
         completeBtn.onclick = () => this.completeTimer();
@@ -1079,89 +896,12 @@ export class TaskTimerView extends ItemView {
         const cancelBtn = controls.createEl('button', { cls: 'timer-btn warning', text: 'Cancel' });
         cancelBtn.onclick = () => this.cancelTimer();
 
-        // Active task checklist / movement protocol items
-        const checklistItems = this.getTimerChecklistItems();
-        if (checklistItems && checklistItems.length > 0) {
-            if (!this.currentTimer.items || this.currentTimer.items.length === 0) {
-                this.currentTimer.items = checklistItems;
-            }
-            if (!this.currentTimer.completedItems) {
-                this.currentTimer.completedItems = [];
-            }
-            const completedSet = new Set<number>(this.currentTimer.completedItems);
+        // Focus Audio Player Card (Timer-Synced)
+        this.renderFocusAudioCard(timerContainer);
 
-            const checklistContainer = timerContainer.createDiv({ cls: 'timer-checklist-container' });
-
-            const header = checklistContainer.createDiv({ cls: 'timer-checklist-header' });
-            const headerLeft = header.createDiv({ cls: 'timer-checklist-header-left' });
-            const toggleIcon = headerLeft.createSpan({ cls: 'timer-checklist-toggle-icon', text: '▼ ' });
-            headerLeft.createSpan({ cls: 'timer-checklist-title', text: '📋 Routine Movements' });
-
-            const badge = header.createSpan({
-                cls: 'timer-checklist-badge',
-                text: `${completedSet.size} / ${checklistItems.length}`
-            });
-
-            const listEl = checklistContainer.createDiv({ cls: 'timer-checklist-items' });
-
-            let isExpanded = true;
-            header.onclick = (e) => {
-                e.stopPropagation();
-                isExpanded = !isExpanded;
-                listEl.style.display = isExpanded ? 'flex' : 'none';
-                toggleIcon.setText(isExpanded ? '▼ ' : '▶ ');
-            };
-
-            checklistItems.forEach((itemText: string, idx: number) => {
-                const isCompleted = completedSet.has(idx);
-                const itemRow = listEl.createDiv({
-                    cls: `timer-checklist-item${isCompleted ? ' is-completed' : ''}`
-                });
-
-                const cb = itemRow.createEl('input', {
-                    type: 'checkbox',
-                    cls: 'timer-checklist-cb'
-                });
-                cb.checked = isCompleted;
-
-                const textSpan = itemRow.createSpan({
-                    cls: 'timer-checklist-text',
-                    text: itemText
-                });
-
-                const toggleItem = (ev?: Event) => {
-                    if (ev) ev.stopPropagation();
-                    if (completedSet.has(idx)) {
-                        completedSet.delete(idx);
-                    } else {
-                        completedSet.add(idx);
-                    }
-                    this.currentTimer.completedItems = Array.from(completedSet);
-                    if (this.plugin) {
-                        this.plugin.activeTimer = this.currentTimer;
-                    }
-                    this.notifyTimerChange(this.currentTimer);
-                    const nowCompleted = completedSet.has(idx);
-                    cb.checked = nowCompleted;
-                    itemRow.toggleClass('is-completed', nowCompleted);
-                    badge.setText(`${completedSet.size} / ${checklistItems.length}`);
-                };
-
-                cb.onclick = (e) => {
-                    e.stopPropagation();
-                    toggleItem(e);
-                };
-
-                itemRow.onclick = (e) => {
-                    toggleItem(e);
-                };
-            });
-        }
-
-        footer.empty();
-        const nextTaskEl = footer.createDiv({
+        const nextTaskEl = timerContainer.createDiv({
             cls: 'timer-next-task-container',
-            style: 'margin: 10px 0 20px 0; border-top: 1px solid var(--background-modifier-border); padding-top: 15px; font-size: 13px; color: var(--text-muted); text-align: center;'
+            style: 'margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 15px; font-size: 13px; color: var(--text-muted); text-align: center;'
         });
         nextTaskEl.textContent = "Loading next task...";
 
@@ -1180,48 +920,6 @@ export class TaskTimerView extends ItemView {
                 nextTaskEl.innerHTML = `⏭️ <strong>Next:</strong> None scheduled`;
             }
         });
-    }
-
-    public async jumpToActiveTask(): Promise<void> {
-        if (!this.currentTimer) return;
-        const task = this.currentTimer.task;
-        const taskName = this.currentTimer.taskName;
-
-        let targetFile: any = null;
-        if (task && task.sourceFile) {
-            targetFile = this.app.vault.getAbstractFileByPath(task.sourceFile);
-        }
-        if (!targetFile) {
-            targetFile = this.getDailyNoteFile();
-        }
-        if (!targetFile) return;
-
-        let leaf = this.app.workspace.getMostRecentLeaf();
-        if (!leaf || leaf.view instanceof TaskTimerView) {
-            leaf = this.app.workspace.getLeaf(false);
-        }
-        await leaf.openFile(targetFile);
-
-        const mdView = leaf.view instanceof MarkdownView ? leaf.view : null;
-        if (mdView && mdView.editor) {
-            const doc = mdView.editor.getValue();
-            const lines = doc.split(/\r?\n/);
-            let targetLine = task && typeof task.lineIndex === 'number' ? task.lineIndex : -1;
-
-            if (targetLine === -1 || targetLine >= lines.length || !lines[targetLine].toLowerCase().includes(taskName.toLowerCase().trim())) {
-                const cleanTarget = taskName.toLowerCase().replace(/[^a-z0-9]/g, '');
-                targetLine = lines.findIndex(l => {
-                    const cleanL = l.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return cleanTarget.length > 3 ? cleanL.includes(cleanTarget) : l.toLowerCase().includes(taskName.toLowerCase());
-                });
-            }
-
-            if (targetLine !== -1) {
-                mdView.editor.setCursor({ line: targetLine, ch: 0 });
-                mdView.editor.scrollIntoView({ from: { line: targetLine, ch: 0 }, to: { line: targetLine, ch: 0 } }, true);
-                new Notice(`📍 Jumped to: ${taskName}`);
-            }
-        }
     }
 
     public async adjustActiveTimer(minutes: number): Promise<void> {
@@ -1335,10 +1033,7 @@ export class TaskTimerView extends ItemView {
             if (this.pauseBtn) this.pauseBtn.setText('Resume');
             const circle = this.contentEl.querySelector('.timer-circle-container');
             if (circle) circle.removeClass('pulsing');
-            // Fire-and-forget logPause in background so UI and REST APIs respond in <5ms
-            if (this.plugin.focusLogService) {
-                this.plugin.focusLogService.logPause().catch((e: any) => console.error("Error in logPause:", e));
-            }
+            if (this.plugin.focusLogService) await this.plugin.focusLogService.logPause();
             if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerPause();
         } else {
             const remainingMs = (this.currentTimer.pausedRemainingMs !== null && this.currentTimer.pausedRemainingMs !== undefined)
@@ -1349,10 +1044,7 @@ export class TaskTimerView extends ItemView {
             if (this.pauseBtn) this.pauseBtn.setText('Pause');
             const circle = this.contentEl.querySelector('.timer-circle-container');
             if (circle) circle.addClass('pulsing');
-            // Fire-and-forget logResume in background so UI and REST APIs respond in <5ms
-            if (this.plugin.focusLogService) {
-                this.plugin.focusLogService.logResume().catch((e: any) => console.error("Error in logResume:", e));
-            }
+            if (this.plugin.focusLogService) await this.plugin.focusLogService.logResume();
             if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerResume();
         }
 
@@ -1380,15 +1072,10 @@ export class TaskTimerView extends ItemView {
             this.plugin.timerEngineService.startTitleFlash(taskName);
         }
 
-        const { audioHost, mainBody, footer } = this.ensureStructure();
-        mainBody.style.order = '1';
-        audioHost.style.order = '2';
-        footer.style.order = '3';
-        footer.empty();
-        footer.style.display = 'none';
+        const container = this.contentEl;
+        container.empty();
 
-        mainBody.empty();
-        const overlay = mainBody.createDiv({ cls: 'alarm-overlay' });
+        const overlay = container.createDiv({ cls: 'alarm-overlay' });
         overlay.createDiv({ cls: 'alarm-task-name', text: taskName });
         overlay.createDiv({ cls: 'alarm-alert-text', text: "Focus session finished!" });
 
@@ -1549,12 +1236,10 @@ export class TaskTimerView extends ItemView {
                 }
             });
 
-            // Pre-select track: either already selected, or saved in settings, or Tipper, or first track
+            // Pre-select track: either already selected, or Tipper, or first track
             if (!audioService.currentTrack && tracks.length > 0) {
-                const savedUrl = this.plugin.settings?.focusAudioTrackUrl;
-                const matchSaved = savedUrl ? tracks.find(t => t.url === savedUrl) : null;
                 const tipperTrack = tracks.find(t => t.label.toLowerCase().includes('tipper'));
-                const defaultTrack = matchSaved || tipperTrack || tracks[0];
+                const defaultTrack = tipperTrack || tracks[0];
                 audioService.selectTrack(defaultTrack);
                 selectEl.value = defaultTrack.url;
             } else if (audioService.currentTrack) {
@@ -1659,22 +1344,11 @@ export class TaskTimerView extends ItemView {
             }
         };
 
-        const isDrawerSavedOpen = this.plugin.settings?.focusAudioMiniPlayerExpanded === true;
-        if (isDrawerSavedOpen) {
-            embedDrawer.addClass('expanded');
-            drawerToggle.setText('Hide Player ▲');
-            updateEmbedDrawerContent();
-        }
-
         audioService.setOnEnsureVisible(() => {
             updateEmbedDrawerContent();
             if (!embedDrawer.hasClass('expanded')) {
                 embedDrawer.addClass('expanded');
                 drawerToggle.setText('Hide Player ▲');
-                if (this.plugin.settings) {
-                    this.plugin.settings.focusAudioMiniPlayerExpanded = true;
-                    this.plugin.saveSettings().catch(() => {});
-                }
             }
         });
 
@@ -1683,18 +1357,10 @@ export class TaskTimerView extends ItemView {
             if (isExpanded) {
                 embedDrawer.removeClass('expanded');
                 drawerToggle.setText('Mini Player ▼');
-                if (this.plugin.settings) {
-                    this.plugin.settings.focusAudioMiniPlayerExpanded = false;
-                    this.plugin.saveSettings().catch(() => {});
-                }
             } else {
                 updateEmbedDrawerContent();
                 embedDrawer.addClass('expanded');
                 drawerToggle.setText('Hide Player ▲');
-                if (this.plugin.settings) {
-                    this.plugin.settings.focusAudioMiniPlayerExpanded = true;
-                    this.plugin.saveSettings().catch(() => {});
-                }
             }
         };
 

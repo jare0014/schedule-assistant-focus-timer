@@ -122,6 +122,9 @@ class TimerService : Service() {
             }
             "PAUSE" -> {
                 prefs.activeTimerIsPaused = true
+                if (prefs.isAudioAutoSyncEnabled) {
+                    com.example.media.FocusMediaService.pauseAudio(applicationContext)
+                }
                 updateNotificationAndWidget()
                 syncTimerStateToWatch()
                 serviceScope.launch(Dispatchers.IO) {
@@ -135,6 +138,9 @@ class TimerService : Service() {
             }
             "RESUME" -> {
                 prefs.activeTimerIsPaused = false
+                if (prefs.isAudioAutoSyncEnabled) {
+                    com.example.media.FocusMediaService.resumeAudio(applicationContext)
+                }
                 updateNotificationAndWidget()
                 syncTimerStateToWatch()
                 serviceScope.launch(Dispatchers.IO) {
@@ -147,6 +153,9 @@ class TimerService : Service() {
                 }
             }
             "CANCEL" -> {
+                if (prefs.isAudioAutoSyncEnabled) {
+                    com.example.media.FocusMediaService.pauseAudio(applicationContext)
+                }
                 serviceScope.launch(Dispatchers.IO) {
                     try {
                         val repo = ObsidianSyncRepository(applicationContext)
@@ -201,6 +210,7 @@ class TimerService : Service() {
 
     private fun triggerAlarm() {
         prefs.isAlarming = true
+        com.example.media.FocusMediaService.duckAudio(applicationContext)
         updateNotificationAndWidget()
         syncTimerStateToWatch()
         
@@ -246,6 +256,7 @@ class TimerService : Service() {
         
         // Stop audio & vibration
         try {
+            com.example.media.FocusMediaService.unduckAudio(applicationContext)
             if (ringtone?.isPlaying == true) {
                 ringtone?.stop()
             }

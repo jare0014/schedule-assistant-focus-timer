@@ -7,7 +7,7 @@
 import { App, Notice, TFile } from 'obsidian';
 import { DailyNoteManager } from './DailyNoteManager';
 
-export type AudioSourceType = 'youtube' | 'local' | 'spotify' | 'web' | 'external_web' | 'ambient';
+export type AudioSourceType = 'youtube' | 'local' | 'spotify' | 'web' | 'external_web';
 
 export interface FocusTrackItem {
     label: string;
@@ -18,7 +18,6 @@ export interface FocusTrackItem {
     playlistId?: string;
     embedUrl?: string;
     localFile?: TFile;
-    ambientId?: string;
 }
 
 export class FocusAudioService {
@@ -45,17 +44,6 @@ export class FocusAudioService {
     private messageListener: ((evt: MessageEvent) => void) | null = null;
     private onEnsureVisible: (() => void) | null = null;
 
-    // Web Audio ambient sound generator
-    private ambientCtx: AudioContext | null = null;
-    private ambientNodes: AudioNode[] = [];
-    private ambientGainNode: GainNode | null = null;
-
-    // Media Session anchor (silent audio element to keep OS media controls alive)
-    private mediaAnchor: HTMLAudioElement | null = null;
-
-    // Global keyboard media key listener
-    private mediaKeyListener: ((evt: KeyboardEvent) => void) | null = null;
-
     constructor(app: App, getSettings: () => any, saveSettings: () => Promise<void>) {
         this.app = app;
         this.getSettings = getSettings;
@@ -63,27 +51,15 @@ export class FocusAudioService {
 
         // Restore saved preference if available
         const s = this.getSettings();
-        if (s) {
-            if (typeof s.focusAudioAutoSync === 'boolean') {
-                this.autoSyncWithTimer = s.focusAudioAutoSync;
-            }
-            if (typeof s.focusAudioVolume === 'number') {
-                this.volume = s.focusAudioVolume;
-            }
-            if (s.focusAudioTrackUrl) {
-                this.currentTrack = {
-                    label: s.focusAudioTrackLabel || 'Focus Audio',
-                    url: s.focusAudioTrackUrl,
-                    type: (s.focusAudioTrackType || 'youtube') as AudioSourceType,
-                    isInternal: Boolean(s.focusAudioTrackUrl.startsWith('0') || s.focusAudioTrackUrl.startsWith('9') || s.focusAudioTrackUrl.endsWith('.mp3')),
-                    embedUrl: s.focusAudioTrackEmbedUrl
-                };
-            }
+        if (s && typeof s.focusAudioAutoSync === 'boolean') {
+            this.autoSyncWithTimer = s.focusAudioAutoSync;
+        }
+        if (s && typeof s.focusAudioVolume === 'number') {
+            this.volume = s.focusAudioVolume;
         }
 
         this.setupMediaSession();
         this.setupYouTubeMessageListener();
-        this.setupMediaKeyListener();
     }
 
     public setOnEnsureVisible(handler: (() => void) | null): void {
@@ -173,223 +149,6 @@ export class FocusAudioService {
         };
         window.addEventListener('message', this.messageListener);
     }
-
-    private setupMediaKeyListener(): void {
-        this.mediaKeyListener = async (evt: KeyboardEvent) => {
-            if (evt.key === 'MediaPlayPause') {
-                evt.preventDefault();
-                await this.togglePlay();
-            } else if (evt.key === 'MediaStop') {
-                evt.preventDefault();
-                this.stop();
-            }
-        };
-        window.addEventListener('keydown', this.mediaKeyListener);
-    }
-
-    // ==========================================
-    // Media Session Anchor (keeps OS media controls alive)
-    // ==========================================
-
-    private ensureMediaAnchor(): void {
-        if (this.mediaAnchor) return;
-        try {
-            this.mediaAnchor = new Audio();
-            // Generate a tiny silent WAV in a data URI (44 bytes of silence)
-            // This keeps navigator.mediaSession active on Windows SMTC and Android
-            const silentWav = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-            this.mediaAnchor.src = silentWav;
-            this.mediaAnchor.loop = true;
-            this.mediaAnchor.volume = 0.01; // Near-silent
-        } catch (e) {
-            console.warn("FocusAudioService: could not create media anchor:", e);
-        }
-    }
-
-    private startMediaAnchor(): void {
-        this.ensureMediaAnchor();
-        if (this.mediaAnchor) {
-            this.mediaAnchor.play().catch(() => {});
-        }
-    }
-
-    private stopMediaAnchor(): void {
-        if (this.mediaAnchor) {
-            this.mediaAnchor.pause();
-        }
-    }
-
-    // ==========================================
-    // Built-in Ambient Sound Generators (Web Audio API)
-    // ==========================================
-
-    public static readonly AMBIENT_PRESETS: { id: string; label: string; emoji: string }[] = [
-        { id: 'brown-noise', label: 'Brown Noise', emoji: '🌊' },
-        { id: 'pink-noise', label: 'Pink Noise', emoji: '🌸' },
-        { id: 'gamma-40hz', label: '40Hz Gamma Binaural', emoji: '⚡' },
-        { id: 'rain', label: 'Gentle Rain', emoji: '🌧️' }
-    ];
-
-    private startAmbientGenerator(ambientId: string): void {
-        this.stopAmbientGenerator();
-
-        try {
-            const AudioCtxClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-            if (!AudioCtxClass) {
-                new Notice('Web Audio API not available');
-                return;
-            }
-            this.ambientCtx = new AudioCtxClass();
-            const ctx = this.ambientCtx;
-
-            this.ambientGainNode = ctx.createGain();
-            this.ambientGainNode.gain.value = this.isMuted ? 0 : this.volume;
-            this.ambientGainNode.connect(ctx.destination);
-
-            switch (ambientId) {
-                case 'brown-noise':
-                    this.createBrownNoise(ctx, this.ambientGainNode);
-                    break;
-                case 'pink-noise':
-                    this.createPinkNoise(ctx, this.ambientGainNode);
-                    break;
-                case 'gamma-40hz':
-                    this.createGammaBinaural(ctx, this.ambientGainNode);
-                    break;
-                case 'rain':
-                    this.createRainSound(ctx, this.ambientGainNode);
-                    break;
-                default:
-                    this.createBrownNoise(ctx, this.ambientGainNode);
-            }
-
-            // Start media anchor so OS media controls stay alive
-            this.startMediaAnchor();
-        } catch (e) {
-            console.error("FocusAudioService: ambient generator error:", e);
-            new Notice(`Ambient audio error: ${e instanceof Error ? e.message : String(e)}`);
-        }
-    }
-
-    private stopAmbientGenerator(): void {
-        if (this.ambientCtx) {
-            try {
-                this.ambientNodes.forEach(node => {
-                    try { node.disconnect(); } catch (e) {}
-                });
-                this.ambientCtx.close();
-            } catch (e) {}
-            this.ambientCtx = null;
-            this.ambientNodes = [];
-            this.ambientGainNode = null;
-        }
-        this.stopMediaAnchor();
-    }
-
-    private createBrownNoise(ctx: AudioContext, destination: AudioNode): void {
-        const bufferSize = 4096;
-        const processor = ctx.createScriptProcessor(bufferSize, 1, 1);
-        let lastOut = 0;
-        processor.onaudioprocess = (e) => {
-            const output = e.outputBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                const white = Math.random() * 2 - 1;
-                lastOut = (lastOut + (0.02 * white)) / 1.02;
-                output[i] = lastOut * 3.5; // Amplify
-            }
-        };
-        processor.connect(destination);
-        this.ambientNodes.push(processor);
-    }
-
-    private createPinkNoise(ctx: AudioContext, destination: AudioNode): void {
-        const bufferSize = 4096;
-        const processor = ctx.createScriptProcessor(bufferSize, 1, 1);
-        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-        processor.onaudioprocess = (e) => {
-            const output = e.outputBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                const white = Math.random() * 2 - 1;
-                b0 = 0.99886 * b0 + white * 0.0555179;
-                b1 = 0.99332 * b1 + white * 0.0750759;
-                b2 = 0.96900 * b2 + white * 0.1538520;
-                b3 = 0.86650 * b3 + white * 0.3104856;
-                b4 = 0.55000 * b4 + white * 0.5329522;
-                b5 = -0.7616 * b5 - white * 0.0168980;
-                output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-                output[i] *= 0.11; // Scale to reasonable volume
-                b6 = white * 0.115926;
-            }
-        };
-        processor.connect(destination);
-        this.ambientNodes.push(processor);
-    }
-
-    private createGammaBinaural(ctx: AudioContext, destination: AudioNode): void {
-        // Left ear: 200Hz carrier, Right ear: 240Hz → 40Hz binaural beat difference
-        const merger = ctx.createChannelMerger(2);
-        
-        const leftOsc = ctx.createOscillator();
-        leftOsc.type = 'sine';
-        leftOsc.frequency.value = 200;
-        const leftGain = ctx.createGain();
-        leftGain.gain.value = 0.3;
-        leftOsc.connect(leftGain);
-        leftGain.connect(merger, 0, 0); // Left channel
-
-        const rightOsc = ctx.createOscillator();
-        rightOsc.type = 'sine';
-        rightOsc.frequency.value = 240;
-        const rightGain = ctx.createGain();
-        rightGain.gain.value = 0.3;
-        rightOsc.connect(rightGain);
-        rightGain.connect(merger, 0, 1); // Right channel
-
-        merger.connect(destination);
-
-        leftOsc.start();
-        rightOsc.start();
-
-        this.ambientNodes.push(leftOsc, rightOsc, leftGain, rightGain, merger);
-    }
-
-    private createRainSound(ctx: AudioContext, destination: AudioNode): void {
-        const bufferSize = 4096;
-        const processor = ctx.createScriptProcessor(bufferSize, 1, 1);
-
-        // Bandpass filter to shape white noise into rain-like sound
-        const bandpass = ctx.createBiquadFilter();
-        bandpass.type = 'bandpass';
-        bandpass.frequency.value = 1500;
-        bandpass.Q.value = 0.7;
-
-        // Low-frequency rumble for distant thunder
-        const lfoOsc = ctx.createOscillator();
-        lfoOsc.type = 'sine';
-        lfoOsc.frequency.value = 0.15; // Very slow modulation
-        const lfoGain = ctx.createGain();
-        lfoGain.gain.value = 0.08;
-        lfoOsc.connect(lfoGain);
-        lfoGain.connect(destination);
-        lfoOsc.start();
-
-        let lastOut = 0;
-        processor.onaudioprocess = (e) => {
-            const output = e.outputBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                const white = Math.random() * 2 - 1;
-                // Slight brown-ish filtering for natural rain patter
-                lastOut = (lastOut + (0.05 * white)) / 1.05;
-                output[i] = lastOut * 8 + white * 0.3;
-            }
-        };
-
-        processor.connect(bandpass);
-        bandpass.connect(destination);
-
-        this.ambientNodes.push(processor, bandpass, lfoOsc, lfoGain);
-    }
-
 
     public onStateChange(callback: (service: FocusAudioService) => void): () => void {
         this.stateListeners.push(callback);
@@ -486,41 +245,16 @@ export class FocusAudioService {
             console.error("FocusAudioService: error scanning vault audio files:", e);
         }
 
-        // 3. Add built-in ambient generators at the TOP (always controllable, zero latency)
-        for (const preset of FocusAudioService.AMBIENT_PRESETS) {
-            const ambientUrl = `ambient://${preset.id}`;
-            if (!tracks.some(t => t.url === ambientUrl)) {
-                tracks.unshift({
-                    label: `${preset.emoji} ${preset.label}`,
-                    url: ambientUrl,
-                    type: 'ambient',
-                    isInternal: true,
-                    ambientId: preset.id
-                });
-            }
-        }
-
-        // 4. Add controllable YouTube presets (embeddable, controllable via IFrame API)
-        const ytPresets: { label: string; url: string }[] = [
-            { label: 'Tipper - Saenger with Singer', url: 'https://www.youtube.com/watch?v=sU1474z71xI' },
+        // 3. Add default standard focus presets if not already detected
+        const presets: { label: string; url: string; type: AudioSourceType; isInternal: boolean }[] = [
+            { label: 'Tipper - Saenger with Singer', url: 'https://www.youtube.com/watch?v=sU1474z71xI', type: 'youtube', isInternal: false },
+            { label: 'EquiSync Element System', url: 'https://equisync.eocinstitute.org/element-system/', type: 'external_web', isInternal: false },
+            { label: 'YouTube Music', url: 'https://music.youtube.com/', type: 'external_web', isInternal: false },
+            { label: 'Spotify Deep Focus', url: 'https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO', type: 'spotify', isInternal: false }
         ];
 
-        for (const preset of ytPresets) {
+        for (const preset of presets) {
             if (!tracks.some(t => t.url === preset.url || t.label.toLowerCase() === preset.label.toLowerCase())) {
-                const categorized = this.categorizeUrl(preset.label, preset.url, false);
-                tracks.push(categorized);
-            }
-        }
-
-        // 5. External web sources (uncontrollable - launch only, clearly marked)
-        const externalPresets: { label: string; url: string }[] = [
-            { label: '🌐 EquiSync Element System', url: 'https://equisync.eocinstitute.org/element-system/' },
-            { label: '🌐 YouTube Music', url: 'https://music.youtube.com/' },
-            { label: '🌐 Spotify Deep Focus', url: 'https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO' }
-        ];
-
-        for (const preset of externalPresets) {
-            if (!tracks.some(t => t.url === preset.url)) {
                 const categorized = this.categorizeUrl(preset.label, preset.url, false);
                 tracks.push(categorized);
             }
@@ -622,17 +356,6 @@ export class FocusAudioService {
         // Stop current before switching
         this.stop();
         this.currentTrack = track;
-
-        // Persist selected track
-        const s = this.getSettings();
-        if (s) {
-            s.focusAudioTrackUrl = track ? track.url : '';
-            s.focusAudioTrackLabel = track ? track.label : '';
-            s.focusAudioTrackType = track ? track.type : '';
-            s.focusAudioTrackEmbedUrl = track ? (track.embedUrl || '') : '';
-            this.saveSettings().catch(() => {});
-        }
-
         this.notify();
     }
 
@@ -643,9 +366,7 @@ export class FocusAudioService {
         if (!this.currentTrack) return;
 
         try {
-            if (this.currentTrack.type === 'ambient') {
-                this.startAmbientGenerator(this.currentTrack.ambientId || 'brown-noise');
-            } else if (this.currentTrack.type === 'local') {
+            if (this.currentTrack.type === 'local') {
                 await this.playLocalTrack(this.currentTrack);
             } else if (this.currentTrack.type === 'youtube') {
                 this.playYouTubeTrack(this.currentTrack);
@@ -669,19 +390,14 @@ export class FocusAudioService {
     public pause(): void {
         if (!this.isPlaying) return;
 
-        if (this.currentTrack?.type === 'ambient') {
-            // Mute the ambient generator gain to "pause" (keeps AudioContext alive for instant resume)
-            if (this.ambientGainNode) {
-                this.ambientGainNode.gain.value = 0;
-            }
-            this.stopMediaAnchor();
-        } else if (this.currentTrack?.type === 'local') {
+        if (this.currentTrack?.type === 'local') {
             if (this.audioElement) {
                 this.audioElement.pause();
             }
         } else if (this.currentTrack?.type === 'youtube') {
             this.sendYouTubeCommand('pauseVideo');
         } else if (this.currentTrack?.type === 'web' || this.currentTrack?.type === 'spotify') {
+            // For general iframes, mute or postMessage
             if (this.iframeElement) {
                 try {
                     this.iframeElement.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
@@ -701,19 +417,7 @@ export class FocusAudioService {
     public async resume(): Promise<void> {
         if (!this.currentTrack) return;
 
-        if (this.currentTrack.type === 'ambient') {
-            if (this.ambientCtx && this.ambientGainNode) {
-                // Resume AudioContext if it was suspended
-                if (this.ambientCtx.state === 'suspended') {
-                    await this.ambientCtx.resume();
-                }
-                this.ambientGainNode.gain.value = this.isMuted ? 0 : this.volume;
-                this.startMediaAnchor();
-                this.isPlaying = true;
-                this.notify();
-                return;
-            }
-        } else if (this.currentTrack.type === 'local') {
+        if (this.currentTrack.type === 'local') {
             if (this.audioElement) {
                 await this.audioElement.play();
                 this.isPlaying = true;
@@ -739,16 +443,8 @@ export class FocusAudioService {
 
     public async ensureTrackLoaded(): Promise<FocusTrackItem | null> {
         if (this.currentTrack) return this.currentTrack;
-        const s = this.getSettings();
         const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
         const tracks = await this.scanAvailableTracks(dailyFile);
-        if (s && s.focusAudioTrackUrl) {
-            const saved = tracks.find(t => t.url === s.focusAudioTrackUrl);
-            if (saved) {
-                this.selectTrack(saved);
-                return saved;
-            }
-        }
         if (tracks.length > 0) {
             const tipperTrack = tracks.find(t => t.label.toLowerCase().includes('tipper'));
             const defaultTrack = tipperTrack || tracks[0];
@@ -785,9 +481,6 @@ export class FocusAudioService {
      * Stops playback completely and resets position.
      */
     public stop(): void {
-        // Stop ambient generator
-        this.stopAmbientGenerator();
-
         if (this.audioElement) {
             try {
                 this.audioElement.pause();
@@ -797,6 +490,11 @@ export class FocusAudioService {
 
         if (this.iframeElement) {
             this.sendYouTubeCommand('stopVideo');
+            // Remove iframe from DOM to ensure silence
+            if (this.iframeElement.parentElement) {
+                this.iframeElement.parentElement.removeChild(this.iframeElement);
+            }
+            this.iframeElement = null;
         }
 
         this.isPlaying = false;
@@ -811,9 +509,6 @@ export class FocusAudioService {
         }
         if (this.currentTrack?.type === 'youtube') {
             this.sendYouTubeCommand('setVolume', [Math.round(this.volume * 100)]);
-        }
-        if (this.ambientGainNode && this.currentTrack?.type === 'ambient' && !this.isMuted) {
-            this.ambientGainNode.gain.value = this.volume;
         }
         this.notify();
 
@@ -901,20 +596,15 @@ export class FocusAudioService {
         }
     }
 
-    public launchedExternalUrls: Set<string> = new Set();
-
-    private playExternalWebTrack(track: FocusTrackItem, forceLaunch: boolean = false): void {
+    private playExternalWebTrack(track: FocusTrackItem): void {
         // Clear any previous iframe from container to avoid dead "refused to connect" boxes
         if (this.iframeElement && this.iframeElement.parentElement) {
             this.iframeElement.parentElement.removeChild(this.iframeElement);
             this.iframeElement = null;
         }
 
-        // Only open in browser if not already launched in this session or explicitly forced
-        if (forceLaunch || !this.launchedExternalUrls.has(track.url)) {
-            window.open(track.url, '_blank');
-            this.launchedExternalUrls.add(track.url);
-        }
+        // Open in user's default browser (where they are logged in to YouTube Music / Google)
+        window.open(track.url, '_blank');
         if (this.onEnsureVisible) {
             this.onEnsureVisible();
         }
@@ -966,11 +656,7 @@ export class FocusAudioService {
                 await this.ensureTrackLoaded();
             }
             if (this.currentTrack) {
-                if (this.wasPlayingBeforePause || this.iframeElement || this.audioElement) {
-                    await this.resume();
-                } else {
-                    await this.play();
-                }
+                await this.play();
             }
         }
     }
@@ -996,21 +682,18 @@ export class FocusAudioService {
 
     public onTimerComplete(): void {
         if (this.autoSyncWithTimer) {
-            this.pause();
-            this.wasPlayingBeforePause = true;
+            this.stop();
         }
     }
 
     public onTimerCancel(): void {
         if (this.autoSyncWithTimer) {
-            this.pause();
-            this.wasPlayingBeforePause = false;
+            this.stop();
         }
     }
 
     public onTimerAlarm(): void {
-        // Pause playback so siren/alarm sound is heard clearly, while preserving position for Continue Focus
-        this.pause();
-        this.wasPlayingBeforePause = true;
+        // Always stop or mute music when siren/alarm goes off
+        this.stop();
     }
 }
