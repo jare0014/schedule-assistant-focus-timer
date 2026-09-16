@@ -157,7 +157,9 @@ export class RemoteServerService {
                             targetEndTime: activeTimer.targetEndTime || null,
                             isPaused: activeTimer.isPaused,
                             status: activeTimer.task ? activeTimer.task.status : 'pending',
-                            lineIndex: activeTimer.task ? activeTimer.task.lineIndex : null
+                            lineIndex: activeTimer.task ? activeTimer.task.lineIndex : null,
+                            items: activeTimer.items || (activeTimer.task && activeTimer.task.items ? activeTimer.task.items : []),
+                            completedItems: activeTimer.completedItems || []
                         } : null,
                         isAlarming,
                         focusAudio: plugin.focusAudioService ? {

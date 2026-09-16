@@ -561,65 +561,101 @@ export class TaskTimerView extends ItemView {
                 return;
             }
 
-            const parentIndent = lines[lineIndex].match(/^(\s*)/)![1].length;
-            let endIndex = lineIndex + 1;
-            while (endIndex < lines.length) {
-                const childLine = lines[endIndex];
-                if (!childLine.trim()) { endIndex++; continue; }
-                const childIndent = childLine.match(/^(\s*)/)![1].length;
-                if (childIndent <= parentIndent) break;
-                endIndex++;
-            }
-
-            const blockLines = lines.slice(lineIndex, endIndex);
-            lines.splice(lineIndex, endIndex - lineIndex);
-
             const startH = String(Math.floor(newStartMins / 60) % 24).padStart(2, '0');
             const startM = String(newStartMins % 60).padStart(2, '0');
             const endH = String(Math.floor(newEndMins / 60) % 24).padStart(2, '0');
             const endM = String(newEndMins % 60).padStart(2, '0');
             const newTimeRange = `${startH}:${startM} - ${endH}:${endM}`;
-
-            let parentLine = blockLines[0];
             const timeRangeRegex = /\b\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\s*[\-–—~]\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?\b/;
 
-            if (timeRangeRegex.test(parentLine)) {
-                parentLine = parentLine.replace(timeRangeRegex, newTimeRange);
+            // If task was already timed/scheduled in the note, update its time range IN-PLACE to preserve section/callout context
+            if (!draggedTask.isUntimed) {
+                let currentLine = lines[lineIndex];
+                if (timeRangeRegex.test(currentLine)) {
+                    currentLine = currentLine.replace(timeRangeRegex, newTimeRange);
+                } else {
+                    currentLine = currentLine.replace(/^(\s*(?:>\s*)?-\s+\[[ xX/]\]\s+)(.*)$/, `$1${newTimeRange} $2`);
+                }
+                lines[lineIndex] = DailyNoteManager.normalizeTimeRangeSpaces(currentLine);
             } else {
-                parentLine = parentLine.replace(/^(\s*-\s+\[[ xX/]\]\s+)(.*)$/, `$1${newTimeRange} $2`);
-            }
-            parentLine = DailyNoteManager.normalizeTimeRangeSpaces(parentLine);
-            blockLines[0] = parentLine;
-
-            let focusHeadingIndex = lines.findIndex(l => l.toLowerCase().includes("focus blocks") || l.toLowerCase().includes("day planner"));
-            if (focusHeadingIndex === -1) {
-                focusHeadingIndex = lines.findIndex(l => l.startsWith('## ') && (l.toLowerCase().includes("planner") || l.toLowerCase().includes("schedule")));
-            }
-
-            if (focusHeadingIndex === -1) {
-                lines.push(...blockLines);
-            } else {
-                let insertIndex = focusHeadingIndex + 1;
-                let inserted = false;
-                while (insertIndex < lines.length) {
-                    const curLine = lines[insertIndex];
-                    if (curLine.startsWith('## ') || curLine.startsWith('---')) break;
-                    if (curLine.startsWith('### ') && !curLine.toLowerCase().includes("focus block")) break;
-
-                    const match = curLine.match(/^\s*-\s+\[[ xX/]\]\s+(\d{1,2}):(\d{2})/);
-                    if (match) {
-                        const blockStart = parseInt(match[1]) * 60 + parseInt(match[2]);
-                        if (newStartMins < blockStart) {
-                            lines.splice(insertIndex, 0, ...blockLines);
-                            inserted = true;
-                            break;
-                        }
+                // Untimed task dragged from drawer onto timed grid: extract atomic block safely
+                const parentLine = lines[lineIndex];
+                const rawIndentMatch = parentLine.match(/^(\s*(?:>\s*)?)/);
+                const parentIndent = rawIndentMatch ? rawIndentMatch[1].length : 0;
+                
+                let endIndex = lineIndex + 1;
+                let inCodeFence = false;
+                while (endIndex < lines.length) {
+                    const childLine = lines[endIndex];
+                    if (childLine.trim().startsWith('```')) {
+                        inCodeFence = !inCodeFence;
+                        endIndex++;
+                        continue;
                     }
-                    insertIndex++;
+                    if (inCodeFence) {
+                        endIndex++;
+                        continue;
+                    }
+                    if (!childLine.trim()) {
+                        let nextNonBlank = endIndex + 1;
+                        while (nextNonBlank < lines.length && !lines[nextNonBlank].trim()) nextNonBlank++;
+                        if (nextNonBlank < lines.length) {
+                            const nextRaw = lines[nextNonBlank].match(/^(\s*(?:>\s*)?)/);
+                            const nextIndent = nextRaw ? nextRaw[1].length : 0;
+                            if (nextIndent > parentIndent || lines[nextNonBlank].trim().startsWith('```')) {
+                                endIndex = nextNonBlank;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+                    const childRaw = childLine.match(/^(\s*(?:>\s*)?)/);
+                    const childIndent = childRaw ? childRaw[1].length : 0;
+                    if (childIndent <= parentIndent && (childLine.includes('- [ ]') || childLine.includes('- [x]') || childLine.startsWith('#'))) break;
+                    endIndex++;
                 }
 
-                if (!inserted) {
-                    lines.splice(insertIndex, 0, ...blockLines);
+                const blockLines = lines.slice(lineIndex, endIndex);
+                lines.splice(lineIndex, endIndex - lineIndex);
+
+                let updatedParentLine = blockLines[0];
+                if (timeRangeRegex.test(updatedParentLine)) {
+                    updatedParentLine = updatedParentLine.replace(timeRangeRegex, newTimeRange);
+                } else {
+                    updatedParentLine = updatedParentLine.replace(/^(\s*(?:>\s*)?-\s+\[[ xX/]\]\s+)(.*)$/, `$1${newTimeRange} $2`);
+                }
+                blockLines[0] = DailyNoteManager.normalizeTimeRangeSpaces(updatedParentLine);
+
+                let focusHeadingIndex = lines.findIndex(l => l.toLowerCase().includes("focus blocks") || l.toLowerCase().includes("day planner"));
+                if (focusHeadingIndex === -1) {
+                    focusHeadingIndex = lines.findIndex(l => l.startsWith('## ') && (l.toLowerCase().includes("planner") || l.toLowerCase().includes("schedule")));
+                }
+
+                if (focusHeadingIndex === -1) {
+                    lines.push(...blockLines);
+                } else {
+                    let insertIndex = focusHeadingIndex + 1;
+                    let inserted = false;
+                    while (insertIndex < lines.length) {
+                        const curLine = lines[insertIndex];
+                        if (curLine.startsWith('## ') || curLine.startsWith('---')) break;
+                        if (curLine.startsWith('### ') && !curLine.toLowerCase().includes("focus block")) break;
+
+                        const match = curLine.match(/^\s*(?:>\s*)?-\s+\[[ xX/]\]\s+(\d{1,2}):(\d{2})/);
+                        if (match) {
+                            const blockStart = parseInt(match[1]) * 60 + parseInt(match[2]);
+                            if (newStartMins < blockStart) {
+                                lines.splice(insertIndex, 0, ...blockLines);
+                                inserted = true;
+                                break;
+                            }
+                        }
+                        insertIndex++;
+                    }
+
+                    if (!inserted) {
+                        lines.splice(insertIndex, 0, ...blockLines);
+                    }
                 }
             }
 
@@ -659,6 +695,65 @@ export class TaskTimerView extends ItemView {
         }
     }
 
+    public resolveExerciseProtocolItems(taskName: string): string[] {
+        if (!taskName) return [];
+        const clean = taskName.toLowerCase();
+        const exMatch = clean.match(/exercises?:\s*phase\s*([123])/i) || clean.match(/phase\s*([123])\s*exercises?/i) || clean.match(/^phase\s*([123])/i);
+        if (!exMatch) return [];
+
+        const phaseNum = exMatch[1];
+        const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const todayKey = days[new Date().getDay()];
+
+        if (phaseNum === '1') {
+            return [
+                "Sun Salute: Reach overhead, lift sternum, 3–5 deep breaths",
+                "Hamstring Scoops: 10 dynamic alternating sweeps",
+                "Standing Quad Stretch: 30s/side (knees together, glute squeeze)",
+                "Wall-Arm Chest Opener: 30s/side (at/below shoulder level)",
+                "Forearm Plank: 1 set × 35–45s (glutes tight, neutral neck)",
+                "Deep Neck Flexors: 1 set × 8–10 reps (5–10s chin-tuck holds)",
+                "Banded Wall Slides: 1–2 sets × 10–12 reps (serratus upward rotation)",
+                "Nerve Glides & Pelvic Floor: Median, ulnar, radial + Kegels"
+            ];
+        } else if (phaseNum === '2') {
+            const p2Schedules: Record<string, string[]> = {
+                "mon": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
+                "wed": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
+                "fri": ["Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)", "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"],
+                "tue": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
+                "thu": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
+                "sat": ["Banded Glute Bridges: 3 × 15 (2s peak squeeze)", "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)", "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"],
+                "sun": ["20-30 min gentle walk or outdoor stroll", "Light diaphragmatic breathing & nerve glides"]
+            };
+            return p2Schedules[todayKey] || p2Schedules["mon"];
+        } else if (phaseNum === '3') {
+            const p3Schedules: Record<string, string[]> = {
+                "mon": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
+                "wed": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
+                "fri": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
+                "tue": ["Bowflex Seated Cable Rows: 3 × 10-12 (chest high, pinch lats)", "Standing Dumbbell Lateral Raises: 3 × 12-15 (5 lb DB, lead with elbows)", "Bird-Dogs: 3 × 8/side (3s hold, straight line)", "(Optional) Single-Leg Balance: 2 × 30s/side"],
+                "thu": ["Bowflex Seated Cable Rows: 3 × 10-12 (chest high, pinch lats)", "Standing Dumbbell Lateral Raises: 3 × 12-15 (5 lb DB, lead with elbows)", "Bird-Dogs: 3 × 8/side (3s hold, straight line)", "(Optional) Single-Leg Balance: 2 × 30s/side"],
+                "sat": ["Bowflex Seated Cable Rows: 3 × 10-12 (chest high, pinch lats)", "Standing Dumbbell Lateral Raises: 3 × 12-15 (5 lb DB, lead with elbows)", "Bird-Dogs: 3 × 8/side (3s hold, straight line)", "(Optional) Single-Leg Balance: 2 × 30s/side"],
+                "sun": ["Full body foam rolling & mobility stretch", "10-15 min gentle breathwork"]
+            };
+            return p3Schedules[todayKey] || p3Schedules["mon"];
+        }
+        return [];
+    }
+
+    public getTimerChecklistItems(): string[] {
+        if (!this.currentTimer) return [];
+        if (Array.isArray(this.currentTimer.items) && this.currentTimer.items.length > 0) {
+            return this.currentTimer.items;
+        }
+        if (this.currentTimer.task && Array.isArray((this.currentTimer.task as any).items) && (this.currentTimer.task as any).items.length > 0) {
+            return (this.currentTimer.task as any).items;
+        }
+        const taskName = this.currentTimer.taskName || (this.currentTimer.task ? this.currentTimer.task.description : "");
+        return this.resolveExerciseProtocolItems(taskName);
+    }
+
     public async startTimer(task: any, durationMinutes: number): Promise<void> {
         this.clearTimer();
 
@@ -670,14 +765,20 @@ export class TaskTimerView extends ItemView {
 
         const totalSeconds = durationMinutes * 60;
         const now = Date.now();
+        const items = (typeof task === 'object' && Array.isArray(task.items) && task.items.length > 0)
+            ? task.items
+            : this.resolveExerciseProtocolItems(taskName);
+
         this.currentTimer = {
-            task: typeof task === 'object' ? task : { description: taskName, duration: durationMinutes },
+            task: typeof task === 'object' ? task : { description: taskName, duration: durationMinutes, items },
             taskName,
             remainingSeconds: totalSeconds,
             totalSeconds,
             targetEndTime: now + (totalSeconds * 1000),
             isPaused: false,
-            pausedRemainingMs: null
+            pausedRemainingMs: null,
+            items: items || [],
+            completedItems: []
         };
         this.plugin.activeTimer = this.currentTimer;
 
@@ -898,6 +999,9 @@ export class TaskTimerView extends ItemView {
 
         // Focus Audio Player Card (Timer-Synced)
         this.renderFocusAudioCard(timerContainer);
+
+        // Active task checklist / movement protocol items
+        this.renderTimerChecklist(timerContainer);
 
         const nextTaskEl = timerContainer.createDiv({
             cls: 'timer-next-task-container',
@@ -1392,6 +1496,84 @@ export class TaskTimerView extends ItemView {
                 selectEl.value = service.currentTrack.url;
             }
             updateEmbedDrawerContent();
+        });
+    }
+
+    public renderTimerChecklist(container: HTMLElement): void {
+        const checklistItems = this.getTimerChecklistItems();
+        if (!checklistItems || checklistItems.length === 0) return;
+
+        if (!this.currentTimer) return;
+        if (!this.currentTimer.items || this.currentTimer.items.length === 0) {
+            this.currentTimer.items = checklistItems;
+        }
+        if (!this.currentTimer.completedItems) {
+            this.currentTimer.completedItems = [];
+        }
+        const completedSet = new Set<number>(this.currentTimer.completedItems);
+
+        const checklistContainer = container.createDiv({ cls: 'timer-checklist-container' });
+
+        const header = checklistContainer.createDiv({ cls: 'timer-checklist-header' });
+        const headerLeft = header.createDiv({ cls: 'timer-checklist-header-left' });
+        const toggleIcon = headerLeft.createSpan({ cls: 'timer-checklist-toggle-icon', text: '▼ ' });
+        headerLeft.createSpan({ cls: 'timer-checklist-title', text: '📋 Routine Movements' });
+
+        const badge = header.createSpan({
+            cls: 'timer-checklist-badge',
+            text: `${completedSet.size} / ${checklistItems.length}`
+        });
+
+        const listEl = checklistContainer.createDiv({ cls: 'timer-checklist-items' });
+
+        let isExpanded = true;
+        header.onclick = (e) => {
+            e.stopPropagation();
+            isExpanded = !isExpanded;
+            listEl.style.display = isExpanded ? 'flex' : 'none';
+            toggleIcon.setText(isExpanded ? '▼ ' : '▶ ');
+        };
+
+        checklistItems.forEach((itemText: string, idx: number) => {
+            const isCompleted = completedSet.has(idx);
+            const itemRow = listEl.createDiv({
+                cls: `timer-checklist-item${isCompleted ? ' is-completed' : ''}`
+            });
+
+            const cb = itemRow.createEl('input', {
+                type: 'checkbox',
+                cls: 'timer-checklist-cb'
+            });
+            cb.checked = isCompleted;
+
+            const textSpan = itemRow.createSpan({
+                cls: 'timer-checklist-text',
+                text: itemText
+            });
+
+            const toggleItem = (ev?: Event) => {
+                if (ev) ev.stopPropagation();
+                if (completedSet.has(idx)) {
+                    completedSet.delete(idx);
+                } else {
+                    completedSet.add(idx);
+                }
+                if (this.currentTimer) {
+                    this.currentTimer.completedItems = Array.from(completedSet);
+                }
+                const nowCompleted = completedSet.has(idx);
+                cb.checked = nowCompleted;
+                itemRow.toggleClass('is-completed', nowCompleted);
+                badge.setText(`${completedSet.size} / ${checklistItems.length}`);
+            };
+
+            cb.onclick = (e) => {
+                e.stopPropagation();
+                toggleItem(e);
+            };
+            itemRow.onclick = (e) => {
+                toggleItem(e);
+            };
         });
     }
 }

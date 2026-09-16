@@ -63,6 +63,10 @@ class SyncPreferences(private val context: Context) {
         get() = prefs.getLong("active_timer_target_end_time", 0L)
         set(value) = prefs.edit().putLong("active_timer_target_end_time", value).apply()
 
+    var activeTimerItems: String
+        get() = prefs.getString("active_timer_items", "") ?: ""
+        set(value) = prefs.edit().putString("active_timer_items", value).apply()
+
     var isAlarming: Boolean
         get() = prefs.getBoolean("is_alarming", false)
         set(value) = prefs.edit().putBoolean("is_alarming", value).apply()

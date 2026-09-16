@@ -75,6 +75,8 @@ export interface ActiveTimerState {
     alarmOsc?: any;
     alarmGain?: any;
     audioElement?: HTMLAudioElement | null;
+    items?: string[];
+    completedItems?: number[];
 }
 
 export interface ActiveLogState {

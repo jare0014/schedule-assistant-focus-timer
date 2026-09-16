@@ -177,10 +177,84 @@ function updateUI(state) {
             pauseBtn.className = 'timer-btn btn-secondary'; // grey
             document.querySelector('.progress-ring-container')?.classList.add('pulsing');
         }
+
+        // Active Task Checklist / Routine Protocol in Web UI
+        const checklistContainer = document.getElementById('webTimerChecklist');
+        const checklistHeader = document.getElementById('webTimerChecklistHeader');
+        const checklistBadge = document.getElementById('webChecklistBadge');
+        const checklistItemsEl = document.getElementById('webChecklistItems');
+        const toggleIcon = document.getElementById('webChecklistToggleIcon');
+
+        const items = state.activeTimer.items || [];
+        const completedList = state.activeTimer.completedItems || [];
+        const completedSet = new Set(completedList);
+
+        if (checklistContainer && items.length > 0) {
+            checklistContainer.style.display = 'flex';
+            if (checklistBadge) {
+                checklistBadge.textContent = `${completedSet.size} / ${items.length}`;
+            }
+
+            let isExpanded = checklistItemsEl && checklistItemsEl.style.display !== 'none';
+            if (checklistHeader && !checklistHeader.dataset.bound) {
+                checklistHeader.dataset.bound = 'true';
+                checklistHeader.onclick = (e) => {
+                    e.stopPropagation();
+                    isExpanded = !isExpanded;
+                    if (checklistItemsEl) checklistItemsEl.style.display = isExpanded ? 'flex' : 'none';
+                    if (toggleIcon) toggleIcon.textContent = isExpanded ? '▼ ' : '▶ ';
+                };
+            }
+
+            const currentItemCount = checklistItemsEl ? checklistItemsEl.children.length : 0;
+            if (checklistItemsEl && currentItemCount !== items.length) {
+                checklistItemsEl.innerHTML = '';
+                items.forEach((itemText, idx) => {
+                    const row = document.createElement('div');
+                    row.className = `timer-checklist-item${completedSet.has(idx) ? ' is-completed' : ''}`;
+                    row.id = `web-checklist-item-${idx}`;
+
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.className = 'timer-checklist-cb';
+                    cb.checked = completedSet.has(idx);
+
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'timer-checklist-text';
+                    textSpan.textContent = itemText;
+
+                    const toggle = (e) => {
+                        if (e) e.stopPropagation();
+                        if (completedSet.has(idx)) {
+                            completedSet.delete(idx);
+                        } else {
+                            completedSet.add(idx);
+                        }
+                        state.activeTimer.completedItems = Array.from(completedSet);
+                        cb.checked = completedSet.has(idx);
+                        row.classList.toggle('is-completed', completedSet.has(idx));
+                        if (checklistBadge) {
+                            checklistBadge.textContent = `${completedSet.size} / ${items.length}`;
+                        }
+                    };
+
+                    cb.onclick = toggle;
+                    row.onclick = toggle;
+
+                    row.appendChild(cb);
+                    row.appendChild(textSpan);
+                    checklistItemsEl.appendChild(row);
+                });
+            }
+        } else if (checklistContainer) {
+            checklistContainer.style.display = 'none';
+        }
     } else {
         if (timerSection) timerSection.style.display = 'none';
         timerIdleCard.style.display = 'none';
         timerActiveCard.style.display = 'none';
+        const webChecklist = document.getElementById('webTimerChecklist');
+        if (webChecklist) webChecklist.style.display = 'none';
         document.querySelector('.progress-ring-container')?.classList.remove('pulsing');
     }
 

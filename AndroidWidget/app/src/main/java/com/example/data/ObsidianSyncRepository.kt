@@ -637,6 +637,17 @@ class ObsidianSyncRepository(private val context: Context) {
 
                 val rawLineIdx = timerObj.optInt("lineIndex", -1)
                 prefs.activeTimerLineIndex = if (rawLineIdx >= 0) rawLineIdx + 1 else -1
+
+                val itemsArray = timerObj.optJSONArray("items")
+                if (itemsArray != null && itemsArray.length() > 0) {
+                    val list = mutableListOf<String>()
+                    for (i in 0 until itemsArray.length()) {
+                        list.add(itemsArray.getString(i))
+                    }
+                    prefs.activeTimerItems = JSONArray(list).toString()
+                } else {
+                    prefs.activeTimerItems = ""
+                }
             } else {
                 clearActiveTimerPrefs()
             }
@@ -764,6 +775,7 @@ class ObsidianSyncRepository(private val context: Context) {
         prefs.activeTimerIsPaused = false
         prefs.activeTimerTargetEndTime = 0L
         prefs.activeTimerLineIndex = -1
+        prefs.activeTimerItems = ""
         prefs.isAlarming = false
     }
 

@@ -159,6 +159,7 @@ fun ObsidianTodoScreen(
     var activeTimerTotalSeconds by remember { mutableStateOf(prefs.activeTimerTotalSeconds) }
     var activeTimerIsPaused by remember { mutableStateOf(prefs.activeTimerIsPaused) }
     var activeTimerLineIndex by remember { mutableStateOf(prefs.activeTimerLineIndex) }
+    var activeTimerItems by remember { mutableStateOf(prefs.activeTimerItems) }
     var isAlarming by remember { mutableStateOf(prefs.isAlarming) }
 
     // Focus Audio states
@@ -190,6 +191,7 @@ fun ObsidianTodoScreen(
         activeTimerTotalSeconds = prefs.activeTimerTotalSeconds
         activeTimerIsPaused = prefs.activeTimerIsPaused
         activeTimerLineIndex = prefs.activeTimerLineIndex
+        activeTimerItems = prefs.activeTimerItems
         isAlarming = prefs.isAlarming
         selectedAudioTrackLabel = prefs.selectedAudioTrackLabel
         selectedAudioTrackUrl = prefs.selectedAudioTrackUrl
@@ -965,6 +967,168 @@ fun ObsidianTodoScreen(
                                 modifier = Modifier.height(36.dp)
                             ) {
                                 Text("Complete", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Routine Movements / Checklist
+                    val parsedTimerItems = remember(activeTimerItems, activeTimerTaskName) {
+                        val list = mutableListOf<String>()
+                        if (activeTimerItems.isNotEmpty()) {
+                            try {
+                                val jsonArr = org.json.JSONArray(activeTimerItems)
+                                for (i in 0 until jsonArr.length()) {
+                                    list.add(jsonArr.getString(i))
+                                }
+                            } catch (e: Exception) {}
+                        }
+                        if (list.isEmpty() && activeTimerTaskName.isNotEmpty()) {
+                            val clean = activeTimerTaskName.lowercase()
+                            val phaseNum = when {
+                                clean.contains("phase 1") || clean.contains("phase1") -> "1"
+                                clean.contains("phase 2") || clean.contains("phase2") -> "2"
+                                clean.contains("phase 3") || clean.contains("phase3") -> "3"
+                                else -> null
+                            }
+                            if (phaseNum == "1") {
+                                list.addAll(listOf(
+                                    "Sun Salute: Reach overhead, lift sternum, 3–5 deep breaths",
+                                    "Hamstring Scoops: 10 dynamic alternating sweeps",
+                                    "Standing Quad Stretch: 30s/side (knees together, glute squeeze)",
+                                    "Wall-Arm Chest Opener: 30s/side (at/below shoulder level)",
+                                    "Forearm Plank: 1 set × 35–45s (glutes tight, neutral neck)",
+                                    "Deep Neck Flexors: 1 set × 8–10 reps (5–10s chin-tuck holds)",
+                                    "Banded Wall Slides: 1–2 sets × 10–12 reps (serratus upward rotation)",
+                                    "Nerve Glides & Pelvic Floor: Median, ulnar, radial + Kegels"
+                                ))
+                            } else if (phaseNum == "2") {
+                                val todayDay = java.text.SimpleDateFormat("EEE", java.util.Locale.US).format(java.util.Date()).lowercase()
+                                if (todayDay in listOf("mon", "wed", "fri")) {
+                                    list.addAll(listOf(
+                                        "Goblet Squats: 3 × 10-12 (10 lb DB, soft knees)",
+                                        "Bowflex D-Ring Chest Press: 3 × 10 (elbows at 45°, converging)"
+                                    ))
+                                } else if (todayDay in listOf("tue", "thu", "sat")) {
+                                    list.addAll(listOf(
+                                        "Banded Glute Bridges: 3 × 15 (2s peak squeeze)",
+                                        "Standing Calf Raises: 3 × 15 (2s pause, 3s descent)",
+                                        "Bowflex Lat Pulldowns: 3 × 10-12 (to upper collarbone)"
+                                    ))
+                                } else {
+                                    list.addAll(listOf(
+                                        "20-30 min gentle walk or outdoor stroll",
+                                        "Light diaphragmatic breathing & nerve glides"
+                                    ))
+                                }
+                            } else if (phaseNum == "3") {
+                                val todayDay = java.text.SimpleDateFormat("EEE", java.util.Locale.US).format(java.util.Date()).lowercase()
+                                if (todayDay in listOf("mon", "wed", "fri")) {
+                                    list.addAll(listOf(
+                                        "Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)",
+                                        "Supine Dead Bugs: 3 × 10/side (lumbar flat)",
+                                        "Dumbbell Bicep Curls: 3 × 10 (3s descent)",
+                                        "(Optional) Side Planks: 2 × 30s/side"
+                                    ))
+                                } else if (todayDay in listOf("tue", "thu", "sat")) {
+                                    list.addAll(listOf(
+                                        "Bowflex Seated Cable Rows: 3 × 10-12 (chest high, pinch lats)",
+                                        "Standing Dumbbell Lateral Raises: 3 × 12-15 (5 lb DB, lead with elbows)",
+                                        "Bird-Dogs: 3 × 8/side (3s hold, straight line)",
+                                        "(Optional) Single-Leg Balance: 2 × 30s/side"
+                                    ))
+                                } else {
+                                    list.addAll(listOf(
+                                        "Full body foam rolling & mobility stretch",
+                                        "10-15 min gentle breathwork"
+                                    ))
+                                }
+                            }
+                        }
+                        list
+                    }
+
+                    val completedTimerItemMap = remember { mutableStateMapOf<Int, Boolean>() }
+
+                    if (parsedTimerItems.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        var isChecklistExpanded by remember { mutableStateOf(true) }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(ObsidianBg, RoundedCornerShape(10.dp))
+                                .border(1.dp, ObsidianBorder, RoundedCornerShape(10.dp))
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isChecklistExpanded = !isChecklistExpanded },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (isChecklistExpanded) "▼ " else "▶ ",
+                                        color = ObsidianTextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                    Text(
+                                        text = "📋 Routine Movements",
+                                        color = ObsidianPurple,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                val completedCount = parsedTimerItems.indices.count { completedTimerItemMap[it] == true }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(ObsidianBorder)
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "$completedCount / ${parsedTimerItems.size}",
+                                        color = ObsidianTextMuted,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            AnimatedVisibility(visible = isChecklistExpanded) {
+                                Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    parsedTimerItems.forEachIndexed { idx, itemText ->
+                                        val isDone = completedTimerItemMap[idx] == true
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (isDone) ObsidianBg else Color(0x33000000))
+                                                .clickable { completedTimerItemMap[idx] = !isDone }
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Checkbox(
+                                                checked = isDone,
+                                                onCheckedChange = { completedTimerItemMap[idx] = it },
+                                                colors = CheckboxDefaults.colors(
+                                                    checkedColor = ObsidianPurple,
+                                                    uncheckedColor = ObsidianTextMuted
+                                                ),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = itemText,
+                                                color = if (isDone) ObsidianTextMuted else ObsidianTextPrimary,
+                                                fontSize = 12.sp,
+                                                textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
