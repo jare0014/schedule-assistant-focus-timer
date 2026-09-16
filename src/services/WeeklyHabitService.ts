@@ -26,7 +26,7 @@ export class WeeklyHabitService {
 
     public static getHabitSectionKey(description: string): string | null {
         const d = description.toLowerCase();
-        if (d.includes("morning")) return "morning";
+        if (d.includes("morning") || d.includes("habit")) return "morning";
         if (d.includes("house") || d.includes("chore")) return "house";
         if (d.includes("work")) return "work";
         return null;
@@ -52,9 +52,9 @@ export class WeeklyHabitService {
         }
 
         const sections = [
-            { key: "morning", regex: /(##\s*Mornings[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
-            { key: "work", regex: /(##\s*Work[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
-            { key: "house", regex: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i }
+            { key: "morning", regex: /(##\s*(?:Habits|Mornings)[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i },
+            { key: "work", regex: /(##\s*Work[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i },
+            { key: "house", regex: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i }
         ];
 
         const habitsBySection: { [sectionKey: string]: HabitItemForDay[] } = {
@@ -122,9 +122,10 @@ export class WeeklyHabitService {
         }
 
         const sectionRegexMap: { [key: string]: RegExp } = {
-            morning: /(##\s*Mornings[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i,
-            work: /(##\s*Work[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i,
-            house: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i
+            morning: /(##\s*(?:Habits|Mornings)[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i,
+            habits: /(##\s*(?:Habits|Mornings)[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i,
+            work: /(##\s*Work[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i,
+            house: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i
         };
 
         const secRegex = sectionRegexMap[sectionKey.toLowerCase()];

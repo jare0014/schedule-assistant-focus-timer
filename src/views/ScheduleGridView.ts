@@ -528,9 +528,9 @@ async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLEle
     content.style.overflowY = "auto";
 
     const sectionsToRender = [
-        { name: "Mornings", label: "☀️ Morning Routine & Exercises", regex: /(##\s*Mornings[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
-        { name: "Work", label: "💼 Work Checklist", regex: /(##\s*Work[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i },
-        { name: "House", label: "🏡 House & Chores", regex: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+---|\r?\n##(?!#)|$)/i }
+        { key: "habits", name: "Habits", label: "☀️ Habits & Morning Routine", regex: /(##\s*(?:Habits|Mornings)[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i },
+        { key: "work", name: "Work", label: "💼 Work Checklist", regex: /(##\s*Work[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i },
+        { key: "house", name: "House", label: "🏡 House & Chores", regex: /(##\s*🏡?\s*House[^\r\n]*[\r\n]+)([\s\S]*?)(?=[\r\n]+\s*---|[\r\n]+##(?!#)|$)/i }
     ];
 
     for (const sec of sectionsToRender) {
@@ -541,18 +541,73 @@ async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLEle
         if (tableLines.length < 3) continue;
 
         const rawHeaders = tableLines[0].split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
+        const dayColIdx = rawHeaders.findIndex(h => h.toLowerCase() === dayName.toLowerCase());
         const dataRows = tableLines.slice(2).map((line: string) => {
             return line.split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
         });
 
-        const secHeading = content.createDiv({ style: "font-weight: 600; font-size: 0.9em; margin: 8px 0 4px 0; color: var(--text-normal);" });
-        secHeading.setText(sec.label);
+        // Compute today's completion stats for badge
+        let totalToday = 0;
+        let doneToday = 0;
+        if (dayColIdx !== -1) {
+            dataRows.forEach((row: string[]) => {
+                const cell = row[dayColIdx] || "";
+                if (!cell.includes("N/A") && cell !== "—" && cell.trim().length > 0) {
+                    totalToday++;
+                    if (cell.includes("[x]") || cell.includes("[X]")) {
+                        doneToday++;
+                    }
+                }
+            });
+        }
 
-        const table = content.createEl("table", { style: "width: 100%; border-collapse: collapse; font-size: 0.85em; margin-bottom: 8px;" });
+        // Create individual collapsible card
+        const secDrawer = content.createEl("details", { cls: `matrix-section-drawer matrix-${sec.key}` });
+        secDrawer.style.margin = "6px 0";
+        secDrawer.style.border = "1px solid var(--background-modifier-border)";
+        secDrawer.style.borderRadius = "6px";
+        secDrawer.style.padding = "4px 8px";
+        secDrawer.style.backgroundColor = "var(--background-primary)";
+
+        const secStorageKey = `schedule-assistant-matrix-sec-${sec.key}-open`;
+        const isSecOpen = localStorage.getItem(secStorageKey) !== "false";
+        if (isSecOpen) secDrawer.open = true;
+        secDrawer.ontoggle = () => {
+            localStorage.setItem(secStorageKey, String(secDrawer.open));
+        };
+
+        const secSummary = secDrawer.createEl("summary", { cls: "matrix-section-summary" });
+        secSummary.style.cursor = "pointer";
+        secSummary.style.fontWeight = "600";
+        secSummary.style.fontSize = "0.88em";
+        secSummary.style.display = "flex";
+        secSummary.style.alignItems = "center";
+        secSummary.style.justifyContent = "space-between";
+        secSummary.style.userSelect = "none";
+
+        const secTitleSpan = secSummary.createSpan();
+        secTitleSpan.setText(sec.label);
+
+        if (totalToday > 0) {
+            const statBadge = secSummary.createSpan();
+            statBadge.setText(`${doneToday}/${totalToday}`);
+            statBadge.style.fontSize = "0.8em";
+            statBadge.style.padding = "1px 6px";
+            statBadge.style.borderRadius = "10px";
+            statBadge.style.backgroundColor = doneToday === totalToday ? "rgba(46, 213, 115, 0.2)" : "var(--background-modifier-hover)";
+            statBadge.style.color = doneToday === totalToday ? "var(--text-success, #2ed573)" : "var(--text-muted)";
+            statBadge.style.fontWeight = "bold";
+        }
+
+        const tableWrapper = secDrawer.createDiv({ cls: "matrix-table-wrapper" });
+        tableWrapper.style.overflowX = "auto";
+        tableWrapper.style.marginTop = "6px";
+
+        const table = tableWrapper.createEl("table", { style: "width: 100%; border-collapse: collapse; font-size: 0.82em; margin-bottom: 4px;" });
         const thead = table.createEl("thead");
         const hRow = thead.createEl("tr");
         rawHeaders.forEach((h: string, colIdx: number) => {
-            const th = hRow.createEl("th", { style: `padding: 4px; border-bottom: 1px solid var(--background-modifier-border); text-align: ${colIdx === 0 ? "left" : "center"};` });
+            const th = hRow.createEl("th", { style: `padding: 4px; border-bottom: 1px solid var(--background-modifier-border); text-align: ${colIdx === 0 ? "left" : "center"}; white-space: nowrap;` });
             const isToday = h.toLowerCase() === dayName.toLowerCase();
             if (isToday) {
                 th.setText(`👉 ${h}`);
@@ -568,7 +623,7 @@ async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLEle
         dataRows.forEach((row: string[], rowIdx: number) => {
             const tr = tbody.createEl("tr", { style: "border-bottom: 1px solid var(--background-modifier-border-hover);" });
             row.forEach((cellText: string, colIdx: number) => {
-                const td = tr.createEl("td", { style: `padding: 4px; text-align: ${colIdx === 0 ? "left" : "center"};` });
+                const td = tr.createEl("td", { style: `padding: 4px; text-align: ${colIdx === 0 ? "left" : "center"}; white-space: ${colIdx === 0 ? "normal" : "nowrap"};` });
                 const isToday = rawHeaders[colIdx] && rawHeaders[colIdx].toLowerCase() === dayName.toLowerCase();
                 if (isToday) {
                     td.style.backgroundColor = "var(--background-modifier-hover)";
