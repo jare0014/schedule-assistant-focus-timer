@@ -346,20 +346,9 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
         ));
         const isTimerPaused = Boolean(viewInstance.currentTimer?.isPaused);
 
-        const playBtn = controls.createEl('button', {
-            cls: `timeblock-play-btn${isCurrentActive ? (isTimerPaused ? ' is-paused' : ' is-active') : ''}`,
-            text: isCurrentActive ? (isTimerPaused ? '▶' : '⏸') : '▶',
-            title: isCurrentActive ? (isTimerPaused ? 'Resume Focus Session' : 'Pause Focus Session') : 'Start Focus Session'
-        });
-        playBtn.onclick = async (e) => {
-            e.stopPropagation();
-            if (isCurrentActive) {
-                await viewInstance.togglePause();
-                viewInstance.renderSchedule();
-            } else {
-                await viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
-            }
-        };
+        if (isCurrentActive) {
+            card.addClass(isTimerPaused ? 'is-paused' : 'is-active');
+        }
 
         const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
         delBtn.onclick = async (e) => {
@@ -470,8 +459,7 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
         card.style.height = `${heightPx}px`;
 
         card.onclick = () => {
-            if (card.hasClass('dragging')) return;
-            viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+            // Disabled top-level card click timer to prevent accidentally launching full focus block
         };
     });
 
