@@ -410,6 +410,35 @@
   cursor: pointer;
 }
 
+.habit-timer-start {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.habit-timer-start:hover {
+  opacity: 0.85;
+}
+
+.habit-timer-start.is-active {
+  background: var(--text-success, #2ed573);
+}
+
+.habit-timer-start.is-paused {
+  background: var(--text-warning, #ffa502);
+}
+
+
 /* Countdown Timer View */
 .timer-view-container {
   display: flex;

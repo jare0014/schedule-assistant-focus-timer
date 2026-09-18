@@ -1,0 +1,24 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+const exportsUnderTest = {};
+const source = fs.readFileSync(path.join(__dirname, '../src/views/HabitTimerButton.ts'), 'utf8');
+vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: exportsUnderTest });
+test('matrix button starts the named timer using the current plugin default with completion identity and stops card click propagation', async () => {
+    let task, duration, stopped = false;
+    const button = { style: {}, disabled: false };
+    const container = { createEl: (_, options) => { assert.match(options.attr['aria-label'], /Meditation/); return button; } };
+    const view = { plugin: { settings: { defaultDuration: '25' } }, startTimer: async (value, minutes) => { assert.equal(button.disabled, true); task = value; duration = minutes; } };
+    exportsUnderTest.addHabitTimerButton(container, view, 'Meditation', 'habits');
+    view.plugin.settings.defaultDuration = '30';
+    await button.onclick({ stopPropagation: () => { stopped = true; } });
+    assert.equal(stopped, true);
+    assert.equal(task.description, 'Meditation');
+    assert.equal(task.sectionKey, 'morning');
+    assert.equal(task.lineIndex, undefined);
+    assert.equal(duration, 30);
+    assert.equal(button.disabled, false);
+});

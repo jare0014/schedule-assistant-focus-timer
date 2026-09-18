@@ -5,6 +5,7 @@
 import { TaskItem } from '../types';
 import { Notice, TFile } from 'obsidian';
 import { WeeklyHabitService, HabitItemForDay } from '../services/WeeklyHabitService';
+import { addHabitTimerButton } from './HabitTimerButton';
 
 export async function renderScheduleGridView(viewInstance: any, viewContainer: HTMLElement, tasks: TaskItem[]): Promise<void> {
     const existingWrapper = viewContainer.querySelector('.time-grid-wrapper') as HTMLElement | null;
@@ -350,6 +351,21 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
             card.addClass(isTimerPaused ? 'is-paused' : 'is-active');
         }
 
+        const playBtn = controls.createEl('button', {
+            cls: `timeblock-play-btn${isCurrentActive ? (isTimerPaused ? ' is-paused' : ' is-active') : ''}`,
+            text: isCurrentActive ? (isTimerPaused ? '▶' : '⏸') : '▶',
+            title: isCurrentActive ? (isTimerPaused ? 'Resume Focus Session' : 'Pause Focus Session') : 'Start Focus Session'
+        });
+        playBtn.onclick = async (e) => {
+            e.stopPropagation();
+            if (isCurrentActive) {
+                await viewInstance.togglePause();
+                viewInstance.renderSchedule();
+            } else {
+                await viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
+            }
+        };
+
         const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
         delBtn.onclick = async (e) => {
             e.stopPropagation();
@@ -446,6 +462,7 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
                     };
 
                     habitItemEl.createDiv({ cls: 'timeblock-subtask-title', text: habit.name });
+                    addHabitTimerButton(habitItemEl, viewInstance, habit.name, secKey);
                 });
 
                 const naturalHeight = Math.max(28, durationMins * (hourHeight / 60));
@@ -642,7 +659,10 @@ async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLEle
                 }
 
                 if (colIdx === 0) {
-                    td.setText(cellText.replace(/<br>/gi, " ").replace(/\*/g, ""));
+                    const name = cellText.replace(/<br\s*\/?>/gi, " ").replace(/\*/g, "").replace(/\s+/g, " ").trim();
+                    const titleRow = td.createDiv({ cls: 'habit-drawer-item-label', attr: { style: "display: flex; align-items: center; justify-content: space-between; gap: 6px;" } });
+                    titleRow.createSpan({ text: name });
+                    addHabitTimerButton(titleRow, viewInstance, name, sec.key);
                 } else if (cellText.includes("N/A") || cellText === "—") {
                     td.createSpan({ text: "—", style: "color: var(--text-faint);" });
                 } else {
