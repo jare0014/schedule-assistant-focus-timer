@@ -294,7 +294,7 @@ export class RemoteServerService {
                     if (success && action !== 'toggle') {
                         const timer = plugin.activeTimer;
                         if (timer && Boolean(timer.isPaused) === (action === 'play')) {
-                            await plugin.toggleFocusSession();
+                            await plugin.toggleFocusSession({ controlMedia: false });
                         }
                         plugin.hostedMediaState = action === 'play' ? 'playing' : 'paused';
                     }
@@ -665,7 +665,7 @@ ${itemsXml}  </channel>
                     if (state === 'playing') {
                         if (currentTimer && currentTimer.isPaused) {
                             if (activeView && activeView.currentTimer) {
-                                await activeView.togglePause();
+                                await activeView.togglePause({ controlMedia: false });
                             } else if (plugin.activeTimer) {
                                 plugin.activeTimer.isPaused = false;
                                 const remainingMs = (plugin.activeTimer.pausedRemainingMs !== null && plugin.activeTimer.pausedRemainingMs !== undefined)
@@ -674,7 +674,7 @@ ${itemsXml}  </channel>
                                 plugin.activeTimer.targetEndTime = Date.now() + remainingMs;
                                 plugin.activeTimer.pausedRemainingMs = null;
                                 if (plugin.focusLogService) plugin.focusLogService.logResume().catch((e: any) => console.error(e));
-                                if (plugin.focusAudioService) plugin.focusAudioService.onTimerResume();
+                                // Observation only: never echo media state back as a command.
                             }
                             setCorsHeaders();
                             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -691,13 +691,13 @@ ${itemsXml}  </channel>
                     if (state === 'paused' || state === 'stopped') {
                         if (currentTimer && !currentTimer.isPaused) {
                             if (activeView && activeView.currentTimer) {
-                                await activeView.togglePause();
+                                await activeView.togglePause({ controlMedia: false });
                             } else if (plugin.activeTimer) {
                                 plugin.activeTimer.isPaused = true;
                                 plugin.activeTimer.pausedRemainingMs = Math.max(0, (plugin.activeTimer.targetEndTime || Date.now()) - Date.now());
                                 plugin.activeTimer.remainingSeconds = Math.ceil(plugin.activeTimer.pausedRemainingMs / 1000);
                                 if (plugin.focusLogService) plugin.focusLogService.logPause().catch((e: any) => console.error(e));
-                                if (plugin.focusAudioService) plugin.focusAudioService.onTimerPause();
+                                // Observation only: never echo media state back as a command.
                             }
                             setCorsHeaders();
                             res.writeHead(200, { 'Content-Type': 'application/json' });

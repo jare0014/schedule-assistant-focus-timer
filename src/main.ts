@@ -266,7 +266,7 @@ export default class TaskTimerPlugin extends Plugin {
         }
     }
 
-    async toggleFocusSession(): Promise<{ success: boolean; isPaused?: boolean; taskName?: string; isAudioPlaying?: boolean; handledInternalAudio: boolean }> {
+    async toggleFocusSession(options: { controlMedia?: boolean } = {}): Promise<{ success: boolean; isPaused?: boolean; taskName?: string; isAudioPlaying?: boolean; handledInternalAudio: boolean }> {
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
         let activeView = leaves.map(l => l.view as any).find(v => v && v.currentTimer);
 
@@ -285,11 +285,11 @@ export default class TaskTimerPlugin extends Plugin {
         );
 
         if (activeView && activeView.currentTimer) {
-            await activeView.togglePause();
-            const handledInternalAudio = Boolean(
-                hasInternalTrack &&
-                (audioSvc?.autoSyncWithTimer || !activeView.currentTimer.isPaused)
-            );
+            await activeView.togglePause(options);
+            // Legacy AHK uses this flag to decide whether to send another toggle.
+            // The timer view already owns the hosted-media command, even for an
+            // external browser player. Never toggle it a second time.
+            const handledInternalAudio = options.controlMedia !== false;
             return {
                 success: true,
                 isPaused: activeView.currentTimer.isPaused,
@@ -304,7 +304,7 @@ export default class TaskTimerPlugin extends Plugin {
                 this.activeTimer.pausedRemainingMs = Math.max(0, (this.activeTimer.targetEndTime || Date.now()) - Date.now());
                 this.activeTimer.remainingSeconds = Math.ceil(this.activeTimer.pausedRemainingMs / 1000);
                 if (this.focusLogService) await this.focusLogService.logPause();
-                if (this.focusAudioService) this.focusAudioService.onTimerPause();
+                if (options.controlMedia !== false && this.focusAudioService) this.focusAudioService.onTimerPause();
             } else {
                 const remainingMs = (this.activeTimer.pausedRemainingMs !== null && this.activeTimer.pausedRemainingMs !== undefined)
                     ? this.activeTimer.pausedRemainingMs
@@ -312,7 +312,7 @@ export default class TaskTimerPlugin extends Plugin {
                 this.activeTimer.targetEndTime = Date.now() + remainingMs;
                 this.activeTimer.pausedRemainingMs = null;
                 if (this.focusLogService) await this.focusLogService.logResume();
-                if (this.focusAudioService) this.focusAudioService.onTimerResume();
+                if (options.controlMedia !== false && this.focusAudioService) this.focusAudioService.onTimerResume();
             }
             const handledInternalAudio = Boolean(
                 hasInternalTrack &&

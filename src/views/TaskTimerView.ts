@@ -1183,7 +1183,7 @@ export class TaskTimerView extends ItemView {
         } catch (e) {}
     }
 
-    public async togglePause(): Promise<void> {
+    public async togglePause(options: { controlMedia?: boolean } = {}): Promise<void> {
         if (!this.currentTimer) return;
         this.currentTimer.isPaused = !this.currentTimer.isPaused;
 
@@ -1194,8 +1194,10 @@ export class TaskTimerView extends ItemView {
             const circle = this.contentEl.querySelector('.timer-circle-container');
             if (circle) circle.removeClass('pulsing');
             if (this.plugin.focusLogService) await this.plugin.focusLogService.logPause();
-            if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerPause();
-            this.controlHostedMedia('pause').catch(() => {});
+            if (options.controlMedia !== false) {
+                if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerPause();
+                this.controlHostedMedia('pause').catch(() => {});
+            }
         } else {
             const remainingMs = (this.currentTimer.pausedRemainingMs !== null && this.currentTimer.pausedRemainingMs !== undefined)
                 ? this.currentTimer.pausedRemainingMs
@@ -1206,8 +1208,10 @@ export class TaskTimerView extends ItemView {
             const circle = this.contentEl.querySelector('.timer-circle-container');
             if (circle) circle.addClass('pulsing');
             if (this.plugin.focusLogService) await this.plugin.focusLogService.logResume();
-            if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerResume();
-            this.controlHostedMedia('play').catch(() => {});
+            if (options.controlMedia !== false) {
+                if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerResume();
+                this.controlHostedMedia('play').catch(() => {});
+            }
         }
 
         if (this.plugin) {
