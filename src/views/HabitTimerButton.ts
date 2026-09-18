@@ -1,7 +1,7 @@
 /** Shared timer control for today's matrix items in the schedule sidepanel. */
 export function addHabitTimerButton(container: HTMLElement, view: any, name: string, sectionKey: string): HTMLButtonElement {
     const defaultMinutes = () => {
-        const configured = Number.parseInt(view.plugin.settings.defaultDuration, 10);
+        const configured = Number.parseInt(view?.plugin?.settings?.defaultDuration ?? view?.settings?.defaultDuration, 10);
         return Number.isFinite(configured) && configured > 0 ? configured : 20;
     };
     const section = sectionKey === 'habits' ? 'morning' : sectionKey;

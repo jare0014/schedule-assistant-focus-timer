@@ -351,21 +351,6 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
             card.addClass(isTimerPaused ? 'is-paused' : 'is-active');
         }
 
-        const playBtn = controls.createEl('button', {
-            cls: `timeblock-play-btn${isCurrentActive ? (isTimerPaused ? ' is-paused' : ' is-active') : ''}`,
-            text: isCurrentActive ? (isTimerPaused ? '▶' : '⏸') : '▶',
-            title: isCurrentActive ? (isTimerPaused ? 'Resume Focus Session' : 'Pause Focus Session') : 'Start Focus Session'
-        });
-        playBtn.onclick = async (e) => {
-            e.stopPropagation();
-            if (isCurrentActive) {
-                await viewInstance.togglePause();
-                viewInstance.renderSchedule();
-            } else {
-                await viewInstance.startTimer(task, task.duration || parseInt(viewInstance.plugin.settings.defaultDuration));
-            }
-        };
-
         const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
         delBtn.onclick = async (e) => {
             e.stopPropagation();
@@ -462,7 +447,30 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
                     };
 
                     habitItemEl.createDiv({ cls: 'timeblock-subtask-title', text: habit.name });
-                    addHabitTimerButton(habitItemEl, viewInstance, habit.name, secKey);
+
+                    if (!habit.completed) {
+                        const isHabitActive = Boolean(viewInstance.currentTimer && (
+                            (viewInstance.currentTimer.taskName && viewInstance.currentTimer.taskName.toLowerCase().trim() === habit.name.toLowerCase().trim()) ||
+                            (viewInstance.currentTimer.task && viewInstance.currentTimer.task.description && viewInstance.currentTimer.task.description.toLowerCase().trim() === habit.name.toLowerCase().trim())
+                        ));
+                        const isHabitPaused = Boolean(viewInstance.currentTimer?.isPaused);
+                        const habitPlayBtn = habitItemEl.createEl('button', {
+                            cls: `timeblock-subtask-play-btn${isHabitActive ? (isHabitPaused ? ' is-paused' : ' is-active') : ''}`,
+                            text: isHabitActive ? (isHabitPaused ? '▶' : '⏸') : '▶',
+                            title: isHabitActive ? (isHabitPaused ? 'Resume Habit Timer' : 'Pause Habit Timer') : 'Start Habit Timer'
+                        });
+                        habitPlayBtn.onclick = async (e) => {
+                            e.stopPropagation();
+                            if (isHabitActive) {
+                                await viewInstance.togglePause();
+                                viewInstance.renderSchedule();
+                            } else {
+                                const duration = parseInt(viewInstance.plugin.settings.defaultDuration) || 20;
+                                const section = secKey === 'habits' ? 'morning' : secKey;
+                                await viewInstance.startTimer({ description: habit.name, sectionKey: section, duration }, duration);
+                            }
+                        };
+                    }
                 });
 
                 const naturalHeight = Math.max(28, durationMins * (hourHeight / 60));
