@@ -61,6 +61,21 @@ test('hotkey timer path owns the media command and tells AHK not to toggle again
 });
 
 for (const withView of [true, false]) {
+    test(`idle hotkey never chooses a task or starts audio (${withView ? 'view' : 'no view'})`, async () => {
+        const f = await fixture(withView);
+        f.plugin.activeTimer = null;
+        f.view.currentTimer = null;
+        f.plugin.activateView = () => assert.fail('Must not open a timer view');
+        f.view.startTimer = () => assert.fail('Must not start a scheduled timer');
+        f.plugin.app.vault.read = () => assert.fail('Must not scan the schedule');
+        f.plugin.focusAudioService.togglePlay = () => assert.fail('Must not load a saved track');
+        const response = await f.request('/api/timer/toggle', {});
+        assert.equal(response.success, true);
+        assert.equal(response.handledInternalAudio, false);
+        assert.equal(f.plugin.activeTimer, null);
+        assert.deepEqual(f.commands, []);
+        assert.deepEqual(f.audioCalls, []);
+    });
     test(`media observations never echo commands (${withView ? 'view' : 'no view'})`, async () => {
         const f = await fixture(withView);
         for (const state of ['paused', 'paused', 'playing', 'playing', 'paused']) {
