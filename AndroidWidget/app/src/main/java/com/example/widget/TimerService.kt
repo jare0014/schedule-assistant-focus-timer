@@ -117,6 +117,9 @@ class TimerService : Service() {
                 startCountdown()
                 syncTimerStateToWatch()
             }
+            "SILENCE" -> {
+                silenceAlarm()
+            }
             "STOP" -> {
                 stopTimerState()
             }
@@ -125,6 +128,7 @@ class TimerService : Service() {
                 if (prefs.isAudioAutoSyncEnabled) {
                     com.example.media.FocusMediaService.pauseAudio(applicationContext)
                 }
+                silenceAlarm()
                 updateNotificationAndWidget()
                 syncTimerStateToWatch()
                 serviceScope.launch(Dispatchers.IO) {
@@ -173,14 +177,52 @@ class TimerService : Service() {
         return START_STICKY
     }
 
+    private fun silenceAlarm() {
+        try {
+            com.example.media.FocusMediaService.unduckAudio(applicationContext)
+            if (ringtone?.isPlaying == true) {
+                ringtone?.stop()
+            }
+            ringtone = null
+            vibrator?.cancel()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        prefs.isAlarming = false
+        updateNotificationAndWidget()
+        syncTimerStateToWatch()
+    }
+
     private fun startCountdown() {
         timerJob?.cancel()
         timerJob = serviceScope.launch {
+            var syncCounter = 0
             while (true) {
                 delay(1000)
                 if (prefs.activeTimerTaskName.isEmpty()) {
                     stopTimerState()
                     break
+                }
+
+                // Periodically poll PC status even while running in the background
+                syncCounter++
+                if (syncCounter >= 4) {
+                    syncCounter = 0
+                    serviceScope.launch(Dispatchers.IO) {
+                        try {
+                            val repo = ObsidianSyncRepository(applicationContext)
+                            repo.syncActiveTimer()
+                        } catch (e: Exception) {
+                            Log.d("TimerService", "Background timer sync error: ${e.message}")
+                        }
+                    }
+                }
+
+                // If state transitioned to paused, or timer was rescheduled / given remaining time, silence any active alarm
+                if (prefs.activeTimerIsPaused || (prefs.activeTimerRemainingSeconds > 0 && !prefs.isAlarming)) {
+                    if (ringtone?.isPlaying == true) {
+                        silenceAlarm()
+                    }
                 }
 
                 if (!prefs.activeTimerIsPaused && !prefs.isAlarming) {
@@ -256,7 +298,6 @@ class TimerService : Service() {
         
         // Stop audio & vibration
         try {
-            com.example.media.FocusMediaService.unduckAudio(applicationContext)
             if (ringtone?.isPlaying == true) {
                 ringtone?.stop()
             }

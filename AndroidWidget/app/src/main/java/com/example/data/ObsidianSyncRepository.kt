@@ -58,7 +58,7 @@ class ObsidianSyncRepository(private val context: Context) {
     }
 
     suspend fun controlHostedMedia(action: String): Boolean {
-        if (action !in listOf("play", "pause", "toggle")) return false
+        if (action !in listOf("play", "pause", "toggle", "next-source")) return false
         return try {
             val body = JSONObject().put("action", action).toString()
                 .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
@@ -738,7 +738,20 @@ class ObsidianSyncRepository(private val context: Context) {
                 }
                 _todayHabits.value = parsedHabits
             }
-            prefs.isAlarming = obj.optBoolean("isAlarming", false)
+            val pcIsAlarming = obj.optBoolean("isAlarming", false)
+            if (!pcIsAlarming && prefs.isAlarming) {
+                prefs.isAlarming = false
+                try {
+                    val silenceIntent = Intent(context, com.example.widget.TimerService::class.java).apply {
+                        action = "SILENCE"
+                    }
+                    context.startService(silenceIntent)
+                } catch (e: Exception) {
+                    Log.e("SyncRepository", "Failed to send SILENCE to TimerService: ${e.message}")
+                }
+            } else {
+                prefs.isAlarming = pcIsAlarming
+            }
             com.example.widget.TimerService.checkAndSyncTimerService(context)
             triggerWidgetUpdate()
         } catch (e: Exception) {
@@ -871,13 +884,13 @@ class ObsidianSyncRepository(private val context: Context) {
         return false
     }
 
-    suspend fun startTimer(taskName: String, durationMinutes: Int = 15): Boolean {
-        prefs.addLog("Starting timer for habit/taskName: $taskName (${durationMinutes}m)")
+    suspend fun startTimer(taskName: String, durationMinutes: Int? = null): Boolean {
+        prefs.addLog("Starting timer for habit/taskName: $taskName (${durationMinutes ?: "plugin default"})")
         val base = getBaseUrl()
         val url = "$base/api/timer/start"
         val payload = JSONObject().apply {
             put("taskName", taskName)
-            put("durationMinutes", durationMinutes)
+            if (durationMinutes != null) put("durationMinutes", durationMinutes)
         }
         val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
         val body = payload.toString().toRequestBody(mediaType)

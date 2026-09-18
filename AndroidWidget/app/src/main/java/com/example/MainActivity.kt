@@ -337,6 +337,8 @@ fun ObsidianTodoScreen(
                     // Postpone
                     TextButton(
                         onClick = {
+                            val silenceIntent = Intent(context, com.example.widget.TimerService::class.java).apply { action = "SILENCE" }
+                            context.startService(silenceIntent)
                             scope.launch(Dispatchers.IO) {
                                 val line = activeTimerLineIndex
                                 if (line > 0) {
@@ -357,6 +359,8 @@ fun ObsidianTodoScreen(
                     // Complete
                     Button(
                         onClick = {
+                            val silenceIntent = Intent(context, com.example.widget.TimerService::class.java).apply { action = "SILENCE" }
+                            context.startService(silenceIntent)
                             scope.launch(Dispatchers.IO) {
                                 repository.completeTimer()
                                 scope.launch(Dispatchers.Main) {
@@ -373,6 +377,8 @@ fun ObsidianTodoScreen(
             dismissButton = {
                 TextButton(
                     onClick = {
+                        val silenceIntent = Intent(context, com.example.widget.TimerService::class.java).apply { action = "SILENCE" }
+                        context.startService(silenceIntent)
                         scope.launch(Dispatchers.IO) {
                             repository.cancelTimer() // dismiss alarm
                             scope.launch(Dispatchers.Main) {
@@ -914,24 +920,8 @@ fun ObsidianTodoScreen(
                                     scope.launch(Dispatchers.IO) {
                                         if (activeTimerIsPaused) {
                                             repository.resumeTimer()
-                                            if (isPhoneAudioPlaying) {
-                                                try {
-                                                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                                                    audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
-                                                    audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
-                                                } catch (e: Exception) {}
-                                            }
                                         } else {
                                             repository.pauseTimer()
-                                            if (isPhoneAudioPlaying) {
-                                                try {
-                                                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                                                    audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
-                                                    audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
-                                                } catch (e: Exception) {}
-                                                FocusMediaService.pauseAudio(context)
-                                                prefs.isPhoneAudioPlaying = false
-                                            }
                                         }
                                         scope.launch(Dispatchers.Main) {
                                             refreshPreferencesState()
@@ -959,15 +949,6 @@ fun ObsidianTodoScreen(
                                 onClick = {
                                     scope.launch(Dispatchers.IO) {
                                         repository.completeTimer()
-                                        if (isPhoneAudioPlaying) {
-                                            try {
-                                                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
-                                                audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
-                                            } catch (e: Exception) {}
-                                            FocusMediaService.pauseAudio(context)
-                                            prefs.isPhoneAudioPlaying = false
-                                        }
                                         scope.launch(Dispatchers.Main) {
                                             refreshPreferencesState()
                                         }
@@ -1156,6 +1137,16 @@ fun ObsidianTodoScreen(
         HostedMediaPlaybackCard(
             isPlaying = isHostedMediaPlaying,
             title = hostedMediaTitle,
+            onNextSource = {
+                scope.launch(Dispatchers.IO) {
+                    val success = repository.controlHostedMedia("next-source")
+                    val (mediaPlaying, mediaTitle) = repository.fetchMediaStatus()
+                    scope.launch(Dispatchers.Main) {
+                        isHostedMediaPlaying = mediaPlaying
+                        hostedMediaTitle = if (success) mediaTitle else "No available source to switch to"
+                    }
+                }
+            },
             onTogglePlay = {
                 val action = if (isHostedMediaPlaying) "pause" else "play"
                 scope.launch(Dispatchers.IO) {
@@ -1292,12 +1283,12 @@ fun ObsidianTodoScreen(
                         scope.launch(Dispatchers.Main) { refreshPreferencesState() }
                     }
                 },
-                onStartHabitTimer = { name, duration ->
+                onStartHabitTimer = { name ->
                     scope.launch(Dispatchers.IO) {
                         if (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(name, ignoreCase = true)) {
                             repository.cancelTimer()
                         } else {
-                            repository.startTimer(taskName = name, durationMinutes = duration)
+                            repository.startTimer(taskName = name)
                         }
                         scope.launch(Dispatchers.Main) { refreshPreferencesState() }
                     }
@@ -1558,12 +1549,12 @@ fun ObsidianTodoScreen(
                                                             }
                                                         }
                                                     },
-                                                    onStartHabitTimer = { name, duration ->
+                                                    onStartHabitTimer = { name ->
                                                         scope.launch(Dispatchers.IO) {
                                                             if (activeTimerTaskName.isNotEmpty() && activeTimerTaskName.equals(name, ignoreCase = true)) {
                                                                 repository.cancelTimer()
                                                             } else {
-                                                                repository.startTimer(taskName = name, durationMinutes = duration)
+                                                                repository.startTimer(taskName = name)
                                                             }
                                                             scope.launch(Dispatchers.Main) {
                                                                 refreshPreferencesState()
@@ -1945,7 +1936,7 @@ fun FocusBlockItemCard(
     onToggleSubtask: ((Task) -> Unit)? = null,
     onStartSubtaskTimer: ((Task) -> Unit)? = null,
     onToggleHabit: ((section: String, name: String, completed: Boolean) -> Unit)? = null,
-    onStartHabitTimer: ((name: String, duration: Int) -> Unit)? = null
+    onStartHabitTimer: ((name: String) -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -2175,7 +2166,7 @@ fun FocusBlockItemCard(
                                 )
                             }
                             IconButton(
-                                onClick = { onStartHabitTimer?.invoke(habit.name, 15) },
+                                onClick = { onStartHabitTimer?.invoke(habit.name) },
                                 modifier = Modifier.size(26.dp)
                             ) {
                                 Text(
@@ -2384,7 +2375,7 @@ fun NativeTimelineGridView(
     todayHabits: Map<String, List<HabitItem>> = emptyMap(),
     activeTimerTaskName: String = "",
     onStartTimer: (Task) -> Unit,
-    onStartHabitTimer: ((String, Int) -> Unit)? = null,
+    onStartHabitTimer: ((String) -> Unit)? = null,
     onToggleTask: (Task) -> Unit,
     onToggleHabit: ((section: String, name: String, completed: Boolean) -> Unit)? = null,
     onDeleteTask: ((Task) -> Unit)? = null,
@@ -2825,7 +2816,7 @@ fun NativeTimelineGridView(
                                                             )
                                                         }
                                                         IconButton(
-                                                            onClick = { onStartHabitTimer?.invoke(habit.name, 15) },
+                                                            onClick = { onStartHabitTimer?.invoke(habit.name) },
                                                             modifier = Modifier.size(20.dp)
                                                         ) {
                                                             Text(
@@ -2913,6 +2904,7 @@ fun HostedMediaPlaybackCard(
     isPlaying: Boolean,
     title: String,
     onTogglePlay: () -> Unit,
+    onNextSource: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -2945,7 +2937,7 @@ fun HostedMediaPlaybackCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (isPlaying) "Streaming from kilPC" else "kilPC Media",
+                        text = if (isPlaying) "Playing on kilPC" else "kilPC Media",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isPlaying) ObsidianPurple else ObsidianTextMuted,
                         fontWeight = FontWeight.SemiBold
@@ -2953,7 +2945,7 @@ fun HostedMediaPlaybackCard(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = title.ifBlank { if (isPlaying) "Active Media Session" else "Ready (Spotify / Windows GSMTC)" },
+                    text = title.ifBlank { "No media source available" },
                     style = MaterialTheme.typography.bodyMedium,
                     color = ObsidianTextPrimary,
                     fontWeight = FontWeight.Medium,
@@ -2962,6 +2954,9 @@ fun HostedMediaPlaybackCard(
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
+            TextButton(onClick = onNextSource) {
+                Text("Source →")
+            }
             IconButton(
                 onClick = onTogglePlay,
                 modifier = Modifier
