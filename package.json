@@ -5,9 +5,17 @@
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "node esbuild.config.mjs production"
+    "build": "node esbuild.config.mjs production",
+    "typecheck": "tsc --noEmit --pretty false -p tsconfig.json",
+    "test": "node --test tests/*.cjs"
   },
-  "keywords": ["obsidian", "obsidian-plugin", "schedule", "focus-timer", "timeblocker"],
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "schedule",
+    "focus-timer",
+    "timeblocker"
+  ],
   "author": "Alex Jarecki",
   "license": "MIT",
   "devDependencies": {

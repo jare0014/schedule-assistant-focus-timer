@@ -11,7 +11,7 @@ import { TaskTimerPluginSettings } from '../types';
 export class ExternalTaskSyncService {
     private tempOAuthServer: http.Server | null = null;
 
-    constructor(private app: App, private getSettings: () => TaskTimerPluginSettings, private getSecret: (id: string, fallback: string) => Promise<string>) {}
+    constructor(private app: App, private getSettings: () => TaskTimerPluginSettings, private getSecret: (id: string, fallback: keyof TaskTimerPluginSettings) => Promise<string>) {}
 
     private getPluginDir(): string {
         const vaultPath = (this.app.vault.adapter as any).getBasePath();

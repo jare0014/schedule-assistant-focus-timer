@@ -18,7 +18,7 @@ export class PythonSchedulerRunner {
         private app: App,
         private getSettings: () => TaskTimerPluginSettings,
         private saveSettings: () => Promise<void>,
-        private getSecret: (id: string, fallback: string) => Promise<string>
+        private getSecret: (id: string, fallback: keyof TaskTimerPluginSettings) => Promise<string>
     ) {}
 
     private getPluginDir(): string {

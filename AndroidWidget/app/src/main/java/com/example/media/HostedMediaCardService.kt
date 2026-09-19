@@ -12,6 +12,7 @@ import android.media.VolumeProvider
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -31,14 +32,20 @@ class HostedMediaCardService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var playing = false
     private var title = "kilPC Focus Media"
+    private var source = "kilPC"
+    private var available = false
 
     companion object {
         private const val CHANNEL = "hosted_media_card"
         private const val NOTIFICATION_ID = 2002
         private const val ACTION_PLAY = "com.example.media.HOSTED_PLAY"
         private const val ACTION_PAUSE = "com.example.media.HOSTED_PAUSE"
+        private const val ACTION_NEXT_SOURCE = "com.example.media.HOSTED_NEXT_SOURCE"
 
         fun show(context: Context) {
+            // Retire the old phone player and its saved-track notification when
+            // entering hosted mode. Timer/media controls now belong to kilPC.
+            context.stopService(Intent(context, FocusMediaService::class.java))
             val intent = Intent(context, HostedMediaCardService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
             else context.startService(intent)
@@ -55,6 +62,9 @@ class HostedMediaCardService : Service() {
         session.setCallback(object : MediaSession.Callback() {
             override fun onPlay() = control("play")
             override fun onPause() = control("pause")
+            override fun onCustomAction(action: String, extras: Bundle?) {
+                if (action == ACTION_NEXT_SOURCE) control("next-source")
+            }
         })
         session.setPlaybackToRemote(object : VolumeProvider(VolumeProvider.VOLUME_CONTROL_FIXED, 100, 50) {})
         session.isActive = true
@@ -72,6 +82,7 @@ class HostedMediaCardService : Service() {
         when (intent?.action) {
             ACTION_PLAY -> control("play")
             ACTION_PAUSE -> control("pause")
+            ACTION_NEXT_SOURCE -> control("next-source")
         }
         return START_STICKY
     }
@@ -85,8 +96,8 @@ class HostedMediaCardService : Service() {
                 false
             }
             if (success) handler.post {
-                playing = action == "play"
-                publishState()
+                handler.removeCallbacks(poll)
+                handler.post(poll)
             }
         }
     }
@@ -97,16 +108,24 @@ class HostedMediaCardService : Service() {
                 try {
                     val connection = URL("${repository.getBaseUrl()}/api/media/status").openConnection() as HttpURLConnection
                     connection.connectTimeout = 1500
-                    connection.readTimeout = 1500
+                    connection.readTimeout = 10000
                     val status = connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
                     connection.disconnect()
                     handler.post {
                         playing = status.optString("state") == "playing"
-                        title = status.optString("taskName", "Focus Session").ifEmpty { "Focus Session" }
+                        available = status.optBoolean("success", true) && status.optString("state") in listOf("playing", "paused", "stopped")
+                        source = status.optString("source", "kilPC").ifEmpty { "kilPC" }
+                        title = if (available) status.optString("title").ifEmpty { "kilPC media" } else "Selected source unavailable"
                         publishState()
                     }
                 } catch (e: Exception) {
                     Log.d("HostedMediaCard", "kilPC status unavailable: ${e.message}")
+                    handler.post {
+                        available = false
+                        playing = false
+                        title = "kilPC unavailable"
+                        publishState()
+                    }
                 }
             }
             handler.postDelayed(this, 3000)
@@ -116,14 +135,15 @@ class HostedMediaCardService : Service() {
     private fun publishState() {
         session.setPlaybackState(
             PlaybackState.Builder()
-                .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE)
-                .setState(if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED, 0, 1f)
+                .setActions(if (available) PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE else 0L)
+                .addCustomAction(ACTION_NEXT_SOURCE, "Next source", android.R.drawable.ic_menu_rotate)
+                .setState(if (!available) PlaybackState.STATE_ERROR else if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED, 0, 1f)
                 .build()
         )
         session.setMetadata(
             android.media.MediaMetadata.Builder()
                 .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, title)
-                .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, "Playing on kilPC")
+                .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, "$source on kilPC")
                 .build()
         )
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
@@ -140,15 +160,20 @@ class HostedMediaCardService : Service() {
             this, 1, Intent(this, HostedMediaCardService::class.java).setAction(action),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val nextSource = PendingIntent.getService(
+            this, 2, Intent(this, HostedMediaCardService::class.java).setAction(ACTION_NEXT_SOURCE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle(title)
-            .setContentText("kilPC media and focus timer")
+            .setContentText("$source on kilPC")
             .setContentIntent(open)
             .setOnlyAlertOnce(true)
-            .setStyle(Notification.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0))
+            .setStyle(Notification.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0, 1))
             .addAction(if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-                if (playing) "Pause" else "Play", transport)
+                if (playing) "Pause" else "Play", if (available) transport else null)
+            .addAction(android.R.drawable.ic_menu_rotate, "Next source", nextSource)
             .build()
     }
 

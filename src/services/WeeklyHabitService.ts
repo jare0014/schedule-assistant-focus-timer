@@ -13,6 +13,19 @@ export interface HabitItemForDay {
 }
 
 export class WeeklyHabitService {
+    public static async completeTimerHabit(app: App, task: { description?: string; sectionKey?: string }): Promise<boolean> {
+        const normalize = (name: string) => name.replace(/<br\s*\/?\s*>/gi, " ").replace(/\*/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+        const name = normalize(task.description || "");
+        if (!name) return false;
+        const { habitsBySection } = await this.loadTodayWeeklyHabits(app);
+        const matches = Object.values(habitsBySection).flat().filter(habit =>
+            normalize(habit.name) === name && (!task.sectionKey || habit.sectionKey === task.sectionKey));
+        if (matches.length !== 1) return false;
+        const habit = matches[0];
+        if (habit.completed) return true;
+        return this.toggleWeeklyHabit(app, habit.sectionKey, habit.rowIdx, true);
+    }
+
     public static getWeeklyNoteFile(app: App): TFile | null {
         const moment = (window as any).moment;
         if (!moment || !app?.vault) return null;

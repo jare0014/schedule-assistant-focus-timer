@@ -345,41 +345,14 @@ fun WearTimerScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.padding(horizontal = 8.dp)
                 ) {
-                    val sampleBlocks = listOf(
-                        Pair("08:00 AM", "Morning Focus & Planning"),
-                        Pair("10:30 AM", "Core Project Development"),
-                        Pair("01:00 PM", "Review & Communications"),
-                        Pair("04:30 PM", "Schedule & Routine Tasks")
+                    // Only /timer_state is synchronized today. Do not present
+                    // fabricated schedule rows as the user's actual plan.
+                    Text(
+                        text = "Schedule sync is not available yet. View today's blocks on your phone.",
+                        fontSize = 10.sp,
+                        color = Color.LightGray,
+                        textAlign = TextAlign.Center
                     )
-
-                    sampleBlocks.forEach { (time, title) ->
-                        Chip(
-                            onClick = { },
-                            label = {
-                                Column {
-                                    Text(
-                                        text = title,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = time,
-                                        fontSize = 9.sp,
-                                        color = Color(0xFFA882DD)
-                                    )
-                                }
-                            },
-                            colors = ChipDefaults.chipColors(
-                                backgroundColor = Color(0xFF1E1E24),
-                                contentColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(38.dp)
-                        )
-                    }
                 }
             }
 

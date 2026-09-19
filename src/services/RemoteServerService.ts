@@ -34,10 +34,11 @@ export class RemoteServerService {
         let mediaCache: any = null;
         let mediaCacheAt = 0;
         let mediaStatusRead: Promise<any> | null = null;
+        let selectedMediaSource = '';
 
-        const runMedia = (action: 'status' | 'play' | 'pause' | 'toggle'): Promise<any> => new Promise(resolve => {
+        const runMedia = (action: 'sessions' | 'status' | 'play' | 'pause' | 'toggle', source = selectedMediaSource): Promise<any> => new Promise(resolve => {
             const child = spawn('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-                ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', mediaHelper, action],
+                ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', mediaHelper, action, '-Source', source],
                 { windowsHide: true });
             let output = '';
             child.stdout.on('data', chunk => { output += chunk.toString(); });
@@ -201,7 +202,7 @@ export class RemoteServerService {
                                 label: plugin.focusAudioService.currentTrack.label,
                                 url: plugin.focusAudioService.currentTrack.url,
                                 streamUrl: plugin.focusAudioService.currentTrack.type === 'local' && plugin.focusAudioService.currentTrack.localFile
-                                    ? `http://${req.headers.host || `127.0.0.1:${settings.port || 8090}`}/api/audio/stream?file=${encodeURIComponent(plugin.focusAudioService.currentTrack.localFile.path)}`
+                                    ? `http://${req.headers.host || `127.0.0.1:${port}`}/api/audio/stream?file=${encodeURIComponent(plugin.focusAudioService.currentTrack.localFile.path)}`
                                     : plugin.focusAudioService.currentTrack.url,
                                 type: plugin.focusAudioService.currentTrack.type,
                                 isInternal: plugin.focusAudioService.currentTrack.isInternal
@@ -234,7 +235,7 @@ export class RemoteServerService {
                     let tracks: any[] = [];
                     if (plugin.focusAudioService) {
                         const rawTracks = await plugin.focusAudioService.scanAvailableTracks(dailyFile);
-                        const host = req.headers.host || `127.0.0.1:${settings.port || 8090}`;
+                        const host = req.headers.host || `127.0.0.1:${port}`;
                         const proto = 'http';
                         tracks = rawTracks.map(t => {
                             let streamUrl = t.url;
@@ -282,6 +283,30 @@ export class RemoteServerService {
                 if (req.method === 'POST' && pathname === '/api/media/control') {
                     const body = await readBody();
                     const action = String(body.action || '').toLowerCase();
+                    if (action === 'next-source') {
+                        const inventory = await runMedia('sessions');
+                        const sessions = Array.isArray(inventory.sessions) ? inventory.sessions : [];
+                        // App IDs are the only durable identity exposed by GSMTC.
+                        // Exclude ambiguous IDs rather than controlling the wrong tab.
+                        const sources = sessions.filter((s: any) => sessions.filter((other: any) => other.source === s.source).length === 1);
+                        if (!inventory.success || !sources.length) {
+                            setCorsHeaders();
+                            res.writeHead(503, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: false, error: 'No uniquely identifiable media sources.' }));
+                            return;
+                        }
+                        const current = await runMedia('status');
+                        const index = sources.findIndex((s: any) => s.source === (selectedMediaSource || current.source));
+                        selectedMediaSource = sources[(index + 1) % sources.length].source;
+                        // Wait for any old status request before replacing its cache.
+                        if (mediaStatusRead) await mediaStatusRead;
+                        mediaCache = await runMedia('status');
+                        mediaCacheAt = Date.now();
+                        setCorsHeaders();
+                        res.writeHead(mediaCache.success ? 200 : 503, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify(mediaCache));
+                        return;
+                    }
                     if (!['play', 'pause', 'toggle'].includes(action)) {
                         setCorsHeaders();
                         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -314,7 +339,10 @@ export class RemoteServerService {
                     setCorsHeaders();
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
-                        state: media.success ? media.state : plugin.hostedMediaState || (timer && !timer.isPaused ? 'playing' : 'paused'),
+                        success: Boolean(media.success),
+                        source: media.source || selectedMediaSource,
+                        sourcePinned: Boolean(selectedMediaSource),
+                        state: media.success ? media.state : 'unavailable',
                         title: media.title || '',
                         taskName: timer?.taskName || timer?.task?.description || 'Focus Session',
                         timerIsPaused: timer ? Boolean(timer.isPaused) : null
@@ -456,7 +484,7 @@ export class RemoteServerService {
 
                 // RSS 2.0 / iTunes Podcast Feed Endpoint
                 if (req.method === 'GET' && (pathname === '/api/feed.xml' || pathname === '/api/podcast.xml' || pathname === '/api/feed')) {
-                    const host = req.headers.host || `127.0.0.1:${settings.port || 8090}`;
+                    const host = req.headers.host || `127.0.0.1:${port}`;
                     const proto = 'http';
                     const baseUrl = `${proto}://${host}`;
 
@@ -557,7 +585,7 @@ ${itemsXml}  </channel>
                         }
 
                         const taskInput = matchedTask || body.taskName || "Focus Block";
-                        const duration = parseInt(body.durationMinutes) || (matchedTask ? matchedTask.duration : null) || parseInt(settings.defaultDuration) || 20;
+                        const duration = parseInt(body.durationMinutes) || (body.taskName ? null : matchedTask?.duration) || parseInt(settings.defaultDuration) || 20;
 
                         await view.startTimer(taskInput, duration);
                         setCorsHeaders();
@@ -650,6 +678,12 @@ ${itemsXml}  </channel>
                     const body = await readBody();
                     const state = String(body.state || '').toLowerCase().trim();
                     const app = String(body.app || 'unknown').trim();
+                    if (selectedMediaSource && app !== selectedMediaSource) {
+                        setCorsHeaders();
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, action: 'ignored-unselected-source' }));
+                        return;
+                    }
 
                     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
                     let activeView = leaves.map(l => l.view as any).find(v => v && v.currentTimer);

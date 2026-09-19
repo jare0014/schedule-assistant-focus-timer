@@ -17,9 +17,9 @@ export class SchedulerProgressModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
 
-        contentEl.createEl('h3', { text: 'Generating Daily Schedule', style: 'text-align: center; margin-bottom: 20px;' });
+        contentEl.createEl('h3', { text: 'Generating Daily Schedule', attr: { style: 'text-align: center; margin-bottom: 20px;' } });
 
-        const loaderContainer = contentEl.createDiv({ style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;' });
+        const loaderContainer = contentEl.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;' } });
 
         const spinner = loaderContainer.createDiv({ cls: 'scheduler-spinner' });
         spinner.style.width = '40px';
@@ -43,15 +43,15 @@ export class SchedulerProgressModal extends Modal {
 
         loaderContainer.createDiv({
             text: 'Schedule Assistant is creating your day plan...',
-            style: 'margin-top: 20px; font-weight: 500; color: var(--text-normal); font-size: 1.1em;'
+            attr: { style: 'margin-top: 20px; font-weight: 500; color: var(--text-normal); font-size: 1.1em;' }
         });
 
         loaderContainer.createDiv({
             text: 'This pulls tasks from Google Tasks, Google Calendar, and Todoist, then builds a smart timeline using Gemini.',
-            style: 'margin-top: 10px; font-size: 0.9em; color: var(--text-muted); text-align: center; max-width: 300px;'
+            attr: { style: 'margin-top: 10px; font-size: 0.9em; color: var(--text-muted); text-align: center; max-width: 300px;' }
         });
 
-        const cancelBtn = loaderContainer.createEl('button', { text: 'Cancel Process', style: 'margin-top: 25px;' });
+        const cancelBtn = loaderContainer.createEl('button', { text: 'Cancel Process', attr: { style: 'margin-top: 25px;' } });
         cancelBtn.onclick = () => {
             if (this.childProcess && !this.isCompleted) {
                 if (os.platform() === 'win32' && this.childProcess.pid) {

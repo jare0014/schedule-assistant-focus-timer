@@ -5,6 +5,7 @@
 import { ItemView, WorkspaceLeaf, Notice, TFile } from 'obsidian';
 import { VIEW_TYPE_TASK_TIMER, TaskItem } from '../types';
 import { DailyNoteManager } from '../services/DailyNoteManager';
+import { WeeklyHabitService } from '../services/WeeklyHabitService';
 import { TaskParserService } from '../services/TaskParserService';
 import { FocusAudioService, FocusTrackItem } from '../services/FocusAudioService';
 import { renderScheduleGridView } from './ScheduleGridView';
@@ -710,6 +711,8 @@ export class TaskTimerView extends ItemView {
     }
 
     public async endActiveTask(task: any): Promise<void> {
+        // Scheduled daily-note tasks retain their own identity, even if a matrix row shares the name.
+        if (!Number.isInteger(task.lineIndex) && await WeeklyHabitService.completeTimerHabit(this.app, task)) return;
         const dailyFile = this.getDailyNoteFile();
         if (!dailyFile) return;
 
@@ -1061,7 +1064,7 @@ export class TaskTimerView extends ItemView {
 
         const nextTaskEl = timerContainer.createDiv({
             cls: 'timer-next-task-container',
-            style: 'margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 15px; font-size: 13px; color: var(--text-muted); text-align: center;'
+            attr: { style: 'margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 15px; font-size: 13px; color: var(--text-muted); text-align: center;' }
         });
         nextTaskEl.textContent = "Loading next task...";
 
@@ -1313,7 +1316,7 @@ export class TaskTimerView extends ItemView {
         return `http://127.0.0.1:${parseInt(this.plugin.settings?.serverPort) || 8089}`;
     }
 
-    public async controlHostedMedia(action: 'play' | 'pause' | 'toggle'): Promise<boolean> {
+    public async controlHostedMedia(action: 'play' | 'pause' | 'toggle' | 'next-source'): Promise<boolean> {
         try {
             const response = await fetch(`${this.mediaBaseUrl()}/api/media/control`, {
                 method: 'POST',
@@ -1332,6 +1335,7 @@ export class TaskTimerView extends ItemView {
         header.createSpan({ text: '🎵 kilPC Media' });
         const status = header.createSpan({ cls: 'hosted-media-status', text: 'Checking…' });
         const button = card.createEl('button', { cls: 'timer-audio-btn primary', text: '▶ Play' });
+        const nextSource = card.createEl('button', { cls: 'timer-audio-btn', text: 'Next source →', attr: { 'aria-label': 'Switch media source without playing' } });
         let isPlaying = false;
 
         const refresh = async () => {
@@ -1341,12 +1345,15 @@ export class TaskTimerView extends ItemView {
                 const state = await response.json();
                 isPlaying = state.state === 'playing';
                 const trackTitle = state.title ? ` (${state.title})` : '';
-                status.setText((isPlaying ? 'Playing' : 'Paused') + trackTitle);
+                const available = state.success !== false && state.state !== 'none' && state.state !== 'unavailable';
+                status.setText(available ? `${state.source || 'Windows media'} · ${isPlaying ? 'Playing' : 'Paused'}${trackTitle}` : 'Selected source unavailable');
+                button.disabled = !available;
                 button.setText(isPlaying ? '⏸ Pause' : '▶ Play');
                 if (isPlaying) card.addClass('is-playing');
                 else card.removeClass('is-playing');
             } catch (e) {
                 status.setText('kilPC unavailable');
+                button.disabled = true;
             }
         };
 
@@ -1355,7 +1362,12 @@ export class TaskTimerView extends ItemView {
             const success = await this.controlHostedMedia(isPlaying ? 'pause' : 'play');
             if (!success) new Notice('Could not control kilPC media. Check the focus timer server and AutoHotkey helper.');
             await refresh();
-            button.disabled = false;
+        };
+        nextSource.onclick = async () => {
+            nextSource.disabled = true;
+            if (!await this.controlHostedMedia('next-source')) new Notice('No other available media source.');
+            await refresh();
+            nextSource.disabled = false;
         };
         refresh();
         if (this.hostedMediaInterval !== null) window.clearInterval(this.hostedMediaInterval);

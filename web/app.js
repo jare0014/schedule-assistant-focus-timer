@@ -1049,6 +1049,46 @@ function stopLocalAlarm() {
 }
 
 // Setup Event Listeners for Controls
+const hostedStatus = document.getElementById('hostedMediaStatus');
+const hostedPlay = document.getElementById('hostedMediaPlay');
+const hostedNext = document.getElementById('hostedMediaNext');
+let hostedPlaying = false;
+let hostedRefreshing = false;
+async function refreshHostedMedia() {
+    if (!hostedStatus || hostedRefreshing) return;
+    hostedRefreshing = true;
+    try {
+        const response = await fetch(`${API_BASE}/api/media/status`);
+        if (!response.ok) throw new Error('Media unavailable');
+        const media = await response.json();
+        hostedPlaying = media.state === 'playing';
+        const available = media.success !== false && ['playing', 'paused', 'stopped'].includes(media.state);
+        hostedStatus.textContent = available ? `${media.source || 'Windows media'} · ${media.title || 'Untitled'} · ${media.state}` : 'Selected source unavailable';
+        hostedPlay.textContent = hostedPlaying ? 'Pause' : 'Play';
+        hostedPlay.disabled = !available;
+    } catch (e) {
+        hostedStatus.textContent = 'kilPC media unavailable';
+        hostedPlay.disabled = true;
+    } finally { hostedRefreshing = false; }
+}
+if (hostedNext && hostedPlay) {
+    hostedNext.onclick = async () => {
+        hostedNext.disabled = true;
+        const success = await controlHostedMedia('next-source');
+        await refreshHostedMedia();
+        if (!success) hostedStatus.textContent = 'No available source to switch to';
+        hostedNext.disabled = false;
+    };
+    hostedPlay.onclick = async () => {
+        hostedPlay.disabled = true;
+        const success = await controlHostedMedia(hostedPlaying ? 'pause' : 'play');
+        await refreshHostedMedia();
+        if (!success) hostedStatus.textContent = 'Could not control selected source';
+    };
+    refreshHostedMedia();
+    setInterval(refreshHostedMedia, 3000);
+}
+
 async function controlHostedMedia(action) {
     try {
         const response = await fetch(`${API_BASE}/api/media/control`, {
