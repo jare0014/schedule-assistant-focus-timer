@@ -1081,15 +1081,19 @@ ${itemsXml}  </channel>
                                 if (child.match(/^(\s*)/)![1].length <= parentIndent) break;
                                 endIndex++;
                             }
-                            // Also check if immediately following lines are a weeklyTableTracker block for this task
+                            // Also check if immediately following lines are a tracker block for this task
                             if (endIndex < lines.length && lines[endIndex].trim().startsWith('```dataviewjs')) {
                                 let dvEnd = endIndex + 1;
                                 while (dvEnd < lines.length && !lines[dvEnd].trim().startsWith('```')) {
                                     dvEnd++;
                                 }
                                 if (dvEnd < lines.length) {
-                                    const dvBlock = lines.slice(endIndex, dvEnd + 1).join('\n');
-                                    if (desc && dvBlock.toLowerCase().includes(desc)) {
+                                    const dvBlock = lines.slice(endIndex, dvEnd + 1).join('\n').toLowerCase();
+                                    const isTracker = dvBlock.includes('weeklytabletracker') ||
+                                                      dvBlock.includes('habittracker') ||
+                                                      dvBlock.includes('worktracker') ||
+                                                      dvBlock.includes('housetracker');
+                                    if (isTracker) {
                                         endIndex = dvEnd + 1;
                                     }
                                 }
@@ -1105,12 +1109,16 @@ ${itemsXml}  </channel>
                             res.end(JSON.stringify({ success: true }));
                             return;
                         } else {
-                            // If not found as a markdown task, check if it exists purely as a dataviewjs weeklyTableTracker block
+                            // If not found as a markdown task, check if it exists purely as a dataviewjs tracker block
                             if (desc) {
                                 const dvIdx = lines.findIndex((l, idx) => {
                                     if (l.trim().startsWith('```dataviewjs')) {
                                         const snippet = lines.slice(idx, idx + 10).join('\n').toLowerCase();
-                                        return snippet.includes('weeklytabletracker') && snippet.includes(desc);
+                                        const isTracker = snippet.includes('weeklytabletracker') ||
+                                                          snippet.includes('habittracker') ||
+                                                          snippet.includes('worktracker') ||
+                                                          snippet.includes('housetracker');
+                                        return isTracker && snippet.includes(desc);
                                     }
                                     return false;
                                 });
@@ -1372,9 +1380,30 @@ ${itemsXml}  </channel>
                 "mon": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
                 "wed": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
                 "fri": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
-                "tue": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
-                "thu": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
-                "sat": ["Bowflex D-Ring Rows: 2-3 × 10-12 (horizontal pull to ribs)", "Scapular Y-T-W-L Series: 1-2 cycles × 8-10 reps (Y lower traps, L rear cuff)", "Standing Shrugs: 2 × 12 (10 lb DBs, 3s descent, max 2x/wk)"],
+                "tue": [
+                    "Bowflex D-Ring Rows: 2–3 × 10–12 (30 lbs, lead with elbows, pinch lats)",
+                    "Scapular Y's: 8–10 reps (arms at 120°, lower traps)",
+                    "Scapular T's: 8–10 reps (arms at 90°, mid-traps/rhomboids)",
+                    "Scapular W's: 8–10 reps (elbows to ribs, rear cuff)",
+                    "Scapular L's: 8–10 reps (90/90 external rotation)",
+                    "Standing Dumbbell Shrugs: 2 × 12 (10 lb DB, 2s pause, slow 3s descent)"
+                ],
+                "thu": [
+                    "Bowflex D-Ring Rows: 2–3 × 10–12 (30 lbs, lead with elbows, pinch lats)",
+                    "Scapular Y's: 8–10 reps (arms at 120°, lower traps)",
+                    "Scapular T's: 8–10 reps (arms at 90°, mid-traps/rhomboids)",
+                    "Scapular W's: 8–10 reps (elbows to ribs, rear cuff)",
+                    "Scapular L's: 8–10 reps (90/90 external rotation)",
+                    "Standing Dumbbell Shrugs: 2 × 12 (10 lb DB, 2s pause, slow 3s descent)"
+                ],
+                "sat": [
+                    "Bowflex D-Ring Rows: 2–3 × 10–12 (30 lbs, lead with elbows, pinch lats)",
+                    "Scapular Y's: 8–10 reps (arms at 120°, lower traps)",
+                    "Scapular T's: 8–10 reps (arms at 90°, mid-traps/rhomboids)",
+                    "Scapular W's: 8–10 reps (elbows to ribs, rear cuff)",
+                    "Scapular L's: 8–10 reps (90/90 external rotation)",
+                    "Standing Dumbbell Shrugs: 2 × 12 (10 lb DB, 2s pause, slow 3s descent)"
+                ],
                 "sun": ["Pelvic floor down-training & supine belly breathing", "Gentle median, ulnar, radial nerve flossing"]
             };
             return p3Schedules[todayKey] || p3Schedules["mon"];

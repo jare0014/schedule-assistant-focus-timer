@@ -776,9 +776,30 @@ export class TaskTimerView extends ItemView {
                 "mon": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
                 "wed": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
                 "fri": ["Bowflex Lat Bar Triceps Pushdowns: 3 × 12-15 (center grip, 2s hold)", "Supine Dead Bugs: 3 × 10/side (lumbar flat)", "Dumbbell Bicep Curls: 3 × 10 (3s descent)", "(Optional) Side Planks: 2 × 30s/side"],
-                "tue": ["Bowflex Seated Cable Rows: 3 × 10-12 (chest high, pinch lats)", "Standing Dumbbell Lateral Raises: 3 × 12-15 (5 lb DB, lead with elbows)", "Bird-Dogs: 3 × 8/side (3s hold, straight line)", "(Optional) Single-Leg Balance: 2 × 30s/side"],
-                "thu": ["Bowflex Seated Cable Rows: 3 × 10-12 (chest high, pinch lats)", "Standing Dumbbell Lateral Raises: 3 × 12-15 (5 lb DB, lead with elbows)", "Bird-Dogs: 3 × 8/side (3s hold, straight line)", "(Optional) Single-Leg Balance: 2 × 30s/side"],
-                "sat": ["Bowflex Seated Cable Rows: 3 × 10-12 (chest high, pinch lats)", "Standing Dumbbell Lateral Raises: 3 × 12-15 (5 lb DB, lead with elbows)", "Bird-Dogs: 3 × 8/side (3s hold, straight line)", "(Optional) Single-Leg Balance: 2 × 30s/side"],
+                "tue": [
+                    "Bowflex D-Ring Rows: 2–3 × 10–12 (30 lbs, lead with elbows, pinch lats)",
+                    "Scapular Y's: 8–10 reps (arms at 120°, lower traps)",
+                    "Scapular T's: 8–10 reps (arms at 90°, mid-traps/rhomboids)",
+                    "Scapular W's: 8–10 reps (elbows to ribs, rear cuff)",
+                    "Scapular L's: 8–10 reps (90/90 external rotation)",
+                    "Standing Dumbbell Shrugs: 2 × 12 (10 lb DB, 2s pause, slow 3s descent)"
+                ],
+                "thu": [
+                    "Bowflex D-Ring Rows: 2–3 × 10–12 (30 lbs, lead with elbows, pinch lats)",
+                    "Scapular Y's: 8–10 reps (arms at 120°, lower traps)",
+                    "Scapular T's: 8–10 reps (arms at 90°, mid-traps/rhomboids)",
+                    "Scapular W's: 8–10 reps (elbows to ribs, rear cuff)",
+                    "Scapular L's: 8–10 reps (90/90 external rotation)",
+                    "Standing Dumbbell Shrugs: 2 × 12 (10 lb DB, 2s pause, slow 3s descent)"
+                ],
+                "sat": [
+                    "Bowflex D-Ring Rows: 2–3 × 10–12 (30 lbs, lead with elbows, pinch lats)",
+                    "Scapular Y's: 8–10 reps (arms at 120°, lower traps)",
+                    "Scapular T's: 8–10 reps (arms at 90°, mid-traps/rhomboids)",
+                    "Scapular W's: 8–10 reps (elbows to ribs, rear cuff)",
+                    "Scapular L's: 8–10 reps (90/90 external rotation)",
+                    "Standing Dumbbell Shrugs: 2 × 12 (10 lb DB, 2s pause, slow 3s descent)"
+                ],
                 "sun": ["Full body foam rolling & mobility stretch", "10-15 min gentle breathwork"]
             };
             return p3Schedules[todayKey] || p3Schedules["mon"];
