@@ -26,58 +26,18 @@ def normalize_time_range_spaces(line: str) -> str:
     return line
 
 
-MORNINGS_TRACKER_LINES = [
+HABIT_TRACKER_LINES = [
     "",
     "```dataviewjs",
-    'await dv.view("99_System/Scripts/weeklyTableTracker", {',
-    '    section: "Mornings",',
-    '    label: "☀️ Weekly Mornings Habit Tracker",',
-    '    sectionAnchor: "Mornings",',
-    '    startTime: "05:00",',
-    '    endTime: "09:00"',
-    '});',
+    'await dv.view("99_System/Scripts/habitTracker");',
     "```",
     ""
 ]
 
-WORK_TRACKER_1_LINES = [
+WORK_TRACKER_LINES = [
     "",
     "```dataviewjs",
-    'await dv.view("99_System/Scripts/weeklyTableTracker", {',
-    '    section: "Work",',
-    '    label: "💼 Weekly Work Tasks Tracker",',
-    '    sectionAnchor: "Work",',
-    '    startTime: "09:00",',
-    '    endTime: "13:00"',
-    '});',
-    "```",
-    ""
-]
-
-WORK_TRACKER_2_LINES = [
-    "",
-    "```dataviewjs",
-    'await dv.view("99_System/Scripts/weeklyTableTracker", {',
-    '    section: "Work",',
-    '    label: "💼 Weekly Work Tasks Tracker",',
-    '    sectionAnchor: "Work",',
-    '    startTime: "13:00",',
-    '    endTime: "16:00"',
-    '});',
-    "```",
-    ""
-]
-
-WORK_TRACKER_SINGLE_LINES = [
-    "",
-    "```dataviewjs",
-    'await dv.view("99_System/Scripts/weeklyTableTracker", {',
-    '    section: "Work",',
-    '    label: "💼 Weekly Work Tasks Tracker",',
-    '    sectionAnchor: "Work",',
-    '    startTime: "09:00",',
-    '    endTime: "16:00"',
-    '});',
+    'await dv.view("99_System/Scripts/workTracker");',
     "```",
     ""
 ]
@@ -85,41 +45,29 @@ WORK_TRACKER_SINGLE_LINES = [
 HOUSE_TRACKER_LINES = [
     "",
     "```dataviewjs",
-    'await dv.view("99_System/Scripts/weeklyTableTracker", {',
-    '    section: "House",',
-    '    label: "🏡 Weekly House Tasks Tracker",',
-    '    sectionAnchor: "🏡 House & Chores",',
-    '    startTime: "16:00",',
-    '    endTime: "21:00"',
-    '});',
-    "```",
-    ""
-]
-
-MIDDAY_TRACKER_LINES = [
-    "",
-    "```dataviewjs",
-    'await dv.view("99_System/Scripts/weeklyTableTracker", {',
-    '    section: "Mornings",',
-    '    label: "☀️ Habits Matrix (Midday Check)",',
-    '    sectionAnchor: "Mornings",',
-    '    startTime: "12:00",',
-    '    endTime: "13:30"',
-    '});',
+    'await dv.view("99_System/Scripts/houseTracker");',
     "```",
     ""
 ]
 
 
 def inject_weekly_table_trackers(lines: List[str]) -> List[str]:
-    """Ensures interactive collapsible DataviewJS weekly trackers are attached to Morning, Midday, Work, and House focus blocks."""
+    """Ensures interactive DataviewJS weekly trackers are attached to Morning, Midday, Work, House, and Evening focus blocks."""
     full_text = "\n".join(lines)
-    has_mornings_tracker = 'Weekly Mornings Habit Tracker' in full_text or ('section: "Mornings"' in full_text and 'startTime: "05:00"' in full_text)
-    has_midday_tracker = 'Habits Matrix (Midday Check)' in full_text or 'startTime: "12:00"' in full_text
-    has_work_tracker = 'section: "Work"' in full_text
-    has_house_tracker = 'section: "House"' in full_text
+    full_lower = full_text.lower()
+
+    # Detect both legacy weeklyTableTracker blocks and new modular tracker calls
+    has_habit_tracker = 'habittracker' in full_lower or ('section: "mornings"' in full_lower and 'weeklytabletracker' in full_lower)
+    has_work_tracker = 'worktracker' in full_lower or ('section: "work"' in full_lower and 'weeklytabletracker' in full_lower)
+    has_house_tracker = 'housetracker' in full_lower or ('section: "house"' in full_lower and 'weeklytabletracker' in full_lower)
+
+    # Count how many habit/work tracker blocks are already present to
+    # avoid duplicates per-block (morning, midday, evening each get one)
+    habit_tracker_count = full_lower.count('habittracker') + full_lower.count('section: "mornings"')
+    work_tracker_count = full_lower.count('worktracker') + full_lower.count('section: "work"')
 
     work_indices = []
+    habit_indices = []
     in_focus_blocks = False
     for i, line in enumerate(lines):
         if "### ⏱️ Focus Blocks" in line:
@@ -128,12 +76,18 @@ def inject_weekly_table_trackers(lines: List[str]) -> List[str]:
         if in_focus_blocks and line.startswith("### "):
             in_focus_blocks = False
             continue
-        if in_focus_blocks and re.match(r"^\s*-\s*\[[ xX/]\]\s+(\d{1,2}:\d{2}\s*[\-–—~]\s*\d{1,2}:\d{2}\s+)?Work(\b|:)", line, re.IGNORECASE):
-            work_indices.append(i)
+        if in_focus_blocks:
+            if re.match(r"^\s*-\s*\[[ xX/]\]\s+(\d{1,2}:\d{2}\s*[\-–—~]\s*\d{1,2}:\d{2}\s+)?Work(\b|:)", line, re.IGNORECASE):
+                work_indices.append(i)
+            elif re.search(r"-\s*\[[ xX/]\]\s+.*(Morning Routine|Midday Routine|Evening Routine|Habits:\s*Morning|Habits:\s*Midday|Habits:\s*Evening)", line, re.IGNORECASE):
+                habit_indices.append(i)
+            elif re.search(r"-\s*\[[ xX/]\]\s+.*House\s*:", line, re.IGNORECASE):
+                pass  # handled below
 
     output: List[str] = []
     in_focus = False
-    work_count = 0
+    injected_work = 0
+    injected_habit = 0
 
     i = 0
     while i < len(lines):
@@ -150,37 +104,40 @@ def inject_weekly_table_trackers(lines: List[str]) -> List[str]:
             continue
 
         if in_focus:
-            # Check for Morning Routine
-            if not has_mornings_tracker and re.search(r"-\s*\[[ xX/]\]\s+.*(Morning Routine|Habits:\s*Morning)", line, re.IGNORECASE):
+            # Check for any Habit Routine block (Morning, Midday, Evening)
+            if i in habit_indices and injected_habit < len(habit_indices):
                 while i + 1 < len(lines) and re.match(r"^\s{2,}-\s*\[[ xX/]\]", lines[i + 1]):
                     i += 1
                     output.append(lines[i])
-                output.extend(MORNINGS_TRACKER_LINES)
-                has_mornings_tracker = True
-
-            # Check for Midday Routine
-            elif not has_midday_tracker and re.search(r"-\s*\[[ xX/]\]\s+.*(Midday Routine|Habits:\s*Midday)", line, re.IGNORECASE):
-                while i + 1 < len(lines) and re.match(r"^\s{2,}-\s*\[[ xX/]\]", lines[i + 1]):
-                    i += 1
-                    output.append(lines[i])
-                output.extend(MIDDAY_TRACKER_LINES)
-                has_midday_tracker = True
+                # Only inject if this specific block doesn't already have a tracker after it
+                next_non_blank = i + 1
+                while next_non_blank < len(lines) and not lines[next_non_blank].strip():
+                    next_non_blank += 1
+                already_has = (next_non_blank < len(lines) and
+                               lines[next_non_blank].strip().startswith('```dataviewjs') and
+                               next_non_blank + 1 < len(lines) and
+                               ('habittracker' in lines[next_non_blank + 1].lower() or
+                                'weeklytabletracker' in lines[next_non_blank + 1].lower()))
+                if not already_has:
+                    output.extend(HABIT_TRACKER_LINES)
+                injected_habit += 1
 
             # Check for Work blocks
-            elif not has_work_tracker and i in work_indices:
+            elif i in work_indices:
                 while i + 1 < len(lines) and re.match(r"^\s{2,}-\s*\[[ xX/]\]", lines[i + 1]):
                     i += 1
                     output.append(lines[i])
-                if len(work_indices) >= 2:
-                    if work_count == 0:
-                        output.extend(WORK_TRACKER_1_LINES)
-                    else:
-                        output.extend(WORK_TRACKER_2_LINES)
-                else:
-                    output.extend(WORK_TRACKER_SINGLE_LINES)
-                work_count += 1
-                if work_count >= len(work_indices):
-                    has_work_tracker = True
+                next_non_blank = i + 1
+                while next_non_blank < len(lines) and not lines[next_non_blank].strip():
+                    next_non_blank += 1
+                already_has = (next_non_blank < len(lines) and
+                               lines[next_non_blank].strip().startswith('```dataviewjs') and
+                               next_non_blank + 1 < len(lines) and
+                               ('worktracker' in lines[next_non_blank + 1].lower() or
+                                'weeklytabletracker' in lines[next_non_blank + 1].lower()))
+                if not already_has:
+                    output.extend(WORK_TRACKER_LINES)
+                injected_work += 1
 
             # Check for House block
             elif not has_house_tracker and re.search(r"-\s*\[[ xX/]\]\s+.*House\s*:", line, re.IGNORECASE):

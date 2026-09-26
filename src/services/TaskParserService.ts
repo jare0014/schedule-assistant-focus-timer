@@ -59,56 +59,80 @@ export class TaskParserService {
                         dvContent += lines[dvEnd] + '\n';
                         dvEnd++;
                     }
+
+                    // Detect modular tracker scripts (habitTracker, workTracker, houseTracker)
+                    // or legacy weeklyTableTracker blocks
+                    let trackerSection: string | null = null;
+                    let trackerStartTime: string | null = null;
+                    let trackerEndTime: string | null = null;
+
                     if (dvContent.includes('weeklyTableTracker')) {
                         const secMatch = dvContent.match(/section:\s*["']([^"']+)["']/i);
-                        const labelMatch = dvContent.match(/label:\s*["']([^"']+)["']/i);
-                        const startMatch = dvContent.match(/startTime:\s*["'](\d{1,2}):(\d{2})["']/i);
-                        const endMatch = dvContent.match(/endTime:\s*["'](\d{1,2}):(\d{2})["']/i);
-                        if (startMatch && endMatch && secMatch) {
-                            const sec = secMatch[1];
-                            const desc = sec.toLowerCase().includes('morning') ? 'Habits: Morning Routine' :
-                                         sec.toLowerCase().includes('house') ? 'House: Chores & Maintenance' :
-                                         sec.toLowerCase().includes('work') ? 'Work' :
-                                         (labelMatch ? labelMatch[1].replace(/^[^\w\s]+\s*/, '') : sec);
-                            const startH = parseInt(startMatch[1]);
-                            const startM = parseInt(startMatch[2]);
-                            const endH = parseInt(endMatch[1]);
-                            const endM = parseInt(endMatch[2]);
-                            let startMinutes = startH * 60 + startM;
-                            let endMinutes = endH * 60 + endM;
-                            if (startH < 5) startMinutes += 1440;
-                            if (endH < 5) endMinutes += 1440;
-                            if (endMinutes < startMinutes) endMinutes += 1440;
-                            const duration = endMinutes - startMinutes;
+                        const startMatch = dvContent.match(/startTime:\s*["'](\d{1,2}:\d{2})["']/i);
+                        const endMatch = dvContent.match(/endTime:\s*["'](\d{1,2}:\d{2})["']/i);
+                        if (secMatch) trackerSection = secMatch[1];
+                        if (startMatch) trackerStartTime = startMatch[1];
+                        if (endMatch) trackerEndTime = endMatch[1];
+                    } else if (dvContent.includes('habitTracker')) {
+                        trackerSection = 'Mornings';
+                    } else if (dvContent.includes('workTracker')) {
+                        trackerSection = 'Work';
+                    } else if (dvContent.includes('houseTracker')) {
+                        trackerSection = 'House';
+                    }
 
-                            const alreadyAdded = tasks.some(t => !t.isUntimed && (
-                                t.description.toLowerCase() === desc.toLowerCase() ||
-                                (Math.abs((t.startMinutes || 0) - startMinutes) < 30)
-                            ));
-                            if (!alreadyAdded) {
-                                const trackerTask: TaskItem = {
-                                    lineIndex: i,
-                                    originalLine: line,
-                                    status: 'pending',
-                                    startHour: startH,
-                                    startMin: startM,
-                                    endHour: endH,
-                                    endMin: endM,
-                                    startMinutes,
-                                    endMinutes,
-                                    duration,
-                                    description: desc,
-                                    isCalendar: false,
-                                    subheading: currentSubheading || '### ⏱️ Focus Blocks',
-                                    rawDesc: desc,
-                                    isUntimed: false,
-                                    project: currentProject || desc
-                                };
-                                tasks.push(trackerTask);
-                                if (!isIndented) lastParentTask = trackerTask;
-                            }
+                    // If this is a recognized tracker and the preceding task line
+                    // already has timing, just skip the block (the task line was
+                    // already parsed). Only create a phantom task when there is
+                    // NO preceding timed task for this section.
+                    if (trackerSection && trackerStartTime && trackerEndTime) {
+                        const labelMatch = dvContent.match(/label:\s*["']([^"']+)["']/i);
+                        const sec = trackerSection;
+                        const desc = sec.toLowerCase().includes('morning') ? 'Habits: Morning Routine' :
+                                     sec.toLowerCase().includes('house') ? 'House: Chores & Maintenance' :
+                                     sec.toLowerCase().includes('work') ? 'Work' :
+                                     (labelMatch ? labelMatch[1].replace(/^[^\w\s]+\s*/, '') : sec);
+                        const startH = parseInt(trackerStartTime.split(':')[0]);
+                        const startM = parseInt(trackerStartTime.split(':')[1]);
+                        const endH = parseInt(trackerEndTime.split(':')[0]);
+                        const endM = parseInt(trackerEndTime.split(':')[1]);
+                        let startMinutes = startH * 60 + startM;
+                        let endMinutes = endH * 60 + endM;
+                        if (startH < 5) startMinutes += 1440;
+                        if (endH < 5) endMinutes += 1440;
+                        if (endMinutes < startMinutes) endMinutes += 1440;
+                        const duration = endMinutes - startMinutes;
+
+                        const alreadyAdded = tasks.some(t => !t.isUntimed && (
+                            t.description.toLowerCase() === desc.toLowerCase() ||
+                            (Math.abs((t.startMinutes || 0) - startMinutes) < 30)
+                        ));
+                        if (!alreadyAdded) {
+                            const trackerTask: TaskItem = {
+                                lineIndex: i,
+                                originalLine: line,
+                                status: 'pending',
+                                startHour: startH,
+                                startMin: startM,
+                                endHour: endH,
+                                endMin: endM,
+                                startMinutes,
+                                endMinutes,
+                                duration,
+                                description: desc,
+                                isCalendar: false,
+                                subheading: currentSubheading || '### ⏱️ Focus Blocks',
+                                rawDesc: desc,
+                                isUntimed: false,
+                                project: currentProject || desc
+                            };
+                            tasks.push(trackerTask);
+                            if (!isIndented) lastParentTask = trackerTask;
                         }
                     }
+                    // For modular trackers without explicit timing (habitTracker,
+                    // workTracker, houseTracker), the preceding task line already
+                    // provides timing, so we just skip the dataviewjs block.
                     i = dvEnd;
                     continue;
                 }
