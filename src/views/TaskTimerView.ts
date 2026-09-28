@@ -629,7 +629,15 @@ export class TaskTimerView extends ItemView {
                 let inCodeFence = false;
                 while (endIndex < lines.length) {
                     const childLine = lines[endIndex];
-                    if (childLine.trim().startsWith('```')) {
+                    const trimmed = childLine.trim();
+
+                    // 1. Boundary stop: Heading or Horizontal Rule
+                    if (!inCodeFence && (trimmed.startsWith('#') || trimmed === '---' || trimmed === '***')) {
+                        break;
+                    }
+
+                    // 2. Code fence boundary tracking (dataviewjs, focus-matrix, etc.)
+                    if (trimmed.startsWith('```')) {
                         inCodeFence = !inCodeFence;
                         endIndex++;
                         continue;
@@ -638,22 +646,29 @@ export class TaskTimerView extends ItemView {
                         endIndex++;
                         continue;
                     }
-                    if (!childLine.trim()) {
+
+                    // 3. Blank lines
+                    if (!trimmed) {
                         let nextNonBlank = endIndex + 1;
                         while (nextNonBlank < lines.length && !lines[nextNonBlank].trim()) nextNonBlank++;
                         if (nextNonBlank < lines.length) {
+                            const nextTrimmed = lines[nextNonBlank].trim();
                             const nextRaw = lines[nextNonBlank].match(/^(\s*(?:>\s*)?)/);
                             const nextIndent = nextRaw ? nextRaw[1].length : 0;
-                            if (nextIndent > parentIndent || lines[nextNonBlank].trim().startsWith('```')) {
+                            if (nextIndent > parentIndent || nextTrimmed.startsWith('```') || nextTrimmed.startsWith('![[')) {
                                 endIndex = nextNonBlank;
                                 continue;
                             }
                         }
                         break;
                     }
+
+                    // 4. Adjacent sibling tasks at equal or shallower indentation stop block
                     const childRaw = childLine.match(/^(\s*(?:>\s*)?)/);
                     const childIndent = childRaw ? childRaw[1].length : 0;
-                    if (childIndent <= parentIndent && (childLine.includes('- [ ]') || childLine.includes('- [x]') || childLine.startsWith('#'))) break;
+                    if (childIndent <= parentIndent && (childLine.includes('- [ ]') || childLine.includes('- [x]') || childLine.includes('- [-]'))) {
+                        break;
+                    }
                     endIndex++;
                 }
 
