@@ -616,7 +616,7 @@ export class TaskTimerView extends ItemView {
                 if (timeRangeRegex.test(currentLine)) {
                     currentLine = currentLine.replace(timeRangeRegex, newTimeRange);
                 } else {
-                    currentLine = currentLine.replace(/^(\s*(?:>\s*)?-\s+\[[ xX/]\]\s+)(.*)$/, `$1${newTimeRange} $2`);
+                    currentLine = currentLine.replace(/^(\s*(?:>\s*)?[-*]\s+\[[ xX\-/]\]\s+)(.*)$/, `$1${newTimeRange} $2`);
                 }
                 lines[lineIndex] = DailyNoteManager.normalizeTimeRangeSpaces(currentLine);
             } else {
@@ -632,7 +632,7 @@ export class TaskTimerView extends ItemView {
                     const trimmed = childLine.trim();
 
                     // 1. Boundary stop: Heading or Horizontal Rule
-                    if (!inCodeFence && (trimmed.startsWith('#') || trimmed === '---' || trimmed === '***')) {
+                    if (!inCodeFence && (trimmed.startsWith('#') || /^(?:---|[*]{3,}|_{3,})$/.test(trimmed))) {
                         break;
                     }
 
@@ -666,7 +666,7 @@ export class TaskTimerView extends ItemView {
                     // 4. Adjacent sibling tasks at equal or shallower indentation stop block
                     const childRaw = childLine.match(/^(\s*(?:>\s*)?)/);
                     const childIndent = childRaw ? childRaw[1].length : 0;
-                    if (childIndent <= parentIndent && (childLine.includes('- [ ]') || childLine.includes('- [x]') || childLine.includes('- [-]'))) {
+                    if (childIndent <= parentIndent && /^\s*(?:>\s*)?[-*]\s+\[[^\]]\]/.test(childLine)) {
                         break;
                     }
                     endIndex++;
@@ -679,7 +679,7 @@ export class TaskTimerView extends ItemView {
                 if (timeRangeRegex.test(updatedParentLine)) {
                     updatedParentLine = updatedParentLine.replace(timeRangeRegex, newTimeRange);
                 } else {
-                    updatedParentLine = updatedParentLine.replace(/^(\s*(?:>\s*)?-\s+\[[ xX/]\]\s+)(.*)$/, `$1${newTimeRange} $2`);
+                    updatedParentLine = updatedParentLine.replace(/^(\s*(?:>\s*)?[-*]\s+\[[ xX\-/]\]\s+)(.*)$/, `$1${newTimeRange} $2`);
                 }
                 blockLines[0] = DailyNoteManager.normalizeTimeRangeSpaces(updatedParentLine);
 
@@ -698,7 +698,7 @@ export class TaskTimerView extends ItemView {
                         if (curLine.startsWith('## ') || curLine.startsWith('---')) break;
                         if (curLine.startsWith('### ') && !curLine.toLowerCase().includes("focus block")) break;
 
-                        const match = curLine.match(/^\s*(?:>\s*)?-\s+\[[ xX/]\]\s+(\d{1,2}):(\d{2})/);
+                        const match = curLine.match(/^\s*(?:>\s*)?[-*]\s+\[[ xX\-/]\]\s+(\d{1,2}):(\d{2})/);
                         if (match) {
                             const blockStart = parseInt(match[1]) * 60 + parseInt(match[2]);
                             if (newStartMins < blockStart) {

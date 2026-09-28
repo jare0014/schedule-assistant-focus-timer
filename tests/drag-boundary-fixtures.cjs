@@ -17,7 +17,7 @@ function extractTaskBlock(lines, lineIndex) {
         const trimmed = childLine.trim();
 
         // 1. Boundary stop: Heading or Horizontal Rule
-        if (!inCodeFence && (trimmed.startsWith('#') || trimmed === '---' || trimmed === '***')) {
+        if (!inCodeFence && (trimmed.startsWith('#') || /^(?:---|[*]{3,}|_{3,})$/.test(trimmed))) {
             break;
         }
 
@@ -52,7 +52,7 @@ function extractTaskBlock(lines, lineIndex) {
         // 4. Adjacent sibling tasks at equal or shallower indentation stop block
         const childRaw = childLine.match(/^(\s*(?:>\s*)?)/);
         const childIndent = childRaw ? childRaw[1].length : 0;
-        if (childIndent <= parentIndent && (childLine.includes('- [ ]') || childLine.includes('- [x]') || childLine.includes('- [-]'))) {
+        if (childIndent <= parentIndent && /^\s*(?:>\s*)?[-*]\s+\[[^\]]\]/.test(childLine)) {
             break;
         }
 
@@ -143,3 +143,32 @@ test('Fixture 5: Embedded wikilink transclusion under task captured before next 
     assert.equal(res.blockLines[1], "![[2026-W39#Work]]");
     assert.equal(markdown[res.endIndex], "- [ ] Next work block");
 });
+
+test('Fixture 6: Adjacent sibling task formatted as in-progress "- [/]" or uppercase "- [X]" stops block immediately', () => {
+    const markdown = [
+        "- [ ] Current task",
+        "- [/] In-progress sibling task",
+        "- [X] Completed uppercase sibling task"
+    ];
+    const res = extractTaskBlock(markdown, 0);
+    assert.equal(res.blockLines.length, 1);
+    assert.equal(res.blockLines[0], "- [ ] Current task");
+    assert.equal(markdown[res.endIndex], "- [/] In-progress sibling task");
+
+    const res2 = extractTaskBlock(markdown, 1);
+    assert.equal(res2.blockLines.length, 1);
+    assert.equal(res2.blockLines[0], "- [/] In-progress sibling task");
+    assert.equal(markdown[res2.endIndex], "- [X] Completed uppercase sibling task");
+});
+
+test('Fixture 7: Horizontal divider with alternative markdown syntax stops block', () => {
+    const markdown = [
+        "- [ ] Timed block",
+        "___",
+        "- [ ] Next block"
+    ];
+    const res = extractTaskBlock(markdown, 0);
+    assert.equal(res.blockLines.length, 1);
+    assert.equal(markdown[res.endIndex], "___");
+});
+
