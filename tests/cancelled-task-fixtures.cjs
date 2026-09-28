@@ -15,7 +15,7 @@ function parseTaskStatus(line) {
 function parseMatrixCell(val) {
     const v = (val || '').trim();
     if (v.includes('[x]') || v.includes('[X]')) return 'completed';
-    if (v.includes('[-]') || v.toLowerCase().includes('cancel')) return 'cancelled';
+    if (v.includes('[-]') || /^\s*cancel(?:led)?\s*$/i.test(v)) return 'cancelled';
     if (v.toLowerCase() === 'n/a' || v === '—') return 'na';
     if (v.includes('[ ]')) return 'pending';
     return 'empty';
