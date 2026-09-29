@@ -2,7 +2,7 @@
  * main.ts - Main entry point and coordinator for Schedule Assistant with Focus Timer.
  */
 
-import { Plugin, Notice, MarkdownView } from 'obsidian';
+import { Plugin, Notice, MarkdownView, Menu } from 'obsidian';
 import { VIEW_TYPE_TASK_TIMER, TaskTimerPluginSettings, DEFAULT_SETTINGS } from './types';
 import { TaskParserService } from './services/TaskParserService';
 import { TimerEngineService } from './services/TimerEngineService';
@@ -30,6 +30,10 @@ export default class TaskTimerPlugin extends Plugin {
     public focusAudioService!: FocusAudioService;
 
     async onload(): Promise<void> {
+        (this as any).Menu = Menu;
+        if (typeof window !== "undefined") {
+            (window as any).__obsidianMenu = Menu;
+        }
         await this.loadSettings();
 
         // Initialize Services
@@ -218,6 +222,9 @@ export default class TaskTimerPlugin extends Plugin {
         await this.stopServer();
         this.timerEngineService?.stopAlarm();
         this.app.workspace.detachLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        if (typeof window !== "undefined" && (window as any).__obsidianMenu === Menu) {
+            delete (window as any).__obsidianMenu;
+        }
     }
 
     async loadSettings(): Promise<void> {
