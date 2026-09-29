@@ -7,6 +7,7 @@ import { App, TFile } from 'obsidian';
 export interface HabitItemForDay {
     name: string;
     completed: boolean;
+    cancelled?: boolean;
     rowIdx: number;
     colIdx: number;
     sectionKey: string;
@@ -98,9 +99,11 @@ export class WeeklyHabitService {
                 if (!cellText || cellText.includes("N/A") || cellText === "—") return;
 
                 const isChecked = cellText.includes("[x]") || cellText.includes("[X]");
+                const isCancelled = cellText.includes("[-]") || /^\s*cancel(?:led)?\s*$/i.test(cellText.trim());
                 list.push({
                     name: taskName,
                     completed: isChecked,
+                    cancelled: isCancelled,
                     rowIdx: rowIdx,
                     colIdx: dayColIdx,
                     sectionKey: sec.key
@@ -117,7 +120,7 @@ export class WeeklyHabitService {
         app: App,
         sectionKey: string,
         habitIdentifier: string | number,
-        completed: boolean
+        completed: boolean | string
     ): Promise<boolean> {
         const moment = (window as any).moment;
         if (!moment || !app?.vault) return false;
@@ -183,11 +186,35 @@ export class WeeklyHabitService {
         const cellPos = dayColIdx + 1;
 
         if (rowCells[cellPos] && !rowCells[cellPos].includes("N/A")) {
-            rowCells[cellPos] = completed ? " [x] " : " [ ] ";
+            let markValue = " [ ] ";
+            if (completed === true || completed === "[x]" || completed === "[X]") {
+                markValue = " [x] ";
+            } else if (completed === "[-]" || completed === "cancelled") {
+                markValue = " [-] ";
+            }
+            rowCells[cellPos] = markValue;
             curLines[targetLineIdx] = rowCells.join("|");
             const newSecBlock = curLines.join("\n");
             const newText = curText.replace(curMatch[2].trim(), newSecBlock);
             await app.vault.modify(tFile, newText);
+
+            if (typeof window !== "undefined") {
+                if ((window as any).__weeklyMatrixCache && (window as any).__weeklyMatrixCache[tFile.path]) {
+                    delete (window as any).__weeklyMatrixCache[tFile.path].parsedSections[sectionKey.toLowerCase()];
+                }
+                if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+                    window.dispatchEvent(new CustomEvent("weekly-matrix-cell-synced", {
+                        detail: {
+                            filePath: tFile.path,
+                            section: sectionKey,
+                            rowIdx: targetDataRowIdx,
+                            colIdx: dayColIdx,
+                            value: markValue.trim(),
+                            checked: completed === true || completed === "[x]" || completed === "[X]"
+                        }
+                    }));
+                }
+            }
             return true;
         }
 

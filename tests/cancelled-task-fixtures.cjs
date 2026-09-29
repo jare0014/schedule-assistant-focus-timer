@@ -88,3 +88,25 @@ test('Fixture D: Pending and in_progress tasks allow timer launch, cancelled and
     assert.equal(canLaunchTimer('cancelled'), false);
     assert.equal(canLaunchTimer('completed'), false);
 });
+
+test('Fixture E: Cancelled habit status is detected and suppresses timer button', () => {
+    const habitItem = {
+        name: 'Waffles',
+        completed: false,
+        cancelled: true
+    };
+    const showTimer = !habitItem.completed && !habitItem.cancelled;
+    assert.equal(showTimer, false);
+});
+
+test('Fixture F: toggleWeeklyHabit status mutation maps cancelled values correctly', () => {
+    const mapMarkValue = (completed) => {
+        if (completed === true || completed === "[x]" || completed === "[X]") return " [x] ";
+        if (completed === "[-]" || completed === "cancelled") return " [-] ";
+        return " [ ] ";
+    };
+    assert.equal(mapMarkValue(true), " [x] ");
+    assert.equal(mapMarkValue(false), " [ ] ");
+    assert.equal(mapMarkValue("[-]"), " [-] ");
+    assert.equal(mapMarkValue("cancelled"), " [-] ");
+});

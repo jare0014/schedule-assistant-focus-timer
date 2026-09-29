@@ -3,7 +3,7 @@
  */
 
 import { TaskItem } from '../types';
-import { Notice, TFile } from 'obsidian';
+import { Notice, TFile, Menu } from 'obsidian';
 import { WeeklyHabitService, HabitItemForDay } from '../services/WeeklyHabitService';
 import { addHabitTimerButton } from './HabitTimerButton';
 
@@ -418,37 +418,81 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
                 habitsContainer.style.overflowY = 'auto';
 
                 habits.forEach(habit => {
+                    const isCanc = habit.cancelled;
                     const habitItemEl = habitsContainer.createDiv({
-                        cls: `timeblock-subtask-item${habit.completed ? ' completed' : ''}`
+                        cls: `timeblock-subtask-item${habit.completed ? ' completed' : ''}${isCanc ? ' cancelled' : ''}`
                     });
 
-                    const habitCb = habitItemEl.createEl('input', { type: 'checkbox' });
-                    habitCb.checked = habit.completed;
-                    habitCb.onclick = async (e) => {
-                        e.stopPropagation();
-                        const nowChecked = habitCb.checked;
+                    const setHabitStatus = async (status: boolean | string) => {
                         try {
                             const success = await WeeklyHabitService.toggleWeeklyHabit(
                                 viewInstance.app,
                                 secKey,
                                 habit.rowIdx,
-                                nowChecked
+                                status
                             );
                             if (success) {
-                                habitItemEl.toggleClass('completed', nowChecked);
-                                new Notice(`Updated ${habit.name}: ${nowChecked ? "Done" : "Pending"}`);
-                            } else {
-                                habitCb.checked = !nowChecked;
+                                viewInstance.renderSchedule();
+                                const label = (status === "[-]" || status === "cancelled") ? "Cancelled ✕" : (status ? "Done" : "Pending");
+                                new Notice(`Updated ${habit.name}: ${label}`);
                             }
                         } catch (err: any) {
                             console.error("Failed to update weekly habit item:", err);
-                            habitCb.checked = !nowChecked;
                         }
                     };
 
-                    habitItemEl.createDiv({ cls: 'timeblock-subtask-title', text: habit.name });
+                    const showHabitMenu = (e: MouseEvent) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const menu = new Menu();
+                        menu.addItem((item) => {
+                            item.setTitle("Cancel Habit (✕)")
+                                .setIcon("cross")
+                                .onClick(() => setHabitStatus("[-]"));
+                        });
+                        menu.addItem((item) => {
+                            item.setTitle("Mark Done (✔)")
+                                .setIcon("check")
+                                .onClick(() => setHabitStatus(true));
+                        });
+                        menu.addItem((item) => {
+                            item.setTitle("Reset to Pending (▢)")
+                                .setIcon("square")
+                                .onClick(() => setHabitStatus(false));
+                        });
+                        menu.showAtMouseEvent(e);
+                    };
 
-                    if (!habit.completed) {
+                    habitItemEl.oncontextmenu = showHabitMenu;
+
+                    if (isCanc) {
+                        const span = habitItemEl.createEl('span', { text: '✕', cls: 'habit-cancelled-indicator' });
+                        span.style.color = "var(--text-error)";
+                        span.style.fontWeight = "bold";
+                        span.style.marginRight = "6px";
+                        span.style.cursor = "pointer";
+                        span.title = "Cancelled (Click to restore, right-click for options)";
+                        span.onclick = (e) => {
+                            e.stopPropagation();
+                            setHabitStatus(false);
+                        };
+                    } else {
+                        const habitCb = habitItemEl.createEl('input', { type: 'checkbox' });
+                        habitCb.checked = habit.completed;
+                        habitCb.onclick = async (e) => {
+                            e.stopPropagation();
+                            await setHabitStatus(habitCb.checked);
+                        };
+                        habitCb.oncontextmenu = showHabitMenu;
+                    }
+
+                    const titleEl = habitItemEl.createDiv({ cls: 'timeblock-subtask-title', text: habit.name });
+                    if (isCanc) {
+                        titleEl.style.textDecoration = "line-through";
+                        titleEl.style.color = "var(--text-muted)";
+                    }
+
+                    if (!habit.completed && !isCanc) {
                         const isHabitActive = Boolean(viewInstance.currentTimer && (
                             (viewInstance.currentTimer.taskName && viewInstance.currentTimer.taskName.toLowerCase().trim() === habit.name.toLowerCase().trim()) ||
                             (viewInstance.currentTimer.task && viewInstance.currentTimer.task.description && viewInstance.currentTimer.task.description.toLowerCase().trim() === habit.name.toLowerCase().trim())
@@ -583,13 +627,15 @@ async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLEle
             return line.split("|").map((s: string) => s.trim()).filter((_: string, idx: number, arr: string[]) => idx > 0 && idx < arr.length - 1);
         });
 
-        // Compute today's completion stats for badge
+        // Compute today's completion stats for badge (exclude N/A and cancelled tasks)
         let totalToday = 0;
         let doneToday = 0;
         if (dayColIdx !== -1) {
             dataRows.forEach((row: string[]) => {
                 const cell = row[dayColIdx] || "";
-                if (!cell.includes("N/A") && cell !== "—" && cell.trim().length > 0) {
+                const isNa = cell.includes("N/A") || cell === "—" || cell.trim().length === 0;
+                const isCanc = cell.includes("[-]") || /^\s*cancel(?:led)?\s*$/i.test(cell.trim());
+                if (!isNa && !isCanc) {
                     totalToday++;
                     if (cell.includes("[x]") || cell.includes("[X]")) {
                         doneToday++;
@@ -674,41 +720,105 @@ async function renderHabitMatrixDrawer(viewInstance: any, viewContainer: HTMLEle
                 } else if (cellText.includes("N/A") || cellText === "—") {
                     td.createSpan({ text: "—", style: "color: var(--text-faint);" });
                 } else {
-                    const isChecked = cellText.includes("[x]") || cellText.includes("[X]");
-                    const cb = td.createEl("input", { type: "checkbox" });
-                    cb.checked = isChecked;
-                    cb.style.cursor = "pointer";
-                    cb.style.verticalAlign = "middle";
+                    const renderCell = (curVal: string) => {
+                        td.empty();
+                        const isCanc = curVal.includes("[-]") || /^\s*cancel(?:led)?\s*$/i.test(curVal.trim());
+                        const isChecked = curVal.includes("[x]") || curVal.includes("[X]");
 
-                    cb.onchange = async () => {
-                        const nowChecked = cb.checked;
-                        try {
-                            const curText = await app.vault.read(tFile);
-                            const curMatch = curText.match(sec.regex);
-                            if (!curMatch) return;
+                        const applyValue = async (newVal: string) => {
+                            try {
+                                const curText = await app.vault.read(tFile);
+                                const curMatch = curText.match(sec.regex);
+                                if (!curMatch) return;
 
-                            const curLines = curMatch[2].trim().split(/\r?\n/);
-                            const tIndices: number[] = [];
-                            curLines.forEach((l: string, idx: number) => {
-                                if (l.trim().startsWith("|")) tIndices.push(idx);
-                            });
+                                const curLines = curMatch[2].trim().split(/\r?\n/);
+                                const tIndices: number[] = [];
+                                curLines.forEach((l: string, idx: number) => {
+                                    if (l.trim().startsWith("|")) tIndices.push(idx);
+                                });
 
-                            const targetLineIdx = tIndices[2 + rowIdx];
-                            if (targetLineIdx !== undefined) {
-                                const rowCells = curLines[targetLineIdx].split("|");
-                                if (rowCells[colIdx + 1] && !rowCells[colIdx + 1].includes("N/A")) {
-                                    rowCells[colIdx + 1] = nowChecked ? " [x] " : " [ ] ";
-                                    curLines[targetLineIdx] = rowCells.join("|");
-                                    const newSecBlock = curLines.join("\n");
-                                    const newText = curText.replace(curMatch[2].trim(), newSecBlock);
-                                    await app.vault.modify(tFile, newText);
-                                    new Notice(`Updated ${row[0]} (${rawHeaders[colIdx]}): ${nowChecked ? "Done" : "Pending"}`);
+                                const targetLineIdx = tIndices[2 + rowIdx];
+                                if (targetLineIdx !== undefined) {
+                                    const rowCells = curLines[targetLineIdx].split("|");
+                                    if (rowCells[colIdx + 1] && !rowCells[colIdx + 1].includes("N/A")) {
+                                        rowCells[colIdx + 1] = ` ${newVal} `;
+                                        curLines[targetLineIdx] = rowCells.join("|");
+                                        const newSecBlock = curLines.join("\n");
+                                        const newText = curText.replace(curMatch[2].trim(), newSecBlock);
+                                        await app.vault.modify(tFile, newText);
+
+                                        if ((window as any).__weeklyMatrixCache && (window as any).__weeklyMatrixCache[tFile.path]) {
+                                            delete (window as any).__weeklyMatrixCache[tFile.path].parsedSections[sec.key.toLowerCase()];
+                                        }
+                                        window.dispatchEvent(new CustomEvent("weekly-matrix-cell-synced", {
+                                            detail: {
+                                                filePath: tFile.path,
+                                                section: sec.name,
+                                                rowIdx: rowIdx,
+                                                colIdx: colIdx,
+                                                value: newVal
+                                            }
+                                        }));
+
+                                        const label = newVal === "[-]" ? "Cancelled ✕" : (newVal === "[x]" ? "Done ✅" : "Pending ⏳");
+                                        new Notice(`Updated ${row[0]} (${rawHeaders[colIdx]}): ${label}`);
+                                        renderCell(newVal);
+                                    }
                                 }
+                            } catch (err: any) {
+                                console.error("Failed to update weekly habit matrix:", err);
                             }
-                        } catch (err: any) {
-                            console.error("Failed to update weekly habit matrix:", err);
+                        };
+
+                        const showContextMenu = (e: MouseEvent) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const menu = new Menu();
+                            menu.addItem((item) => {
+                                item.setTitle("Cancel Task (✕)")
+                                    .setIcon("cross")
+                                    .onClick(() => applyValue("[-]"));
+                            });
+                            menu.addItem((item) => {
+                                item.setTitle("Mark Done (✔)")
+                                    .setIcon("check")
+                                    .onClick(() => applyValue("[x]"));
+                            });
+                            menu.addItem((item) => {
+                                item.setTitle("Reset to Pending (▢)")
+                                    .setIcon("square")
+                                    .onClick(() => applyValue("[ ]"));
+                            });
+                            menu.showAtMouseEvent(e);
+                        };
+
+                        td.oncontextmenu = showContextMenu;
+
+                        if (isCanc) {
+                            const span = td.createEl("span", { text: "✕", cls: "matrix-cell check-cancelled" });
+                            span.style.color = "var(--text-error)";
+                            span.style.fontWeight = "bold";
+                            span.style.fontSize = "1.05em";
+                            span.style.cursor = "pointer";
+                            span.title = "Cancelled (Click to restore, right-click for options)";
+                            span.onclick = async (e) => {
+                                e.stopPropagation();
+                                await applyValue("[ ]");
+                            };
+                            span.oncontextmenu = showContextMenu;
+                        } else {
+                            const cb = td.createEl("input", { type: "checkbox" });
+                            cb.checked = isChecked;
+                            cb.style.cursor = "pointer";
+                            cb.style.verticalAlign = "middle";
+                            cb.onchange = async () => {
+                                await applyValue(cb.checked ? "[x]" : "[ ]");
+                            };
+                            cb.oncontextmenu = showContextMenu;
                         }
                     };
+
+                    renderCell(cellText);
                 }
             });
         });
