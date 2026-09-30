@@ -283,6 +283,34 @@
   filter: grayscale(0.4);
 }
 
+.timeblock-card.is-time-current {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 12px rgba(168, 130, 221, 0.35);
+}
+
+/* Active Focus Block Elapsed Progress Bar */
+.timeblock-progress-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.timeblock-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--interactive-accent), var(--text-accent));
+  transition: width 0.3s ease-in-out;
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--interactive-accent);
+}
+
 .timeblock-card-header {
   display: flex;
   align-items: flex-start;

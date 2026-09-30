@@ -346,9 +346,34 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
             (viewInstance.currentTimer.taskName && viewInstance.currentTimer.taskName.toLowerCase().trim() === task.description.toLowerCase().trim())
         ));
         const isTimerPaused = Boolean(viewInstance.currentTimer?.isPaused);
+        const nowMins = currentHour * 60 + currentMin + (now.getSeconds() / 60);
+        const isTimeCurrent = (nowMins >= task.calcStartMins && nowMins < task.calcEndMins && task.status !== 'completed');
 
         if (isCurrentActive) {
             card.addClass(isTimerPaused ? 'is-paused' : 'is-active');
+        }
+        if (isTimeCurrent) {
+            card.addClass('is-time-current');
+        }
+
+        if (isTimeCurrent || isCurrentActive) {
+            let progressPercent = 0;
+            if (isCurrentActive && viewInstance.currentTimer && viewInstance.currentTimer.totalMinutes) {
+                const totalSec = viewInstance.currentTimer.totalMinutes * 60;
+                const remSec = viewInstance.currentTimer.remainingSeconds ?? totalSec;
+                progressPercent = Math.min(100, Math.max(0, ((totalSec - remSec) / totalSec) * 100));
+            } else if (task.calcEndMins > task.calcStartMins) {
+                const elapsed = Math.max(0, nowMins - task.calcStartMins);
+                const total = task.calcEndMins - task.calcStartMins;
+                progressPercent = Math.min(100, Math.max(0, (elapsed / total) * 100));
+            }
+
+            const track = card.createDiv({ cls: 'timeblock-progress-track' });
+            const bar = track.createDiv({ cls: 'timeblock-progress-bar' });
+            bar.style.width = `${progressPercent.toFixed(1)}%`;
+            bar.dataset.startMins = String(task.calcStartMins);
+            bar.dataset.endMins = String(task.calcEndMins);
+            bar.dataset.lineIndex = String(task.lineIndex);
         }
 
         const delBtn = controls.createEl('button', { cls: 'timeblock-delete-btn', text: '✕', title: 'Remove task block from daily note' });
@@ -546,6 +571,50 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
 
     gridWrapper.scrollTop = targetScroll;
     requestAnimationFrame(() => { gridWrapper.scrollTop = targetScroll; });
+
+    // 15-second lightweight pulse to update active block progress bar and time indicator without re-renders
+    const win = (typeof window !== 'undefined' ? window : globalThis);
+    if (viewInstance._scheduleProgressInterval) {
+        win.clearInterval(viewInstance._scheduleProgressInterval);
+        viewInstance._scheduleProgressInterval = null;
+    }
+
+    viewInstance._scheduleProgressInterval = win.setInterval(() => {
+        if (!viewContainer.isConnected) {
+            if (viewInstance._scheduleProgressInterval) {
+                win.clearInterval(viewInstance._scheduleProgressInterval);
+                viewInstance._scheduleProgressInterval = null;
+            }
+            return;
+        }
+
+        const pulseNow = new Date();
+        const pulseH = pulseNow.getHours();
+        const pulseM = pulseNow.getMinutes();
+        const pulseNowMins = pulseH * 60 + pulseM + (pulseNow.getSeconds() / 60);
+
+        // Update current time indicator position and badge text
+        const timeIndicator = canvas.querySelector('.current-time-indicator') as HTMLElement | null;
+        if (timeIndicator && pulseH >= minHour && pulseH <= maxHour) {
+            const currentMinsFromMin = ((pulseH - minHour) * 60) + pulseM;
+            timeIndicator.style.top = `${currentMinsFromMin * (hourHeight / 60)}px`;
+            const badge = timeIndicator.querySelector('.current-time-badge') as HTMLElement | null;
+            if (badge) {
+                badge.textContent = pulseNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+        }
+
+        // Update active block progress bars dynamically without layout jitter
+        const bars = canvas.querySelectorAll('.timeblock-progress-bar') as NodeListOf<HTMLElement>;
+        bars.forEach(bar => {
+            const sMins = parseFloat(bar.dataset.startMins || '0');
+            const eMins = parseFloat(bar.dataset.endMins || '0');
+            if (eMins > sMins && pulseNowMins >= sMins && pulseNowMins <= eMins) {
+                const ratio = Math.min(100, Math.max(0, ((pulseNowMins - sMins) / (eMins - sMins)) * 100));
+                bar.style.width = `${ratio.toFixed(1)}%`;
+            }
+        });
+    }, 15000);
 }
 
 /**

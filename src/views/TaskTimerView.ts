@@ -54,6 +54,10 @@ export class TaskTimerView extends ItemView {
             window.clearInterval(this.hostedMediaInterval);
             this.hostedMediaInterval = null;
         }
+        if ((this as any)._scheduleProgressInterval) {
+            window.clearInterval((this as any)._scheduleProgressInterval);
+            (this as any)._scheduleProgressInterval = null;
+        }
         this.clearTimer();
         this.stopAlarm();
     }
