@@ -181,3 +181,59 @@ test('renderScheduleGridView renders active focus block progress bar and calcula
         clearInterval(viewInstance._scheduleProgressInterval);
     }
 });
+
+test('scheduleProgressInterval dynamically transitions active status and clamps completed blocks', async () => {
+    let intervalCallback = null;
+    const originalSetInterval = globalThis.setInterval;
+    globalThis.setInterval = (cb, ms) => {
+        intervalCallback = cb;
+        return 999;
+    };
+
+    try {
+        const container = createMockElement('div');
+        const now = new Date();
+        const currentH = now.getHours();
+        const currentM = now.getMinutes();
+
+        const task1 = {
+            lineIndex: 1,
+            description: 'Task Now',
+            startHour: currentH,
+            startMin: currentM,
+            endHour: Math.min(23, currentH + 1),
+            endMin: currentM,
+            status: 'open'
+        };
+
+        const viewInstance = {
+            app: {},
+            currentTimer: null,
+            gridZoomLevel: 60,
+            renderSchedule: () => {}
+        };
+
+        await renderScheduleGridView(viewInstance, container, [task1]);
+        assert.ok(intervalCallback, 'Interval callback must be registered');
+
+        // Verify initial active state
+        const card = container.querySelector('.timeblock-card');
+        assert.ok(card.hasClass('is-time-current'));
+        const bar = card.querySelector('.timeblock-progress-bar');
+        assert.ok(bar);
+
+        // Run interval callback
+        intervalCallback();
+        assert.ok(parseFloat(bar.style.width) >= 0);
+
+        // Simulate block expiration by moving endMins into past
+        card.dataset.startMins = String((currentH - 2) * 60);
+        card.dataset.endMins = String((currentH - 1) * 60);
+        intervalCallback();
+        assert.equal(card.hasClass('is-time-current'), false, 'Expired card should not have is-time-current');
+        assert.equal(bar.style.width, '100%', 'Expired card progress bar should be clamped to 100%');
+    } finally {
+        globalThis.setInterval = originalSetInterval;
+    }
+});
+

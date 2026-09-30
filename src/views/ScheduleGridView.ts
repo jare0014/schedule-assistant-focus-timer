@@ -307,6 +307,10 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
         const leftPercent = colIndex * widthPercent;
         card.style.left = `calc(${leftPercent}% + 2px)`;
         card.style.width = `calc(${widthPercent}% - 4px)`;
+        card.dataset.startMins = String(task.calcStartMins);
+        card.dataset.endMins = String(task.calcEndMins);
+        card.dataset.status = String(task.status);
+        card.dataset.lineIndex = String(task.lineIndex);
 
         // Enable Dragging on Grid Cards
         card.setAttribute('draggable', 'true');
@@ -605,13 +609,38 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
         }
 
         // Update active block progress bars dynamically without layout jitter
-        const bars = canvas.querySelectorAll('.timeblock-progress-bar') as NodeListOf<HTMLElement>;
-        bars.forEach(bar => {
-            const sMins = parseFloat(bar.dataset.startMins || '0');
-            const eMins = parseFloat(bar.dataset.endMins || '0');
-            if (eMins > sMins && pulseNowMins >= sMins && pulseNowMins <= eMins) {
-                const ratio = Math.min(100, Math.max(0, ((pulseNowMins - sMins) / (eMins - sMins)) * 100));
-                bar.style.width = `${ratio.toFixed(1)}%`;
+        const allCards = canvas.querySelectorAll('.timeblock-card') as NodeListOf<HTMLElement>;
+        allCards.forEach(c => {
+            const sMins = parseFloat(c.dataset.startMins || '0');
+            const eMins = parseFloat(c.dataset.endMins || '0');
+            const status = c.dataset.status;
+            const isNowCurrent = (pulseNowMins >= sMins && pulseNowMins < eMins && status !== 'completed');
+
+            if (isNowCurrent) {
+                if (!c.hasClass('is-time-current')) {
+                    c.addClass('is-time-current');
+                }
+                let track = c.querySelector('.timeblock-progress-track') as HTMLElement | null;
+                let bar = c.querySelector('.timeblock-progress-bar') as HTMLElement | null;
+                if (!track) {
+                    track = c.createDiv({ cls: 'timeblock-progress-track' });
+                    bar = track.createDiv({ cls: 'timeblock-progress-bar' });
+                    bar.dataset.startMins = String(sMins);
+                    bar.dataset.endMins = String(eMins);
+                    bar.dataset.lineIndex = c.dataset.lineIndex || '';
+                }
+                if (bar && eMins > sMins) {
+                    const ratio = Math.min(100, Math.max(0, ((pulseNowMins - sMins) / (eMins - sMins)) * 100));
+                    bar.style.width = `${ratio.toFixed(1)}%`;
+                }
+            } else {
+                if (c.hasClass('is-time-current')) {
+                    c.removeClass('is-time-current');
+                }
+                const bar = c.querySelector('.timeblock-progress-bar') as HTMLElement | null;
+                if (bar && pulseNowMins >= eMins && eMins > sMins) {
+                    bar.style.width = '100%';
+                }
             }
         });
     }, 15000);
