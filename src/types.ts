@@ -21,6 +21,11 @@ export interface TaskTimerPluginSettings {
     ollamaUrl: string;
     enableServer: boolean;
     serverPort: string;
+    completionSound: string;
+    completionSoundVolume: number;
+    enableBlockRollover: boolean;
+    enableTagColorCoding: boolean;
+    alignFocusSubtasks: boolean;
 }
 
 export const DEFAULT_SETTINGS: TaskTimerPluginSettings = {
@@ -39,7 +44,12 @@ export const DEFAULT_SETTINGS: TaskTimerPluginSettings = {
     customModel: '',
     ollamaUrl: 'http://localhost:11434',
     enableServer: true,
-    serverPort: '8089'
+    serverPort: '8089',
+    completionSound: 'chime',
+    completionSoundVolume: 0.8,
+    enableBlockRollover: true,
+    enableTagColorCoding: true,
+    alignFocusSubtasks: true
 };
 
 export interface TaskItem {

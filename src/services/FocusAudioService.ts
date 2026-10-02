@@ -684,6 +684,7 @@ export class FocusAudioService {
         if (this.autoSyncWithTimer) {
             this.stop();
         }
+        this.playCompletionSound();
     }
 
     public onTimerCancel(): void {
@@ -695,5 +696,84 @@ export class FocusAudioService {
     public onTimerAlarm(): void {
         // Always stop or mute music when siren/alarm goes off
         this.stop();
+    }
+
+    /**
+     * Synthesizes timer completion sounds (chime, crystal bowl, soft bell)
+     * via the browser Web Audio API with zero external audio assets.
+     */
+    public playCompletionSound(selectedType?: string, customVolume?: number): void {
+        if (typeof window === 'undefined') return;
+
+        const s = this.getSettings ? this.getSettings() : {};
+        const soundType = selectedType || s?.completionSound || 'chime';
+        if (soundType === 'none') return;
+
+        const vol = typeof customVolume === 'number' ? customVolume : (s?.completionSoundVolume ?? this.volume ?? 0.8);
+
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+
+        try {
+            const ctx = new AudioCtx();
+            const masterGain = ctx.createGain();
+            masterGain.gain.setValueAtTime(Math.max(0.01, Math.min(1.0, vol)), ctx.currentTime);
+            masterGain.connect(ctx.destination);
+
+            if (soundType === 'crystal_bowl') {
+                // 432 Hz deep singing bowl with soft vibrato and 2.8s resonance
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(432, ctx.currentTime);
+
+                gain.gain.setValueAtTime(0.001, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.7, ctx.currentTime + 0.3);
+                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 2.8);
+
+                osc.connect(gain);
+                gain.connect(masterGain);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 3.0);
+            } else if (soundType === 'soft_bell') {
+                // 880 Hz fundamental + 1760 Hz harmonic bell strike
+                [880, 1760].forEach((freq, idx) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+                    gain.gain.setValueAtTime(0.6 / (idx + 1), ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.8);
+
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 2.0);
+                });
+            } else {
+                // Default: 3-note ascending chime (C5: 523.25, E5: 659.25, G5: 783.99)
+                const notes = [523.25, 659.25, 783.99];
+                notes.forEach((freq, idx) => {
+                    const startTime = ctx.currentTime + (idx * 0.18);
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, startTime);
+
+                    gain.gain.setValueAtTime(0.001, startTime);
+                    gain.gain.linearRampToValueAtTime(0.5, startTime + 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 1.2);
+
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+                    osc.start(startTime);
+                    osc.stop(startTime + 1.3);
+                });
+            }
+        } catch (e) {
+            console.warn("FocusAudioService: completion sound playback error:", e);
+        }
     }
 }

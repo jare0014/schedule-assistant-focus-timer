@@ -838,10 +838,60 @@ export class TaskTimerView extends ItemView {
         return this.resolveExerciseProtocolItems(taskName);
     }
 
+    public async findPendingSubtasksForBlock(task: any): Promise<any[]> {
+        if (!task || task.lineIndex === undefined) return [];
+        const dailyFile = this.getDailyNoteFile();
+        if (!dailyFile) return [];
+        try {
+            const content = await this.app.vault.read(dailyFile);
+            const lines = content.split(/\r?\n/);
+            const parentLine = lines[task.lineIndex];
+            if (!parentLine) return [];
+            const parentIndentMatch = parentLine.match(/^(\s*)/);
+            const parentIndent = parentIndentMatch ? parentIndentMatch[1].length : 0;
+            const subtasks: any[] = [];
+            for (let i = task.lineIndex + 1; i < lines.length; i++) {
+                const l = lines[i];
+                if (!l.trim()) break;
+                const indentMatch = l.match(/^(\s*)/);
+                const indent = indentMatch ? indentMatch[1].length : 0;
+                if (indent <= parentIndent) break;
+                const taskMatch = l.match(/^\s*[-*]\s+\[([ xX\-/])\]\s+(.*)$/);
+                if (taskMatch) {
+                    subtasks.push({
+                        lineIndex: i,
+                        status: (taskMatch[1] === 'x' || taskMatch[1] === 'X') ? 'completed' : 'pending',
+                        description: taskMatch[2].trim()
+                    });
+                }
+            }
+            return subtasks;
+        } catch (e) {
+            return [];
+        }
+    }
+
     public async startTimer(task: any, durationMinutes: number): Promise<void> {
         this.clearTimer();
 
-        const taskName = typeof task === 'object' ? task.description : task;
+        let taskName = typeof task === 'object' ? task.description : task;
+        let items = (typeof task === 'object' && Array.isArray(task.items) && task.items.length > 0)
+            ? task.items
+            : this.resolveExerciseProtocolItems(taskName);
+
+        // SA-BACKLOG-20260918 G10: Focus-block subtask alignment
+        if (this.plugin.settings?.alignFocusSubtasks !== false && typeof task === 'object') {
+            const subtasks = await this.findPendingSubtasksForBlock(task);
+            if (subtasks.length > 0) {
+                if (!items || items.length === 0) {
+                    items = subtasks.map(s => s.description);
+                }
+                const firstPending = subtasks.find(s => s.status !== 'completed');
+                if (firstPending && firstPending.description) {
+                    taskName = `${taskName} ➔ ${firstPending.description}`;
+                }
+            }
+        }
 
         if (this.plugin.focusLogService) {
             await this.plugin.focusLogService.logStart(taskName, durationMinutes);
@@ -849,9 +899,6 @@ export class TaskTimerView extends ItemView {
 
         const totalSeconds = durationMinutes * 60;
         const now = Date.now();
-        const items = (typeof task === 'object' && Array.isArray(task.items) && task.items.length > 0)
-            ? task.items
-            : this.resolveExerciseProtocolItems(taskName);
 
         this.currentTimer = {
             task: typeof task === 'object' ? task : { description: taskName, duration: durationMinutes, items },

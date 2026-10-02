@@ -312,6 +312,26 @@ export async function renderScheduleGridView(viewInstance: any, viewContainer: H
         card.dataset.status = String(task.status);
         card.dataset.lineIndex = String(task.lineIndex);
 
+        // Project tag color-coding (SA-BACKLOG-20260918 G8)
+        const tagMatch = (task.description + " " + (task.originalLine || "")).match(/#(?:project\/)?([a-zA-Z0-9_\-]+)/i);
+        if (tagMatch) {
+            const tagSlug = tagMatch[1].toLowerCase();
+            card.addClass(`project-tag-${tagSlug}`);
+            const tagColors: Record<string, string> = {
+                'quant': '#10b981',
+                'health-connect': '#3b82f6',
+                'health': '#06b6d4',
+                'drg': '#8b5cf6',
+                'clinical-bridge': '#0ea5e9',
+                'athena': '#6366f1',
+                'knowledge-pipeline': '#f59e0b',
+                'work': '#f97316',
+                'chores': '#64748b'
+            };
+            const tintColor = tagColors[tagSlug] || '#7057ff';
+            card.style.borderLeft = `4px solid ${tintColor}`;
+        }
+
         // Enable Dragging on Grid Cards
         card.setAttribute('draggable', 'true');
         card.ondragstart = (e) => {

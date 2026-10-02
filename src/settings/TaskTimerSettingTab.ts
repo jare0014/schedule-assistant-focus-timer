@@ -73,6 +73,69 @@ export class TaskTimerSettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     }));
 
+            containerEl.createEl('h3', { text: 'Focus Timer & Audio Settings' });
+
+            new Setting(containerEl)
+                .setName('Timer Completion Sound')
+                .setDesc('Synthesized chime sound played upon focus timer completion (Web Audio API).')
+                .addDropdown(drop => drop
+                    .addOption('chime', '🔔 Harmonic Chime (Default)')
+                    .addOption('crystal_bowl', '🥣 Singing Crystal Bowl (432 Hz)')
+                    .addOption('soft_bell', '🔕 Soft Meditation Bell')
+                    .addOption('none', 'Mute / None')
+                    .setValue(this.plugin.settings.completionSound || 'chime')
+                    .onChange(async (value) => {
+                        this.plugin.settings.completionSound = value;
+                        await this.plugin.saveSettings();
+                        if (this.plugin.focusAudioService) {
+                            this.plugin.focusAudioService.playCompletionSound(value);
+                        }
+                    }));
+
+            new Setting(containerEl)
+                .setName('Completion Sound Volume')
+                .setDesc('Volume level for completion sounds.')
+                .addSlider(slider => slider
+                    .setLimits(0.1, 1.0, 0.05)
+                    .setValue(this.plugin.settings.completionSoundVolume ?? 0.8)
+                    .setDynamicTooltip()
+                    .onChange(async (value) => {
+                        this.plugin.settings.completionSoundVolume = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            containerEl.createEl('h3', { text: 'Schedule Grid & Rollover Policy' });
+
+            new Setting(containerEl)
+                .setName('Time-Block Rollover Policy')
+                .setDesc('Carry forward uncompleted time blocks from earlier today into the active focus queue instead of marking lapsed.')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.enableBlockRollover !== false)
+                    .onChange(async (value) => {
+                        this.plugin.settings.enableBlockRollover = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            new Setting(containerEl)
+                .setName('Color-Code Calendar Events by Project Tag')
+                .setDesc('Tint schedule grid cards based on vault tags (e.g. #project/quant, #project/health-connect).')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.enableTagColorCoding !== false)
+                    .onChange(async (value) => {
+                        this.plugin.settings.enableTagColorCoding = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            new Setting(containerEl)
+                .setName('Focus-Block Subtask Alignment')
+                .setDesc('Automatically seed the active focus timer with the next pending subtask from the current focus block.')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.alignFocusSubtasks !== false)
+                    .onChange(async (value) => {
+                        this.plugin.settings.alignFocusSubtasks = value;
+                        await this.plugin.saveSettings();
+                    }));
+
             containerEl.createEl('h3', { text: 'Remote Server Settings' });
 
             new Setting(containerEl)
