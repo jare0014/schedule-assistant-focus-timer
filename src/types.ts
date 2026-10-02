@@ -26,6 +26,9 @@ export interface TaskTimerPluginSettings {
     enableBlockRollover: boolean;
     enableTagColorCoding: boolean;
     alignFocusSubtasks: boolean;
+    keepOnTopDuringTimer: boolean;
+    autoExpandTimerPanel: boolean;
+    timerPanelMinWidth: number;
 }
 
 export const DEFAULT_SETTINGS: TaskTimerPluginSettings = {
@@ -49,7 +52,10 @@ export const DEFAULT_SETTINGS: TaskTimerPluginSettings = {
     completionSoundVolume: 0.8,
     enableBlockRollover: true,
     enableTagColorCoding: true,
-    alignFocusSubtasks: true
+    alignFocusSubtasks: true,
+    keepOnTopDuringTimer: true,
+    autoExpandTimerPanel: true,
+    timerPanelMinWidth: 420
 };
 
 export interface TaskItem {

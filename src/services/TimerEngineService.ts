@@ -49,17 +49,68 @@ export class TimerEngineService {
         }
     }
 
-    public flashWindow(): void {
+    public getElectronWindow(): any {
         try {
             const electron = (window as any).require ? (window as any).require('electron') : null;
-            if (electron) {
-                const win = electron.remote ? electron.remote.getCurrentWindow() : electron.BrowserWindow.getFocusedWindow();
-                if (win) {
-                    win.flashFrame(true);
-                    setTimeout(() => {
-                        try { win.flashFrame(false); } catch (e) {}
-                    }, 30000);
+            if (!electron) return null;
+            if (electron.remote && typeof electron.remote.getCurrentWindow === 'function') {
+                return electron.remote.getCurrentWindow();
+            }
+            if (electron.BrowserWindow) {
+                if (typeof electron.BrowserWindow.getFocusedWindow === 'function') {
+                    const focused = electron.BrowserWindow.getFocusedWindow();
+                    if (focused) return focused;
                 }
+                if (typeof electron.BrowserWindow.getAllWindows === 'function') {
+                    const all = electron.BrowserWindow.getAllWindows();
+                    if (all && all.length > 0) return all[0];
+                }
+            }
+        } catch (e) {
+            console.log("Electron window lookup failed:", e);
+        }
+        return null;
+    }
+
+    public setAlwaysOnTop(onTop: boolean): void {
+        try {
+            const win = this.getElectronWindow();
+            if (win) {
+                if (onTop) {
+                    if (typeof win.isMinimized === 'function' && win.isMinimized()) {
+                        win.restore();
+                    }
+                    if (typeof win.show === 'function') {
+                        win.show();
+                    }
+                    if (typeof win.focus === 'function') {
+                        win.focus();
+                    }
+                    try {
+                        win.setAlwaysOnTop(true, 'floating');
+                    } catch (e) {
+                        win.setAlwaysOnTop(true);
+                    }
+                } else {
+                    win.setAlwaysOnTop(false);
+                }
+            }
+        } catch (e) {
+            console.log("Could not set always on top:", e);
+        }
+        if (onTop) {
+            try { window.focus(); } catch (e) {}
+        }
+    }
+
+    public flashWindow(): void {
+        try {
+            const win = this.getElectronWindow();
+            if (win && typeof win.flashFrame === 'function') {
+                win.flashFrame(true);
+                setTimeout(() => {
+                    try { win.flashFrame(false); } catch (e) {}
+                }, 30000);
             }
         } catch (e) {
             console.log("Electron flashFrame not available.");
@@ -95,14 +146,13 @@ export class TimerEngineService {
         document.title = this.originalTitle || "Obsidian";
 
         try {
-            const electron = (window as any).require ? (window as any).require('electron') : null;
-            if (electron) {
-                const win = electron.remote ? electron.remote.getCurrentWindow() : electron.BrowserWindow.getFocusedWindow();
-                if (win) {
-                    win.flashFrame(false);
-                }
+            const win = this.getElectronWindow();
+            if (win && typeof win.flashFrame === 'function') {
+                win.flashFrame(false);
             }
         } catch (e) {}
+
+        this.setAlwaysOnTop(false);
     }
 
     public createTimer(

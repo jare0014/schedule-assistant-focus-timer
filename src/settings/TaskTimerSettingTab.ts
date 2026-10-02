@@ -104,6 +104,45 @@ export class TaskTimerSettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     }));
 
+            new Setting(containerEl)
+                .setName('Keep Obsidian on Top During Timer')
+                .setDesc('Keep Obsidian window always on top of other desktop windows while a focus timer is running, and restore normal behavior when finished.')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.keepOnTopDuringTimer !== false)
+                    .onChange(async (value) => {
+                        this.plugin.settings.keepOnTopDuringTimer = value;
+                        await this.plugin.saveSettings();
+                        if (this.plugin.timerEngineService) {
+                            if (!value) {
+                                this.plugin.timerEngineService.setAlwaysOnTop(false);
+                            } else if (this.plugin.activeTimer && !this.plugin.activeTimer.isPaused) {
+                                this.plugin.timerEngineService.setAlwaysOnTop(true);
+                            }
+                        }
+                    }));
+
+            new Setting(containerEl)
+                .setName('Auto-Expand Timer Sidebar')
+                .setDesc('Automatically open and reveal the focus timer panel in the sidebar when a timer starts, and ensure display width.')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.autoExpandTimerPanel !== false)
+                    .onChange(async (value) => {
+                        this.plugin.settings.autoExpandTimerPanel = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            new Setting(containerEl)
+                .setName('Minimum Timer Panel Width')
+                .setDesc('Minimum width in pixels for the timer sidebar panel when active (default: 420px).')
+                .addText(text => text
+                    .setPlaceholder('420')
+                    .setValue(String(this.plugin.settings.timerPanelMinWidth || 420))
+                    .onChange(async (value) => {
+                        const parsed = parseInt(value);
+                        this.plugin.settings.timerPanelMinWidth = isNaN(parsed) ? 420 : parsed;
+                        await this.plugin.saveSettings();
+                    }));
+
             containerEl.createEl('h3', { text: 'Schedule Grid & Rollover Policy' });
 
             new Setting(containerEl)

@@ -922,6 +922,13 @@ export class TaskTimerView extends ItemView {
 
         this.renderTimer();
 
+        if (this.plugin.settings?.keepOnTopDuringTimer !== false) {
+            this.plugin.timerEngineService?.setAlwaysOnTop(true);
+        }
+        if (this.plugin.settings?.autoExpandTimerPanel !== false) {
+            this.ensureTimerPanelVisible();
+        }
+
         if (this.plugin.focusAudioService) {
             this.plugin.focusAudioService.onTimerStart(taskName);
         }
@@ -949,6 +956,49 @@ export class TaskTimerView extends ItemView {
         }, 500);
     }
 
+    public ensureTimerPanelVisible(): void {
+        try {
+            if (this.leaf && this.app?.workspace) {
+                this.app.workspace.revealLeaf(this.leaf);
+            }
+            const workspace = this.app?.workspace as any;
+            let sidedock = workspace?.rightSplit;
+            if (this.leaf) {
+                let parent: any = (this.leaf as any).parent;
+                while (parent) {
+                    if (typeof parent.expand === 'function' && ('collapsed' in parent || 'size' in parent || 'width' in parent)) {
+                        sidedock = parent;
+                        break;
+                    }
+                    parent = parent.parent;
+                }
+            }
+            if (sidedock) {
+                if (sidedock.collapsed && typeof sidedock.expand === 'function') {
+                    sidedock.expand();
+                }
+                const minWidth = Math.max(350, parseInt(this.plugin?.settings?.timerPanelMinWidth) || 420);
+                const currentWidth = sidedock.size || (sidedock.containerEl ? sidedock.containerEl.offsetWidth : 0);
+                if (currentWidth < minWidth) {
+                    if (typeof sidedock.setSize === 'function') {
+                        sidedock.setSize(minWidth);
+                    } else {
+                        if (typeof sidedock.size === 'number') sidedock.size = minWidth;
+                        if (typeof sidedock.width === 'number') sidedock.width = minWidth;
+                        if (sidedock.containerEl) {
+                            sidedock.containerEl.style.width = `${minWidth}px`;
+                        }
+                    }
+                    if (typeof workspace.onLayoutChange === 'function') {
+                        workspace.onLayoutChange();
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("Could not ensure timer panel visibility and width:", e);
+        }
+    }
+
     public clearTimer(): void {
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
@@ -956,6 +1006,9 @@ export class TaskTimerView extends ItemView {
         }
         if (this.plugin) {
             this.plugin.activeTimer = null;
+            if (this.plugin.timerEngineService && !this.isAlarming) {
+                this.plugin.timerEngineService.setAlwaysOnTop(false);
+            }
         }
     }
 
@@ -1308,6 +1361,12 @@ export class TaskTimerView extends ItemView {
             if (options.controlMedia !== false) {
                 if (this.plugin.focusAudioService) this.plugin.focusAudioService.onTimerResume();
                 this.controlHostedMedia('play').catch(() => {});
+            }
+            if (this.plugin.settings?.keepOnTopDuringTimer !== false) {
+                this.plugin.timerEngineService?.setAlwaysOnTop(true);
+            }
+            if (this.plugin.settings?.autoExpandTimerPanel !== false) {
+                this.ensureTimerPanelVisible();
             }
         }
 

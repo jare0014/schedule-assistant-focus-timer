@@ -221,6 +221,7 @@ export default class TaskTimerPlugin extends Plugin {
         }
         await this.stopServer();
         this.timerEngineService?.stopAlarm();
+        this.timerEngineService?.setAlwaysOnTop(false);
         this.app.workspace.detachLeavesOfType(VIEW_TYPE_TASK_TIMER);
         if (typeof window !== "undefined" && (window as any).__obsidianMenu === Menu) {
             delete (window as any).__obsidianMenu;
@@ -260,16 +261,25 @@ export default class TaskTimerPlugin extends Plugin {
     }
 
     async activateView(): Promise<void> {
-        this.app.workspace.detachLeavesOfType(VIEW_TYPE_TASK_TIMER);
-        let leaf = this.app.workspace.getRightLeaf(false);
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASK_TIMER);
+        let leaf = leaves.length > 0 ? leaves[0] : null;
         if (!leaf) {
-            leaf = this.app.workspace.getLeaf(true);
+            leaf = this.app.workspace.getRightLeaf(false);
+            if (!leaf) {
+                leaf = this.app.workspace.getLeaf(true);
+            }
+            if (leaf) {
+                await leaf.setViewState({
+                    type: VIEW_TYPE_TASK_TIMER,
+                    active: true,
+                });
+            }
         }
         if (leaf) {
-            await leaf.setViewState({
-                type: VIEW_TYPE_TASK_TIMER,
-                active: true,
-            });
+            await this.app.workspace.revealLeaf(leaf);
+            if (leaf.view && typeof (leaf.view as any).ensureTimerPanelVisible === 'function') {
+                (leaf.view as any).ensureTimerPanelVisible();
+            }
         }
     }
 
