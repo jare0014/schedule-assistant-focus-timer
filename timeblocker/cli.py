@@ -5,6 +5,7 @@ cli.py - Main entrypoint and command-line execution coordinator for timeblocker.
 import os
 import sys
 import json
+import re
 from datetime import datetime
 
 from .auth import get_timezone_offset, get_base_dir
@@ -66,6 +67,19 @@ def main():
     except Exception as e:
         print(f"Error reading Google Tasks: {e}")
         google_tasks = []
+
+    # Sync imported Todoist and Google Tasks to Weekly Note under appropriate day header
+    try:
+        from .weekly_syncer import find_vault_root, sync_external_tasks_to_weekly_note
+        vault_root = find_vault_root(note_path)
+        note_basename = os.path.splitext(os.path.basename(note_path))[0]
+        date_pattern = re.match(r"^\d{4}-\d{2}-\d{2}$", note_basename)
+        default_date = note_basename if date_pattern else datetime.now(tz).strftime("%Y-%m-%d")
+        synced_weekly = sync_external_tasks_to_weekly_note(vault_root, tasks, google_tasks, default_date)
+        if synced_weekly:
+            print(f"Synced {len(synced_weekly)} external task(s) to Weekly Note: {[s['title'] for s in synced_weekly]}")
+    except Exception as e:
+        print(f"Weekly Note task sync error: {e}")
 
     # Filter daily note tasks to remove any generic hallucinated tasks from prior runs
     filtered_daily_tasks = []
