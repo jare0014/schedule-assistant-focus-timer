@@ -839,20 +839,27 @@ export class TaskTimerView extends ItemView {
     }
 
     public async findPendingSubtasksForBlock(task: any): Promise<any[]> {
-        if (!task || task.lineIndex === undefined) return [];
+        if (!task) return [];
         const dailyFile = this.getDailyNoteFile();
         if (!dailyFile) return [];
         try {
             const content = await this.app.vault.read(dailyFile);
             const lines = content.split(/\r?\n/);
-            const parentLine = lines[task.lineIndex];
-            if (!parentLine) return [];
+            let lineIndex = task.lineIndex;
+            const desc = (task.description || '').toLowerCase().trim();
+            if (lineIndex === undefined || lineIndex >= lines.length || !lines[lineIndex].toLowerCase().includes(desc)) {
+                lineIndex = lines.findIndex(l => l.toLowerCase().includes(desc) && (l.includes('- [ ]') || l.includes('- [x]') || l.includes('- [/]')));
+            }
+            if (lineIndex === -1 || lineIndex === undefined) return [];
+
+            const parentLine = lines[lineIndex];
             const parentIndentMatch = parentLine.match(/^(\s*)/);
             const parentIndent = parentIndentMatch ? parentIndentMatch[1].length : 0;
             const subtasks: any[] = [];
-            for (let i = task.lineIndex + 1; i < lines.length; i++) {
+            for (let i = lineIndex + 1; i < lines.length; i++) {
                 const l = lines[i];
-                if (!l.trim()) break;
+                if (!l.trim()) continue;
+                if (l.trim().startsWith('#')) break;
                 const indentMatch = l.match(/^(\s*)/);
                 const indent = indentMatch ? indentMatch[1].length : 0;
                 if (indent <= parentIndent) break;
