@@ -15,6 +15,7 @@ import { FocusAudioService } from './services/FocusAudioService';
 import { TaskTimerView } from './views/TaskTimerView';
 import { OmniLoggerModal } from './views/OmniLoggerModal';
 import { TaskTimerSettingTab } from './settings/TaskTimerSettingTab';
+import { SessionHeatmapView } from './views/SessionHeatmapView';
 
 export default class TaskTimerPlugin extends Plugin {
     public settings: TaskTimerPluginSettings = DEFAULT_SETTINGS;
@@ -206,6 +207,21 @@ export default class TaskTimerPlugin extends Plugin {
             setting.open.__antigravityHooked = true;
             setting.open.__originalOpen = originalOpen;
         }
+
+        // Register Focus Heatmap Codeblock Processor
+        this.registerMarkdownCodeBlockProcessor('focus-heatmap', async (source, el, ctx) => {
+            let days = 30;
+            if (source && source.trim()) {
+                const lines = source.split('\n');
+                for (const line of lines) {
+                    const match = line.match(/^days:\s*(\d+)/i);
+                    if (match) days = parseInt(match[1], 10);
+                }
+            }
+            const heatmapView = new SessionHeatmapView(this.app, el);
+            const stats = await heatmapView.gatherFocusStats(days);
+            await heatmapView.render(stats);
+        });
 
         if (this.settings.enableServer !== false) {
             await this.startServer();
