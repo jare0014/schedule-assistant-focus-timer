@@ -6,7 +6,7 @@ function parseAllTasks(content) {
     if (!content) return [];
     const lines = content.split(/\r?\n/);
     const tasks = [];
-    const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+    const taskRegex = /^\s*(?:[*+]\s+)?-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
     let currentSubheading = "";
     
     let hasPlannerHeader = false;
@@ -118,7 +118,7 @@ function parseAllTasks(content) {
                     lastParentTask = taskObj;
                 }
             } else {
-                const untimedRegex = /^\s*-\s+\[( |x|X)\]\s+(.*)$/;
+                const untimedRegex = /^\s*(?:[*+]\s+)?-\s+\[( |x|X)\]\s+(.*)$/;
                 const untimedMatch = line.match(untimedRegex);
                 if (untimedMatch && (!line.includes("BUTTON[") || line.includes("BUTTON[timer-"))) {
                     const status = (untimedMatch[1] === 'x' || untimedMatch[1] === 'X') ? 'completed' : 'pending';

@@ -9,9 +9,11 @@ from typing import List
 
 
 def normalize_time_range_spaces(line: str) -> str:
-    """Normalizes spacing around time ranges in task checklist lines."""
+    """Normalizes spacing around time ranges in task checklist lines, stripping any redundant bullet marks."""
     if not line:
         return line
+    # Strip any accidental duplicate bullet prefix like "*   - [" or "* - ["
+    line = re.sub(r'^\s*[*+]\s+-\s*\[', '- [', line)
     regex = r"^((\s*-\s+\[[ xX/]\]\s+)?\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*)(.*)$"
     match = re.match(regex, line, re.IGNORECASE)
     if match:

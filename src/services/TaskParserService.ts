@@ -9,7 +9,7 @@ export class TaskParserService {
         if (!content) return [];
         const lines = content.split(/\r?\n/);
         const tasks: TaskItem[] = [];
-        const taskRegex = /^\s*-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
+        const taskRegex = /^\s*(?:[*+]\s+)?-\s+\[( |x|X)\]\s+(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s*[\-–—~]\s*(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?\s+(.*)$/;
         let currentSubheading = "";
         let hasPlannerHeader = false;
 
@@ -197,7 +197,7 @@ export class TaskParserService {
                     tasks.push(taskObj);
                     if (!isIndented) lastParentTask = taskObj;
                 } else {
-                    const untimedRegex = /^\s*-\s+\[( |x|X)\]\s+(.*)$/;
+                    const untimedRegex = /^\s*(?:[*+]\s+)?-\s+\[( |x|X)\]\s+(.*)$/;
                     const untimedMatch = line.match(untimedRegex);
                     if (untimedMatch && (!line.includes("BUTTON[") || line.includes("BUTTON[timer-"))) {
                         const status: 'completed' | 'pending' = (untimedMatch[1] === 'x' || untimedMatch[1] === 'X') ? 'completed' : 'pending';

@@ -9,6 +9,8 @@ import { TaskParserService } from './TaskParserService';
 export class DailyNoteManager {
     public static normalizeTimeRangeSpaces(line: string): string {
         if (!line) return line;
+        // Strip any accidental duplicate bullet prefix like "*   - [" or "* - ["
+        line = line.replace(/^\s*[*+]\s+-\s*\[/, '- [');
         const regex = /^((\s*-\s+\[[ xX/]\]\s+)?\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*[\-–—~]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?\s*)(.*)$/i;
         const match = line.match(regex);
         if (match) {
