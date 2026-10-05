@@ -239,8 +239,77 @@ test('Helper methods: getWeeklyNoteFile and getHabitSectionKey function accurate
     assert.equal(tFile.path, '02_Journal/02_Weekly/2026-W38.md');
 
     assert.equal(f.service.getHabitSectionKey('Morning Routine'), 'morning');
+    assert.equal(f.service.getHabitSectionKey('Habits: Morning Routine'), 'morning');
+    assert.equal(f.service.getHabitSectionKey('Habits: Midday Routine'), 'midday');
+    assert.equal(f.service.getHabitSectionKey('Habits: Evening Routine'), 'evening');
+    assert.equal(f.service.getHabitSectionKey('Midday Routine'), 'midday');
+    assert.equal(f.service.getHabitSectionKey('Evening Routine'), 'evening');
     assert.equal(f.service.getHabitSectionKey('Habits Matrix'), 'morning');
     assert.equal(f.service.getHabitSectionKey('Work Focus Sprint'), 'work');
     assert.equal(f.service.getHabitSectionKey('Housework chore'), 'house');
     assert.equal(f.service.getHabitSectionKey('Unrelated Task'), null);
+});
+
+test('Routine slot partitioning: Morning, Midday, and Evening dividers partition habits cleanly', async () => {
+    const partitionedTable = `## Habits
+
+| Task | Wednesday | Thursday |
+| :--- | :---: | :---: |
+| **☀️ Morning Routine** | — | — |
+| Wake up | [x] | [ ] |
+| Waffles | [ ] | [ ] |
+| **⚡ Midday Routine** | — | — |
+| Exercises: Phase 2 | [ ] | [ ] |
+| Lumosity | [ ] | [ ] |
+| **🌙 Evening Routine** | — | — |
+| Tidy up | [ ] | [ ] |
+| Run dishes | [ ] | [ ] |
+`;
+    let text = partitionedTable;
+    let writes = 0;
+    const exports = {};
+    vm.runInNewContext(compiled, {
+        exports,
+        require: () => ({}),
+        window: {
+            moment: () => ({ format: f => f === 'dddd' ? 'Thursday' : '2026-W38' }),
+            dispatchEvent: () => {}
+        }
+    });
+    const app = {
+        vault: {
+            getAbstractFileByPath: () => ({ path: '02_Journal/02_Weekly/2026-W38.md' }),
+            read: async () => text,
+            modify: async (_, value) => { text = value; writes++; }
+        }
+    };
+
+    const { habitsBySection } = await exports.WeeklyHabitService.loadTodayWeeklyHabits(app);
+
+    // Verify morning contains only morning habits
+    assert.equal(habitsBySection.morning.length, 2);
+    assert.equal(habitsBySection.morning[0].name, 'Wake up');
+    assert.equal(habitsBySection.morning[1].name, 'Waffles');
+
+    // Verify midday contains only midday habits
+    assert.equal(habitsBySection.midday.length, 2);
+    assert.equal(habitsBySection.midday[0].name, 'Exercises: Phase 2');
+    assert.equal(habitsBySection.midday[1].name, 'Lumosity');
+
+    // Verify evening contains only evening habits
+    assert.equal(habitsBySection.evening.length, 2);
+    assert.equal(habitsBySection.evening[0].name, 'Tidy up');
+    assert.equal(habitsBySection.evening[1].name, 'Run dishes');
+
+    // Verify rowIdx reflects original table row index
+    // row 0: Morning div, 1: Wake up, 2: Waffles, 3: Midday div, 4: Exercises: Phase 2, 5: Lumosity
+    const lumosity = habitsBySection.midday.find(h => h.name === 'Lumosity');
+    assert.ok(lumosity);
+    assert.equal(lumosity.rowIdx, 5);
+
+    // Toggle Lumosity in midday
+    const toggleResult = await exports.WeeklyHabitService.toggleWeeklyHabit(app, 'midday', lumosity.rowIdx, true);
+    assert.equal(toggleResult, true);
+    assert.equal(writes, 1);
+    assert.match(text, /Lumosity\s*\|\s*\[ \]\s*\|\s*\[x\]/);
 });

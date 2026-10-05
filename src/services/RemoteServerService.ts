@@ -165,12 +165,14 @@ export class RemoteServerService {
                         }
                     }
 
-                    let todayHabits: any = { morning: [], work: [], house: [] };
+                    let todayHabits: any = { morning: [], midday: [], evening: [], work: [], house: [] };
                     try {
                         const weeklyData = await WeeklyHabitService.loadTodayWeeklyHabits(this.app);
                         if (weeklyData && weeklyData.habitsBySection) {
                             todayHabits = {
                                 morning: (weeklyData.habitsBySection.morning || []).map(h => ({ name: h.name, completed: h.completed, rowIdx: h.rowIdx, sectionKey: h.sectionKey })),
+                                midday: (weeklyData.habitsBySection.midday || []).map(h => ({ name: h.name, completed: h.completed, rowIdx: h.rowIdx, sectionKey: h.sectionKey })),
+                                evening: (weeklyData.habitsBySection.evening || []).map(h => ({ name: h.name, completed: h.completed, rowIdx: h.rowIdx, sectionKey: h.sectionKey })),
                                 work: (weeklyData.habitsBySection.work || []).map(h => ({ name: h.name, completed: h.completed, rowIdx: h.rowIdx, sectionKey: h.sectionKey })),
                                 house: (weeklyData.habitsBySection.house || []).map(h => ({ name: h.name, completed: h.completed, rowIdx: h.rowIdx, sectionKey: h.sectionKey }))
                             };

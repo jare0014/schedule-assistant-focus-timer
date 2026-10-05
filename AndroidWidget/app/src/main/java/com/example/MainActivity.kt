@@ -2364,7 +2364,9 @@ fun getHabitSectionKey(description: String): String? {
     return when {
         d.contains("house") || d.contains("chore") -> "house"
         d.contains("work") -> "work"
-        d.contains("morning") || d.contains("midday") || d.contains("routine") || d.contains("habit") -> "morning"
+        d.contains("midday") -> "midday"
+        d.contains("evening") -> "evening"
+        d.contains("morning") || d.contains("routine") || d.contains("habit") -> "morning"
         else -> null
     }
 }

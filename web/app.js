@@ -788,7 +788,9 @@ function renderGridView(tasks) {
 function getHabitSectionKey(description) {
     if (!description) return null;
     const d = description.toLowerCase();
-    if (d.includes("morning")) return "morning";
+    if (d.includes("midday")) return "midday";
+    if (d.includes("evening")) return "evening";
+    if (d.includes("morning") || d.includes("habit")) return "morning";
     if (d.includes("house") || d.includes("chore")) return "house";
     if (d.includes("work")) return "work";
     return null;
