@@ -170,6 +170,7 @@ export class FocusLogService {
         const m = String(now.getMinutes()).padStart(2, '0');
         const s = String(now.getSeconds()).padStart(2, '0');
         const actualEndTimeStr = `${h}:${m}:${s}`;
+        const completedValue = isCompleted ? actualEndTimeStr : 'cancelled';
 
         try {
             const content = await this.app.vault.read(dailyFile);
@@ -178,7 +179,7 @@ export class FocusLogService {
             let replaced = false;
             for (let i = 0; i < lines.length; i++) {
                 if (lines[i].trim() === logInfo.logLine.trim()) {
-                    lines[i] = lines[i].replace(/\[completed-time:: [^\]]*\]/, `[completed-time:: ${actualEndTimeStr}]`);
+                    lines[i] = lines[i].replace(/\[completed-time:: [^\]]*\]/, `[completed-time:: ${completedValue}]`);
                     replaced = true;
                     break;
                 }
@@ -187,7 +188,7 @@ export class FocusLogService {
             if (!replaced) {
                 for (let i = 0; i < lines.length; i++) {
                     if (lines[i].includes(`[start-time:: ${logInfo.startTimeStr}]`) && lines[i].includes(`[focus:: ${logInfo.taskName}]`)) {
-                        lines[i] = lines[i].replace(/\[completed-time:: [^\]]*\]/, `[completed-time:: ${actualEndTimeStr}]`);
+                        lines[i] = lines[i].replace(/\[completed-time:: [^\]]*\]/, `[completed-time:: ${completedValue}]`);
                         break;
                     }
                 }
