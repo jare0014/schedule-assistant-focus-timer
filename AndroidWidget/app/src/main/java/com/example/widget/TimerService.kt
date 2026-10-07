@@ -177,6 +177,7 @@ class TimerService : Service() {
             }
             "RESUME" -> {
                 prefs.activeTimerIsPaused = false
+                prefs.activeTimerTargetEndTime = System.currentTimeMillis() + (prefs.activeTimerRemainingSeconds * 1000L)
                 if (prefs.isAudioAutoSyncEnabled) {
                     com.example.media.FocusMediaService.resumeAudio(applicationContext)
                 }
@@ -298,9 +299,6 @@ class TimerService : Service() {
                     }
                     prefs.activeTimerRemainingSeconds = remaining
                     
-                    // Update widget every second (screen interactivity checked inside updateWidget)
-                    updateWidget(applicationContext)
-                    
                     updateNotificationOnly()
                     syncTimerStateToWatch()
 
@@ -397,16 +395,17 @@ class TimerService : Service() {
     }
 
     private fun updateWidget(context: Context, force: Boolean = false) {
-        if (!force) {
-            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-            if (!pm.isInteractive) {
-                return
-            }
-        }
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, ObsidianTodoWidgetProvider::class.java))
-        val provider = ObsidianTodoWidgetProvider()
-        provider.onUpdate(context, appWidgetManager, ids)
+        if (ids.isNotEmpty()) {
+            val provider = ObsidianTodoWidgetProvider()
+            provider.onUpdate(context, appWidgetManager, ids)
+        }
+        val nextIds = appWidgetManager.getAppWidgetIds(ComponentName(context, StartNextTaskWidgetProvider::class.java))
+        if (nextIds.isNotEmpty()) {
+            val nextProvider = StartNextTaskWidgetProvider()
+            nextProvider.onUpdate(context, appWidgetManager, nextIds)
+        }
     }
 
     private fun buildNotification(): Notification {

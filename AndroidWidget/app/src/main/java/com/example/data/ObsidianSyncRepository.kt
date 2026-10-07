@@ -149,7 +149,7 @@ class ObsidianSyncRepository(private val context: Context) {
                 taskDao.clearTasks()
                 prefs.lastSyncTime = System.currentTimeMillis()
                 prefs.lastSyncStatus = "Success (Empty File)"
-                triggerWidgetUpdate()
+                triggerWidgetUpdate(dataChanged = true)
                 return true
             }
 
@@ -164,7 +164,7 @@ class ObsidianSyncRepository(private val context: Context) {
 
             prefs.lastSyncTime = System.currentTimeMillis()
             prefs.lastSyncStatus = "Success"
-            triggerWidgetUpdate()
+            triggerWidgetUpdate(dataChanged = true)
             return true
         } catch (e: IOException) {
             val errMsg = "Network request failed: ${e.message}"
@@ -445,7 +445,7 @@ class ObsidianSyncRepository(private val context: Context) {
 
         // Update locally in database first for snappy user interactions
         taskDao.updateTaskStatus(task.id, isCompleted)
-        triggerWidgetUpdate()
+        triggerWidgetUpdate(dataChanged = true)
 
         if (prefs.syncMode == "MARKDOWN") {
             // Markdown file editing
@@ -535,13 +535,13 @@ class ObsidianSyncRepository(private val context: Context) {
                 } else {
                     prefs.addLog("Failed uploading changes: HTTP ${putResponse.code}. Reverting local task state.")
                     taskDao.updateTaskStatus(task.id, !isCompleted)
-                    triggerWidgetUpdate()
+                    triggerWidgetUpdate(dataChanged = true)
                     return false
                 }
             } catch (e: Exception) {
                 prefs.addLog("Network toggle failure: ${e.message}. Reverting state.")
                 taskDao.updateTaskStatus(task.id, !isCompleted)
-                triggerWidgetUpdate()
+                triggerWidgetUpdate(dataChanged = true)
                 return false
             }
         } else {
@@ -602,14 +602,14 @@ class ObsidianSyncRepository(private val context: Context) {
                     } else {
                         prefs.addLog("JSON toggle failed: API mismatch (code ${response.code}). Reverting.")
                         taskDao.updateTaskStatus(task.id, !isCompleted)
-                        triggerWidgetUpdate()
+                        triggerWidgetUpdate(dataChanged = true)
                         return false
                     }
                 }
             } catch (e: Exception) {
                 prefs.addLog("JSON sync toggle network error: ${e.message}. Reverting.")
                 taskDao.updateTaskStatus(task.id, !isCompleted)
-                triggerWidgetUpdate()
+                triggerWidgetUpdate(dataChanged = true)
                 return false
             }
         }
@@ -1270,7 +1270,7 @@ class ObsidianSyncRepository(private val context: Context) {
     suspend fun deleteTask(task: Task): Boolean {
         prefs.addLog("Deleting task block: ${task.text}")
         taskDao.deleteTask(task.id)
-        triggerWidgetUpdate()
+        triggerWidgetUpdate(dataChanged = true)
         val base = getBaseUrl()
         val url = "$base/api/task/delete"
         val payload = JSONObject().apply {
@@ -1365,13 +1365,15 @@ class ObsidianSyncRepository(private val context: Context) {
         return false
     }
 
-    fun triggerWidgetUpdate() {
+    fun triggerWidgetUpdate(dataChanged: Boolean = false) {
         try {
             val app = context.applicationContext
             val mgr = AppWidgetManager.getInstance(app)
             val mainIds = mgr.getAppWidgetIds(ComponentName(app, "com.example.widget.ObsidianTodoWidgetProvider"))
             if (mainIds.isNotEmpty()) {
-                mgr.notifyAppWidgetViewDataChanged(mainIds, com.example.R.id.widget_list_view)
+                if (dataChanged) {
+                    mgr.notifyAppWidgetViewDataChanged(mainIds, com.example.R.id.widget_list_view)
+                }
                 val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
                     component = ComponentName(app, "com.example.widget.ObsidianTodoWidgetProvider")
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, mainIds)

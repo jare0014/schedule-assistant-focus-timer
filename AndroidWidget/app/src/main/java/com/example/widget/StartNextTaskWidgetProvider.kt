@@ -52,14 +52,37 @@ class StartNextTaskWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.start_next_task_widget)
 
             if (isActive) {
-                val remainingSecs = prefs.activeTimerRemainingSeconds
                 val isPaused = prefs.activeTimerIsPaused
+                val isAlarm = prefs.isAlarming
+                val targetEnd = prefs.activeTimerTargetEndTime
+
+                val remainingMs = if (!isPaused && targetEnd > 0L) {
+                    (targetEnd - System.currentTimeMillis()).coerceAtLeast(0L)
+                } else {
+                    (prefs.activeTimerRemainingSeconds * 1000L).coerceAtLeast(0L)
+                }
+                val remainingSecs = kotlin.math.ceil(remainingMs / 1000.0).toInt()
                 val timeStr = String.format("%02d:%02d", remainingSecs / 60, remainingSecs % 60)
 
-                views.setTextViewText(R.id.start_next_header, "ACTIVE FOCUS SESSION")
-                views.setInt(R.id.start_next_header, "setTextColor", android.graphics.Color.parseColor("#A882DD"))
+                views.setTextViewText(R.id.start_next_header, if (isAlarm) "TIME'S UP!" else "ACTIVE FOCUS SESSION")
+                views.setInt(R.id.start_next_header, "setTextColor", android.graphics.Color.parseColor(if (isAlarm) "#EF4444" else "#A882DD"))
                 views.setTextViewText(R.id.start_next_title, activeName)
-                views.setTextViewText(R.id.start_next_subtitle, if (isPaused) "$timeStr (Paused)" else "$timeStr remaining")
+
+                if (isAlarm) {
+                    views.setViewVisibility(R.id.start_next_chronometer, android.view.View.GONE)
+                    views.setViewVisibility(R.id.start_next_subtitle, android.view.View.VISIBLE)
+                    views.setTextViewText(R.id.start_next_subtitle, "Session complete! Tap to dismiss")
+                } else if (isPaused) {
+                    views.setViewVisibility(R.id.start_next_chronometer, android.view.View.GONE)
+                    views.setViewVisibility(R.id.start_next_subtitle, android.view.View.VISIBLE)
+                    views.setTextViewText(R.id.start_next_subtitle, "$timeStr (Paused)")
+                } else {
+                    val base = android.os.SystemClock.elapsedRealtime() + remainingMs
+                    views.setViewVisibility(R.id.start_next_subtitle, android.view.View.GONE)
+                    views.setViewVisibility(R.id.start_next_chronometer, android.view.View.VISIBLE)
+                    views.setChronometerCountDown(R.id.start_next_chronometer, true)
+                    views.setChronometer(R.id.start_next_chronometer, base, "%s remaining", true)
+                }
 
                 views.setImageViewResource(R.id.start_next_icon, if (isPaused) R.drawable.ic_play else R.drawable.ic_pause)
                 views.setInt(R.id.start_next_icon, "setColorFilter", android.graphics.Color.parseColor(if (isPaused) "#10B981" else "#E4E4E7"))
@@ -78,6 +101,10 @@ class StartNextTaskWidgetProvider : AppWidgetProvider() {
                 views.setOnClickPendingIntent(R.id.start_next_icon, togglePi)
                 views.setOnClickPendingIntent(R.id.start_next_root, togglePi)
             } else {
+                views.setViewVisibility(R.id.start_next_chronometer, android.view.View.GONE)
+                views.setViewVisibility(R.id.start_next_subtitle, android.view.View.VISIBLE)
+                views.setChronometer(R.id.start_next_chronometer, 0L, null, false)
+
                 val taskTitle = nextTask?.displayTitle?.ifEmpty { nextTask.text } ?: "All tasks completed!"
                 val subText = if (nextTask != null) {
                     if (!nextTask.timeRange.isNullOrEmpty()) "${nextTask.timeRange} • Tap to start" else "Ready to launch"
@@ -171,16 +198,30 @@ class StartNextTaskWidgetProvider : AppWidgetProvider() {
             }
             ACTION_TOGGLE_ACTIVE -> {
                 val pr = try { goAsync() } catch (e: Exception) { null }
+                val prefs = SyncPreferences(context)
+                if (prefs.activeTimerIsPaused) {
+                    prefs.activeTimerIsPaused = false
+                    prefs.activeTimerTargetEndTime = System.currentTimeMillis() + (prefs.activeTimerRemainingSeconds * 1000L)
+                } else {
+                    val targetEnd = prefs.activeTimerTargetEndTime
+                    val remainingMs = if (targetEnd > 0L) (targetEnd - System.currentTimeMillis()).coerceAtLeast(0L) else (prefs.activeTimerRemainingSeconds * 1000L)
+                    prefs.activeTimerRemainingSeconds = kotlin.math.ceil(remainingMs / 1000.0).toInt()
+                    prefs.activeTimerIsPaused = true
+                    prefs.activeTimerTargetEndTime = 0L
+                }
+                val mgr = AppWidgetManager.getInstance(context)
+                val ids = mgr.getAppWidgetIds(ComponentName(context, StartNextTaskWidgetProvider::class.java))
+                updateWidgetSync(context, mgr, ids)
+
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
-                        val prefs = SyncPreferences(context)
                         val repo = ObsidianSyncRepository(context)
                         if (prefs.activeTimerIsPaused) {
-                            repo.resumeTimer()
-                        } else {
                             repo.pauseTimer()
+                        } else {
+                            repo.resumeTimer()
                         }
-                        repo.triggerWidgetUpdate()
+                        repo.triggerWidgetUpdate(dataChanged = false)
                     } catch (e: Exception) {
                         e.printStackTrace()
                     } finally {

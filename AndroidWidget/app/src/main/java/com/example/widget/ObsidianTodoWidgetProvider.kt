@@ -39,7 +39,6 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             val views = buildViews(context, appWidgetId)
             appWidgetManager.updateAppWidget(appWidgetId, views)
-            appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_list_view)
         }
     }
 
@@ -102,13 +101,37 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_timer_container, View.VISIBLE)
             views.setTextViewText(R.id.widget_timer_task_name, activeTaskName)
 
-            val remainingSecs = prefs.activeTimerRemainingSeconds
             val isPaused = prefs.activeTimerIsPaused
-            val timeStr = if (isPaused)
-                String.format("%02d:%02d (Paused)", remainingSecs / 60, remainingSecs % 60)
-            else
-                String.format("%02d:%02d", remainingSecs / 60, remainingSecs % 60)
-            views.setTextViewText(R.id.widget_timer_time, timeStr)
+            val isAlarm = prefs.isAlarming
+            val targetEnd = prefs.activeTimerTargetEndTime
+
+            // Wall-clock calculation from device clock
+            val remainingMs = if (!isPaused && targetEnd > 0L) {
+                (targetEnd - System.currentTimeMillis()).coerceAtLeast(0L)
+            } else {
+                (prefs.activeTimerRemainingSeconds * 1000L).coerceAtLeast(0L)
+            }
+            val remainingSecs = kotlin.math.ceil(remainingMs / 1000.0).toInt()
+
+            if (isAlarm) {
+                views.setViewVisibility(R.id.widget_timer_chronometer, View.GONE)
+                views.setViewVisibility(R.id.widget_timer_time, View.VISIBLE)
+                views.setTextViewText(R.id.widget_timer_time, "Time's Up!")
+                views.setTextColor(R.id.widget_timer_time, android.graphics.Color.parseColor("#EF4444"))
+            } else if (isPaused) {
+                views.setViewVisibility(R.id.widget_timer_chronometer, View.GONE)
+                views.setViewVisibility(R.id.widget_timer_time, View.VISIBLE)
+                val timeStr = String.format("%02d:%02d (Paused)", remainingSecs / 60, remainingSecs % 60)
+                views.setTextViewText(R.id.widget_timer_time, timeStr)
+                views.setTextColor(R.id.widget_timer_time, android.graphics.Color.parseColor("#A882DD"))
+            } else {
+                val base = android.os.SystemClock.elapsedRealtime() + remainingMs
+                views.setViewVisibility(R.id.widget_timer_time, View.GONE)
+                views.setViewVisibility(R.id.widget_timer_chronometer, View.VISIBLE)
+                views.setTextColor(R.id.widget_timer_chronometer, android.graphics.Color.parseColor("#A882DD"))
+                views.setChronometerCountDown(R.id.widget_timer_chronometer, true)
+                views.setChronometer(R.id.widget_timer_chronometer, base, null, true)
+            }
 
             views.setImageViewResource(R.id.widget_timer_pause_btn,
                 if (isPaused) R.drawable.ic_play else R.drawable.ic_pause)
@@ -135,6 +158,7 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_timer_cancel_btn, cancelPi)
         } else {
             views.setViewVisibility(R.id.widget_timer_container, View.GONE)
+            views.setChronometer(R.id.widget_timer_chronometer, 0L, null, false)
         }
 
         // Connect scrollable ListView via RemoteViewsService
@@ -209,6 +233,9 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         ObsidianSyncRepository(context).syncTasks()
+                        val mgr = AppWidgetManager.getInstance(context)
+                        val ids = mgr.getAppWidgetIds(ComponentName(context, ObsidianTodoWidgetProvider::class.java))
+                        mgr.notifyAppWidgetViewDataChanged(ids, R.id.widget_list_view)
                         refreshWidget(context)
                     } catch (e: Exception) { e.printStackTrace() }
                     finally { pr?.finish() }
@@ -216,6 +243,13 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
             }
             ACTION_PAUSE_TIMER -> {
                 val pr = try { goAsync() } catch (e: Exception) { null }
+                val prefs = SyncPreferences(context)
+                val targetEnd = prefs.activeTimerTargetEndTime
+                val remainingMs = if (targetEnd > 0L) (targetEnd - System.currentTimeMillis()).coerceAtLeast(0L) else (prefs.activeTimerRemainingSeconds * 1000L)
+                prefs.activeTimerRemainingSeconds = kotlin.math.ceil(remainingMs / 1000.0).toInt()
+                prefs.activeTimerIsPaused = true
+                prefs.activeTimerTargetEndTime = 0L
+                refreshWidget(context)
                 CoroutineScope(Dispatchers.IO).launch {
                     try { ObsidianSyncRepository(context).pauseTimer(); refreshWidget(context) }
                     catch (e: Exception) { e.printStackTrace() }
@@ -224,6 +258,10 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
             }
             ACTION_RESUME_TIMER -> {
                 val pr = try { goAsync() } catch (e: Exception) { null }
+                val prefs = SyncPreferences(context)
+                prefs.activeTimerIsPaused = false
+                prefs.activeTimerTargetEndTime = System.currentTimeMillis() + (prefs.activeTimerRemainingSeconds * 1000L)
+                refreshWidget(context)
                 CoroutineScope(Dispatchers.IO).launch {
                     try { ObsidianSyncRepository(context).resumeTimer(); refreshWidget(context) }
                     catch (e: Exception) { e.printStackTrace() }
@@ -232,6 +270,14 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
             }
             ACTION_CANCEL_TIMER -> {
                 val pr = try { goAsync() } catch (e: Exception) { null }
+                val prefs = SyncPreferences(context)
+                prefs.activeTimerTaskName = ""
+                prefs.activeTimerRemainingSeconds = 0
+                prefs.activeTimerTotalSeconds = 0
+                prefs.activeTimerIsPaused = false
+                prefs.activeTimerTargetEndTime = 0L
+                prefs.isAlarming = false
+                refreshWidget(context)
                 CoroutineScope(Dispatchers.IO).launch {
                     try { ObsidianSyncRepository(context).cancelTimer(); refreshWidget(context) }
                     catch (e: Exception) { e.printStackTrace() }

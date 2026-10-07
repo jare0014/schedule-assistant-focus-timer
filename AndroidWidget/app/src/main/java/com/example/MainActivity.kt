@@ -1189,7 +1189,7 @@ fun ObsidianTodoScreen(
                 ) {
                     val foods = listOf(
                         Triple("water", "🥤", "Water"),
-                        Triple("espresso", "☕", "Espress"),
+                        Triple("espresso", "☕", "Espresso"),
                         Triple("protein_waffles", "🧇", "Waffle"),
                         Triple("protein_shake", "🥤", "Shake"),
                         Triple("mixed_nuts", "🥜", "Nuts")

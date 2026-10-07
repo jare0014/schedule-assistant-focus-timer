@@ -70,6 +70,15 @@
                 android:maxLines="1"
                 android:ellipsize="end" />
 
+            <Chronometer
+                android:id="@+id/widget_timer_chronometer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#A882DD"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
             <TextView
                 android:id="@+id/widget_timer_time"
                 android:layout_width="match_parent"
