@@ -7,7 +7,6 @@
   - Schedule corresponding tasks as individual checklist subtasks under their respective Focus Block.
   - Never combine or pile separate project sections or projects into a single task or block.
   - Strip any trailing "(Project: ..., Section: ...)" or "(Project: ...)" context labels from task names in final schedule output. Do NOT put bracketed project prefixes in task names.
-- **Review & Triage Scheduled Blocks**:
-  - **Daily Review & Triage**: Schedule at `15:30 - 16:00 Daily Review, Reset & Triage Console` as a clean standalone focus block without nested sub-items (focusing on triage console processing & day wrap).
+- **Review & Scheduled Planning Blocks**:
   - **Weekly Review & Planning**: Schedule every Sunday at `17:00 - 18:00 Weekly Review & Planning` (and every Friday at `15:00 - 16:00 Work: Set Weekly To-Do Items & End-of-Week Wrap`).
   - **Monthly Review & Strategy Session**: Schedule on the 1st of each month (or the first Sunday morning of the month) at `09:30 - 11:00 Monthly Review & Strategy Session` for financial ledger audits, health intentions, and deep chore rotation alignment.
