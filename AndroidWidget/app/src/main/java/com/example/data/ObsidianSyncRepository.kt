@@ -24,6 +24,9 @@ data class HabitItem(
 )
 
 class ObsidianSyncRepository(private val context: Context) {
+    companion object {
+        var lastParsedScheduleHash: Int = 0
+    }
     private val db = AppDatabase.getDatabase(context)
     private val taskDao = db.taskDao()
     private val prefs = SyncPreferences(context)
@@ -842,6 +845,15 @@ class ObsidianSyncRepository(private val context: Context) {
                 val body = response.body?.string() ?: ""
                 val obj = JSONObject(body)
                 parseAndSaveActiveTimerObj(obj)
+                if (obj.has("schedule") && !obj.isNull("schedule")) {
+                    val scheduleArr = obj.optJSONArray("schedule")
+                    val scheduleStr = scheduleArr?.toString() ?: ""
+                    val scheduleHash = scheduleStr.hashCode()
+                    if (scheduleHash != lastParsedScheduleHash) {
+                        lastParsedScheduleHash = scheduleHash
+                        parseAndSaveJson(body)
+                    }
+                }
                 return true
             }
         } catch (e: Exception) {
@@ -1353,13 +1365,35 @@ class ObsidianSyncRepository(private val context: Context) {
         return false
     }
 
-    private fun triggerWidgetUpdate() {
+    fun triggerWidgetUpdate() {
         try {
             val app = context.applicationContext
-            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
-                component = ComponentName(app, "com.example.widget.ObsidianTodoWidgetProvider")
+            val mgr = AppWidgetManager.getInstance(app)
+            val mainIds = mgr.getAppWidgetIds(ComponentName(app, "com.example.widget.ObsidianTodoWidgetProvider"))
+            if (mainIds.isNotEmpty()) {
+                mgr.notifyAppWidgetViewDataChanged(mainIds, com.example.R.id.widget_list_view)
+                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                    component = ComponentName(app, "com.example.widget.ObsidianTodoWidgetProvider")
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, mainIds)
+                }
+                app.sendBroadcast(intent)
             }
-            app.sendBroadcast(intent)
+            val nextIds = mgr.getAppWidgetIds(ComponentName(app, "com.example.widget.StartNextTaskWidgetProvider"))
+            if (nextIds.isNotEmpty()) {
+                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                    component = ComponentName(app, "com.example.widget.StartNextTaskWidgetProvider")
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, nextIds)
+                }
+                app.sendBroadcast(intent)
+            }
+            val foodIds = mgr.getAppWidgetIds(ComponentName(app, "com.example.widget.QuickFoodLogWidgetProvider"))
+            if (foodIds.isNotEmpty()) {
+                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                    component = ComponentName(app, "com.example.widget.QuickFoodLogWidgetProvider")
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, foodIds)
+                }
+                app.sendBroadcast(intent)
+            }
         } catch (e: Exception) {
             Log.e("SyncRepository", "Widget trigger broadcast error: ${e.message}")
         }

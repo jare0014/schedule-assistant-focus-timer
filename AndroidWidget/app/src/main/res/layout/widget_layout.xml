@@ -108,13 +108,15 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Schedule Task List (populated dynamically via addView) -->
-    <LinearLayout
-        android:id="@+id/widget_list_container"
+    <!-- Scrollable Schedule Task List (RemoteViews ListView) -->
+    <ListView
+        android:id="@+id/widget_list_view"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical" />
+        android:divider="@android:color/transparent"
+        android:dividerHeight="3dp"
+        android:scrollbars="vertical" />
 
     <!-- Empty Schedule View -->
     <TextView

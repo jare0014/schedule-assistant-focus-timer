@@ -67,7 +67,7 @@ class WearTimerTileService : TileService() {
             }
         }
 
-        // Build the layout
+        val targetClass = if (isActive) "com.example.wear.WearMainActivity" else "com.example.wear.StartNextTaskActivity"
         val rootBox = LayoutElementBuilders.Box.Builder()
             .setWidth(DimensionBuilders.expand())
             .setHeight(DimensionBuilders.expand())
@@ -80,7 +80,7 @@ class WearTimerTileService : TileService() {
                                 launchAction(
                                     ComponentName(
                                         packageName,
-                                        "com.example.wear.WearMainActivity"
+                                        targetClass
                                     )
                                 )
                             )
@@ -150,6 +150,24 @@ class WearTimerTileService : TileService() {
                                         LayoutElementBuilders.FontStyle.Builder()
                                             .setSize(DimensionBuilders.sp(11f))
                                             .setColor(ColorBuilders.argb(0xFF888888.toInt()))
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                        } else if (!isActive) {
+                            addContent(
+                                LayoutElementBuilders.Spacer.Builder()
+                                    .setHeight(DimensionBuilders.dp(4f))
+                                    .build()
+                            )
+                            addContent(
+                                LayoutElementBuilders.Text.Builder()
+                                    .setText("▶ Start Next")
+                                    .setFontStyle(
+                                        LayoutElementBuilders.FontStyle.Builder()
+                                            .setSize(DimensionBuilders.sp(11f))
+                                            .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
+                                            .setColor(ColorBuilders.argb(0xFF10B981.toInt()))
                                             .build()
                                     )
                                     .build()

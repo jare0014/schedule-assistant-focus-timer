@@ -27,6 +27,32 @@
             </intent-filter>
         </activity>
 
+        <!-- 1-Tap Action Trampoline Activities for Tiles -->
+        <activity
+            android:name=".StartNextTaskActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".QuickLogWaterActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".QuickLogEspressoActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".QuickLogWafflesActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".QuickLogShakeActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".QuickLogNutsActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".WearDataListenerService"
             android:exported="true">
@@ -36,10 +62,25 @@
             </intent-filter>
         </service>
 
+        <!-- Focus Timer & Next Block Tile -->
         <service
             android:name=".WearTimerTileService"
             android:exported="true"
             android:label="Focus Timer"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.active_tile"
+                android:value="true" />
+        </service>
+
+        <!-- Quick Food Log Tile -->
+        <service
+            android:name=".WearQuickLogTileService"
+            android:exported="true"
+            android:label="Quick Food Log"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />

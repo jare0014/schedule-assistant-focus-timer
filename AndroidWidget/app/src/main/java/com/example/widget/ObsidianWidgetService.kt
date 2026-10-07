@@ -38,7 +38,13 @@ class ObsidianWidgetFactory(private val context: Context) : RemoteViewsService.R
                 resultList.addAll(subtasks)
             }
         }
-        resultList.addAll(untimed)
+        untimed.forEach { parent ->
+            resultList.add(parent)
+            val subtasks = subtasksByParent[parent.lineNumber]
+            if (subtasks != null) {
+                resultList.addAll(subtasks)
+            }
+        }
 
         tasksList = resultList
     }
@@ -74,8 +80,8 @@ class ObsidianWidgetFactory(private val context: Context) : RemoteViewsService.R
         }
         views.setTextViewText(R.id.widget_item_subtitle, subtitleText)
 
-        val accentColor = if (task.timeRange != null) "#A882DD" else "#71717A"
-        views.setInt(R.id.widget_item_accent_bar, "setBackgroundColor", android.graphics.Color.parseColor(accentColor))
+        val accentColor = if (task.timeRange != null) "#A882DD" else if (isSubtask) "#818CF8" else "#71717A"
+        views.setInt(R.id.widget_item_accent_bar, "setColorFilter", android.graphics.Color.parseColor(accentColor))
         views.setInt(R.id.widget_item_time_badge, "setTextColor", android.graphics.Color.parseColor(accentColor))
 
         if (task.isCompleted) {

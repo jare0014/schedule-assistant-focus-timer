@@ -43,6 +43,14 @@ export class TaskTimerView extends ItemView {
 
     async onOpen(): Promise<void> {
         this.renderSchedule();
+        this.registerEvent(this.app.vault.on('modify', (file) => {
+            const dailyFile = DailyNoteManager.getDailyNoteFile(this.app);
+            if (dailyFile && file.path === dailyFile.path) {
+                if (!this.currentTimer && !this.plugin.activeTimer) {
+                    this.renderSchedule();
+                }
+            }
+        }));
     }
 
     async onClose(): Promise<void> {

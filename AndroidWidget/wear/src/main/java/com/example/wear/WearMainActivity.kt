@@ -432,12 +432,39 @@ fun WearTimerScreen(
                             }
                         }
                     } else {
-                        Text(
-                            text = "Tap a block below to start",
-                            fontSize = 9.sp,
-                            color = Color.DarkGray,
-                            textAlign = TextAlign.Center
-                        )
+                        val nextPending = scheduleBlocks.firstOrNull { !it.isCompleted }
+                        if (nextPending != null) {
+                            Button(
+                                onClick = { onStartBlockClick(nextPending) },
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
+                                modifier = Modifier.fillMaxWidth(0.9f).height(32.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Start Next Task",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Start: ${nextPending.title}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "Tap a block below to start",
+                                fontSize = 9.sp,
+                                color = Color.DarkGray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }

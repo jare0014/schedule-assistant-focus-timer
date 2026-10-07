@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/start_next_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="10dp">
+
+    <!-- Play / Status Icon -->
+    <ImageView
+        android:id="@+id/start_next_icon"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:background="@drawable/widget_chip_bg"
+        android:contentDescription="Start Next Task"
+        android:padding="8dp"
+        android:src="@drawable/ic_play" />
+
+    <!-- Details Column -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/start_next_header"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="NEXT FOCUS BLOCK"
+            android:textColor="#A882DD"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/start_next_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="No pending tasks"
+            android:textColor="#E4E4E7"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/start_next_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tap to launch sprint"
+            android:textColor="#A1A1AA"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <!-- 1-Tap Start Chip -->
+    <TextView
+        android:id="@+id/start_next_action_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/widget_chip_bg"
+        android:paddingStart="12dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="6dp"
+        android:text="Start ▶"
+        android:textColor="#10B981"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+</LinearLayout>

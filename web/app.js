@@ -268,9 +268,13 @@ function updateUI(state) {
         stopLocalAlarm();
     }
 
-    // 4. Render Schedule list if schedule exists
+    // 4. Render Schedule list if schedule exists and data changed
     if (state.schedule && Array.isArray(state.schedule)) {
-        renderSchedule(state.schedule);
+        const scheduleFingerprint = JSON.stringify(state.schedule) + JSON.stringify(state.todayHabits || {});
+        if (scheduleFingerprint !== window.lastRenderedScheduleFingerprint) {
+            window.lastRenderedScheduleFingerprint = scheduleFingerprint;
+            renderSchedule(state.schedule);
+        }
     }
 
     // 5. Handle Schedule Generation Button Re-enabling

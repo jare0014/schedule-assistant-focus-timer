@@ -32,7 +32,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Widget registration -->
+        <!-- Main Todo Schedule Widget registration -->
         <receiver
             android:name=".widget.ObsidianTodoWidgetProvider"
             android:exported="true">
@@ -42,6 +42,30 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_provider_info" />
+        </receiver>
+
+        <!-- Start Next Task Widget registration -->
+        <receiver
+            android:name=".widget.StartNextTaskWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/start_next_task_provider_info" />
+        </receiver>
+
+        <!-- Quick Food Log Widget registration -->
+        <receiver
+            android:name=".widget.QuickFoodLogWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_food_log_provider_info" />
         </receiver>
 
         <!-- RemoteViewsService adapter registration -->
