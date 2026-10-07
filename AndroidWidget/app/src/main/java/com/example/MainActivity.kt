@@ -2366,7 +2366,7 @@ fun getHabitSectionKey(description: String): String? {
         d.contains("work") -> "work"
         d.contains("midday") -> "midday"
         d.contains("evening") -> "evening"
-        d.contains("morning") || d.contains("routine") || d.contains("habit") -> "morning"
+        d.contains("morning") || d.contains("wake") || d.contains("waffle") || d.contains("esther") -> "morning"
         else -> null
     }
 }
@@ -2694,7 +2694,7 @@ fun NativeTimelineGridView(
 
                             val extraHeightDp = when {
                                 subtasks.isNotEmpty() -> subtasks.size * 22f
-                                habits.isNotEmpty() -> Math.min(habits.size, 8) * 22f
+                                habits.isNotEmpty() -> Math.min(habits.size, 12) * 22f
                                 else -> 0f
                             }
                             val finalCardHeightDp = Math.max(cardHeightDp, 32f + extraHeightDp)

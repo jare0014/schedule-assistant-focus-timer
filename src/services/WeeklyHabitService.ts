@@ -15,7 +15,7 @@ export interface HabitItemForDay {
 
 export class WeeklyHabitService {
     public static async completeTimerHabit(app: App, task: { description?: string; sectionKey?: string }): Promise<boolean> {
-        const normalize = (name: string) => name.replace(/<br\s*\/?\s*>/gi, " ").replace(/\*/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+        const normalize = (name: string) => name.replace(/\[\[[^\]|]+(?:\|[^\]]+)?\]\]/g, "").replace(/<br\s*\/?\s*>/gi, " ").replace(/\*/g, "").replace(/\s+/g, " ").trim().toLowerCase();
         const name = normalize(task.description || "");
         if (!name) return false;
         const { habitsBySection } = await this.loadTodayWeeklyHabits(app);
@@ -48,11 +48,11 @@ export class WeeklyHabitService {
     public static getHabitSectionKey(description: string): string | null {
         if (!description) return null;
         const d = description.toLowerCase();
-        if (d.includes("midday")) return "midday";
-        if (d.includes("evening")) return "evening";
-        if (d.includes("morning") || d.includes("habit")) return "morning";
         if (d.includes("house") || d.includes("chore")) return "house";
         if (d.includes("work")) return "work";
+        if (d.includes("midday")) return "midday";
+        if (d.includes("evening")) return "evening";
+        if (d.includes("morning") || d.includes("wake") || d.includes("waffle") || d.includes("esther") || d.includes("habit")) return "morning";
         return null;
     }
 
@@ -98,7 +98,7 @@ export class WeeklyHabitService {
 
             const list: HabitItemForDay[] = [];
             dataRows.forEach((row: string[], rowIdx: number) => {
-                const taskName = row[0].replace(/<br\s*\/?>/gi, " ").replace(/\*/g, "").trim();
+                const taskName = row[0].replace(/\[\[[^\]|]+(?:\|[^\]]+)?\]\]/g, "").replace(/<br\s*\/?>/gi, " ").replace(/\*/g, "").trim();
                 const cellText = row[dayColIdx];
                 if (!cellText || cellText.includes("N/A") || cellText === "—") return;
 
@@ -133,7 +133,7 @@ export class WeeklyHabitService {
 
                     dataRows.forEach((row: string[], origIdx: number) => {
                         const rawLabel = (row[0] || '').trim();
-                        const isMorningDivider = /morning.*routine/i.test(rawLabel) || /☀️.*routine/i.test(rawLabel);
+                        const isMorningDivider = (/morning.*routine/i.test(rawLabel) || /☀️.*routine/i.test(rawLabel)) && !/esther/i.test(rawLabel);
                         const isMiddayDivider = /midday.*routine/i.test(rawLabel) || /⚡.*routine/i.test(rawLabel);
                         const isEveningDivider = /evening.*routine/i.test(rawLabel) || /🌙.*routine/i.test(rawLabel);
 
@@ -165,7 +165,7 @@ export class WeeklyHabitService {
                     if (!hasDividers) {
                         habitRowsMeta.forEach(item => {
                             const t = (item.row[0] || '').toLowerCase();
-                            if (/wake|waffle|phase 1|hygiene|teeth|shower|meditat|morning/i.test(t)) {
+                            if (/wake|waffle|phase 1|hygiene|teeth|shower|meditat|morning|esther/i.test(t)) {
                                 item.routine = 'morning';
                             } else if (/phase 2|phase 3|lumosity|shake|protein|midday/i.test(t)) {
                                 item.routine = 'midday';
@@ -177,7 +177,7 @@ export class WeeklyHabitService {
 
                     habitRowsMeta.forEach(item => {
                         if (item.isDivider) return;
-                        const taskName = item.row[0].replace(/<br\s*\/?>/gi, " ").replace(/\*/g, "").trim();
+                        const taskName = item.row[0].replace(/\[\[[^\]|]+(?:\|[^\]]+)?\]\]/g, "").replace(/<br\s*\/?>/gi, " ").replace(/\*/g, "").trim();
                         const cellText = item.row[dayColIdx];
                         if (!cellText || cellText.includes("N/A") || cellText === "—") return;
 

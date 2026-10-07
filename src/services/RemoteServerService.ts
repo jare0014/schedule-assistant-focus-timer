@@ -195,7 +195,11 @@ export class RemoteServerService {
                             isPaused: activeTimer.isPaused,
                             status: activeTimer.task ? activeTimer.task.status : 'pending',
                             lineIndex: activeTimer.task ? activeTimer.task.lineIndex : null,
-                            items: activeTimer.items || (activeTimer.task && activeTimer.task.items ? activeTimer.task.items : []),
+                            items: (activeTimer.items && activeTimer.items.length > 0)
+                                ? activeTimer.items
+                                : (activeTimer.task && activeTimer.task.items && activeTimer.task.items.length > 0)
+                                    ? activeTimer.task.items
+                                    : this.resolveRoutineChecklistItems(activeTimer.task?.description || activeTimer.taskName || ""),
                             completedItems: activeTimer.completedItems || []
                         } : null,
                         isAlarming,
@@ -587,7 +591,8 @@ ${itemsXml}  </channel>
                         }
 
                         const taskInput = matchedTask || body.taskName || "Focus Block";
-                        const duration = parseInt(body.durationMinutes) || (body.taskName ? null : matchedTask?.duration) || parseInt(settings.defaultDuration) || 20;
+                        const desc = typeof taskInput === 'object' ? taskInput.description : taskInput;
+                        const duration = parseInt(body.durationMinutes) || (body.taskName ? null : matchedTask?.duration) || this.getTaskDefaultDuration(desc, settings.defaultDuration);
 
                         await view.startTimer(taskInput, duration);
                         setCorsHeaders();
@@ -1411,5 +1416,46 @@ ${itemsXml}  </channel>
             return p3Schedules[todayKey] || p3Schedules["mon"];
         }
         return [];
+    }
+
+    public resolveRoutineChecklistItems(taskName: string): string[] {
+        if (!taskName) return [];
+        const clean = taskName.toLowerCase();
+        const exMatch = clean.match(/exercises?:\s*phase\s*([123])/i) || clean.match(/phase\s*([123])\s*exercises?/i) || clean.match(/^phase\s*([123])/i);
+        if (exMatch) {
+            return this.resolveExerciseProtocolItems(taskName);
+        }
+        if (clean.includes("wake") || clean.includes("waffle")) {
+            return [
+                "Drink water",
+                "Brew / pour coffee",
+                "Take morning meds & vitamins",
+                "Flonase",
+                "Feed cats",
+                "Make & eat waffles"
+            ];
+        }
+        if (clean.includes("esther")) {
+            return [
+                "Esther's bath",
+                "Esther's lunch",
+                "Esther's clothes",
+                "Esther's teeth",
+                "Esther's hair"
+            ];
+        }
+        return [];
+    }
+
+    public getTaskDefaultDuration(taskName: string, configuredDefault?: string): number {
+        const clean = (taskName || '').toLowerCase();
+        if (clean.includes("wake") || clean.includes("waffle") || clean.includes("esther")) {
+            return 25;
+        }
+        if (clean.includes("exercise") || clean.includes("phase")) {
+            return 10;
+        }
+        const configured = Number.parseInt(configuredDefault || '20', 10);
+        return Number.isFinite(configured) && configured > 0 ? configured : 20;
     }
 }

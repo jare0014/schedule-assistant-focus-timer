@@ -337,7 +337,7 @@ export class TaskTimerView extends ItemView {
                                     await this.togglePause();
                                     this.renderSchedule();
                                 } else {
-                                    this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+                                    this.startTimer(task, task.duration || this.getTaskDefaultDuration(task.description));
                                 }
                             };
 
@@ -395,7 +395,7 @@ export class TaskTimerView extends ItemView {
                                         await this.togglePause();
                                         this.renderSchedule();
                                     } else {
-                                        this.startTimer(subtask, subtask.duration || parseInt(this.plugin.settings.defaultDuration));
+                                        this.startTimer(subtask, subtask.duration || this.getTaskDefaultDuration(subtask.description));
                                     }
                                 };
                             }
@@ -826,6 +826,47 @@ export class TaskTimerView extends ItemView {
         return [];
     }
 
+    public resolveRoutineChecklistItems(taskName: string): string[] {
+        if (!taskName) return [];
+        const clean = taskName.toLowerCase();
+        const exMatch = clean.match(/exercises?:\s*phase\s*([123])/i) || clean.match(/phase\s*([123])\s*exercises?/i) || clean.match(/^phase\s*([123])/i);
+        if (exMatch) {
+            return this.resolveExerciseProtocolItems(taskName);
+        }
+        if (clean.includes("wake") || clean.includes("waffle")) {
+            return [
+                "Drink water",
+                "Brew / pour coffee",
+                "Take morning meds & vitamins",
+                "Flonase",
+                "Feed cats",
+                "Make & eat waffles"
+            ];
+        }
+        if (clean.includes("esther")) {
+            return [
+                "Esther's bath",
+                "Esther's lunch",
+                "Esther's clothes",
+                "Esther's teeth",
+                "Esther's hair"
+            ];
+        }
+        return [];
+    }
+
+    public getTaskDefaultDuration(taskName: string): number {
+        const clean = (taskName || '').toLowerCase();
+        if (clean.includes("wake") || clean.includes("waffle") || clean.includes("esther")) {
+            return 25;
+        }
+        if (clean.includes("exercise") || clean.includes("phase")) {
+            return 10;
+        }
+        const configured = Number.parseInt(this.plugin?.settings?.defaultDuration, 10);
+        return Number.isFinite(configured) && configured > 0 ? configured : 20;
+    }
+
     public getTimerChecklistItems(): string[] {
         if (!this.currentTimer) return [];
         if (Array.isArray(this.currentTimer.items) && this.currentTimer.items.length > 0) {
@@ -835,7 +876,7 @@ export class TaskTimerView extends ItemView {
             return (this.currentTimer.task as any).items;
         }
         const taskName = this.currentTimer.taskName || (this.currentTimer.task ? this.currentTimer.task.description : "");
-        return this.resolveExerciseProtocolItems(taskName);
+        return this.resolveRoutineChecklistItems(taskName);
     }
 
     public async findPendingSubtasksForBlock(task: any): Promise<any[]> {
@@ -878,13 +919,17 @@ export class TaskTimerView extends ItemView {
         }
     }
 
-    public async startTimer(task: any, durationMinutes: number): Promise<void> {
+    public async startTimer(task: any, durationMinutes?: number): Promise<void> {
         this.clearTimer();
 
         let taskName = typeof task === 'object' ? task.description : task;
+        const dur = (durationMinutes !== undefined && durationMinutes !== null && !isNaN(durationMinutes))
+            ? durationMinutes
+            : this.getTaskDefaultDuration(taskName);
+
         let items = (typeof task === 'object' && Array.isArray(task.items) && task.items.length > 0)
             ? task.items
-            : this.resolveExerciseProtocolItems(taskName);
+            : this.resolveRoutineChecklistItems(taskName);
 
         // SA-BACKLOG-20260918 G10: Focus-block subtask alignment
         if (this.plugin.settings?.alignFocusSubtasks !== false && typeof task === 'object') {
@@ -901,14 +946,14 @@ export class TaskTimerView extends ItemView {
         }
 
         if (this.plugin.focusLogService) {
-            await this.plugin.focusLogService.logStart(taskName, durationMinutes);
+            await this.plugin.focusLogService.logStart(taskName, dur);
         }
 
-        const totalSeconds = durationMinutes * 60;
+        const totalSeconds = dur * 60;
         const now = Date.now();
 
         this.currentTimer = {
-            task: typeof task === 'object' ? task : { description: taskName, duration: durationMinutes, items },
+            task: typeof task === 'object' ? task : { description: taskName, duration: dur, items },
             taskName,
             remainingSeconds: totalSeconds,
             totalSeconds,
@@ -1418,9 +1463,9 @@ export class TaskTimerView extends ItemView {
         continueBtn.onclick = async () => {
             this.stopAlarm();
             if (typeof task === 'object') {
-                await this.startTimer(task, task.duration || parseInt(this.plugin.settings.defaultDuration));
+                await this.startTimer(task, task.duration || this.getTaskDefaultDuration(task.description));
             } else {
-                await this.startTimer(taskName, parseInt(this.plugin.settings.defaultDuration));
+                await this.startTimer(taskName, this.getTaskDefaultDuration(taskName));
             }
         };
 

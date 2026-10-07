@@ -715,7 +715,7 @@ class ObsidianSyncRepository(private val context: Context) {
             if (obj.has("todayHabits") && !obj.isNull("todayHabits")) {
                 val habitsObj = obj.getJSONObject("todayHabits")
                 val parsedHabits = mutableMapOf<String, List<HabitItem>>()
-                val sections = listOf("morning", "work", "house")
+                val sections = listOf("morning", "midday", "evening", "work", "house")
                 for (sec in sections) {
                     if (habitsObj.has(sec)) {
                         val arr = habitsObj.optJSONArray(sec)
