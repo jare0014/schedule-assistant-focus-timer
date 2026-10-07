@@ -65,6 +65,41 @@ class TimerService : Service() {
                 context.stopService(intent)
             }
         }
+
+        fun syncScheduleToWatch(context: Context) {
+            try {
+                val db = com.example.data.AppDatabase.getDatabase(context)
+                val tasks: List<com.example.data.Task> = db.taskDao().getAllTasksDirect()
+                val scheduleBlocks = tasks.filter { task ->
+                    task.category == "FOCUS BLOCKS" || (!task.timeRange.isNullOrEmpty() && task.timeRange != "null")
+                }.map { task ->
+                    val obj = org.json.JSONObject()
+                    obj.put("id", task.id)
+                    obj.put("title", task.displayTitle.ifEmpty { task.text })
+                    obj.put("time", task.timeRange ?: "")
+                    obj.put("isCompleted", task.isCompleted)
+                    obj.put("category", task.category)
+                    obj
+                }
+
+                val jsonArray = org.json.JSONArray(scheduleBlocks)
+                val request = com.google.android.gms.wearable.PutDataMapRequest.create("/schedule_data").apply {
+                    dataMap.putString("blocksJson", jsonArray.toString())
+                    dataMap.putLong("timestamp", System.currentTimeMillis())
+                }.asPutDataRequest().setUrgent()
+
+                com.google.android.gms.wearable.Wearable.getDataClient(context)
+                    .putDataItem(request)
+                    .addOnSuccessListener {
+                        Log.d("TimerService", "Schedule data successfully synced to watch (${scheduleBlocks.size} blocks)")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("TimerService", "Failed to sync schedule data to watch: ${e.message}")
+                    }
+            } catch (e: Throwable) {
+                Log.e("TimerService", "Error syncing schedule to watch: ${e.message}")
+            }
+        }
     }
 
     override fun onCreate() {
@@ -170,6 +205,34 @@ class TimerService : Service() {
                         launch(Dispatchers.Main) {
                             stopTimerState()
                         }
+                    }
+                }
+            }
+            "START_TASK" -> {
+                val taskName = intent?.getStringExtra("task_name") ?: "Focus Task"
+                val duration = intent?.getIntExtra("duration", getTaskDefaultDuration(taskName)) ?: getTaskDefaultDuration(taskName)
+                prefs.activeTimerTaskName = taskName
+                prefs.activeTimerRemainingSeconds = duration * 60
+                prefs.activeTimerTotalSeconds = duration * 60
+                prefs.activeTimerIsPaused = false
+                prefs.isAlarming = false
+                prefs.activeTimerTargetEndTime = System.currentTimeMillis() + (duration * 60 * 1000L)
+                val resolvedItems = resolveRoutineChecklistItems(taskName)
+                if (resolvedItems.isNotEmpty()) {
+                    prefs.activeTimerItems = org.json.JSONArray(resolvedItems).toString()
+                } else {
+                    prefs.activeTimerItems = ""
+                }
+                createNotificationChannel()
+                startForeground(NOTIFICATION_ID, buildNotification())
+                startCountdown()
+                syncTimerStateToWatch()
+                serviceScope.launch(Dispatchers.IO) {
+                    try {
+                        val repo = ObsidianSyncRepository(applicationContext)
+                        repo.startTimer(taskName, duration)
+                    } catch (e: Exception) {
+                        Log.e("TimerService", "Failed to start timer remotely: ${e.message}")
                     }
                 }
             }
@@ -453,6 +516,47 @@ class TimerService : Service() {
         super.onDestroy()
     }
 
+    private fun getTaskDefaultDuration(taskName: String): Int {
+        val clean = taskName.lowercase()
+        return when {
+            clean.contains("wake") || clean.contains("waffle") || clean.contains("esther") -> 25
+            clean.contains("exercise") || clean.contains("phase") -> 10
+            else -> 20
+        }
+    }
+
+    private fun resolveRoutineChecklistItems(taskName: String): List<String> {
+        val clean = taskName.lowercase()
+        return when {
+            clean.contains("wake") || clean.contains("waffle") -> listOf(
+                "Drink water",
+                "Brew / pour coffee",
+                "Take morning meds & vitamins",
+                "Flonase",
+                "Feed cats",
+                "Make & eat waffles"
+            )
+            clean.contains("esther") -> listOf(
+                "Esther's bath",
+                "Esther's lunch",
+                "Esther's clothes",
+                "Esther's teeth",
+                "Esther's hair"
+            )
+            clean.contains("phase 1") -> listOf(
+                "Sun Salute A / B",
+                "Cat-Cow & Thoracic Rotation",
+                "Bird-Dog Core Stability",
+                "Glute Bridges & Banded Abductions",
+                "Deadbugs",
+                "World's Greatest Stretch",
+                "Kettlebell Deadlift / Goblet Squat",
+                "Pec / Doorway Stretch"
+            )
+            else -> emptyList()
+        }
+    }
+
     private fun syncTimerStateToWatch() {
         try {
             val taskName = prefs.activeTimerTaskName
@@ -461,12 +565,26 @@ class TimerService : Service() {
             val isPaused = prefs.activeTimerIsPaused
             val alarming = prefs.isAlarming
 
+            val itemsJson = prefs.activeTimerItems
+            val itemsList = ArrayList<String>()
+            if (itemsJson.isNotEmpty()) {
+                try {
+                    val arr = org.json.JSONArray(itemsJson)
+                    for (i in 0 until arr.length()) {
+                        itemsList.add(arr.getString(i))
+                    }
+                } catch (e: Exception) {
+                    Log.e("TimerService", "Failed parsing activeTimerItems: ${e.message}")
+                }
+            }
+
             val request = com.google.android.gms.wearable.PutDataMapRequest.create("/timer_state").apply {
                 dataMap.putString("taskName", taskName)
                 dataMap.putInt("remainingSeconds", remaining)
                 dataMap.putInt("totalSeconds", total)
                 dataMap.putBoolean("isPaused", isPaused)
                 dataMap.putBoolean("isAlarming", alarming)
+                dataMap.putStringArrayList("items", itemsList)
                 dataMap.putLong("timestamp", System.currentTimeMillis())
             }.asPutDataRequest().setUrgent()
 

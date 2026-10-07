@@ -16,21 +16,35 @@ class PhoneWearSyncService : WearableListenerService() {
         Log.d("PhoneWearSyncService", "Message received from watch: $path")
 
         val intent = Intent(applicationContext, TimerService::class.java)
-        when (path) {
-            "/pause" -> {
+        when {
+            path == "/pause" -> {
                 intent.action = "PAUSE"
                 startServiceOrForeground(intent)
             }
-            "/resume" -> {
+            path == "/resume" -> {
                 intent.action = "RESUME"
                 startServiceOrForeground(intent)
             }
-            "/cancel" -> {
+            path == "/cancel" -> {
                 intent.action = "CANCEL"
                 startServiceOrForeground(intent)
             }
-            else -> {
-                if (path.startsWith("/quicklog/")) {
+            path == "/request_sync" -> {
+                TimerService.checkAndSyncTimerService(applicationContext)
+                TimerService.syncScheduleToWatch(applicationContext)
+            }
+            path.startsWith("/start_task/") -> {
+                val encodedName = path.substring("/start_task/".length)
+                val taskName = try {
+                    java.net.URLDecoder.decode(encodedName, "UTF-8")
+                } catch (e: Exception) {
+                    encodedName
+                }
+                intent.action = "START_TASK"
+                intent.putExtra("task_name", taskName)
+                startServiceOrForeground(intent)
+            }
+            path.startsWith("/quicklog/") -> {
                     val foodId = path.substring("/quicklog/".length)
                     val repository = com.example.data.ObsidianSyncRepository(applicationContext)
                     CoroutineScope(Dispatchers.IO).launch {
@@ -45,7 +59,6 @@ class PhoneWearSyncService : WearableListenerService() {
                         }
                     }
                 }
-            }
         }
     }
 

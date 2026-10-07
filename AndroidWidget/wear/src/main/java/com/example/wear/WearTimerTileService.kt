@@ -14,6 +14,7 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.Executor
+import org.json.JSONArray
 
 class WearTimerTileService : TileService() {
 
@@ -28,20 +29,42 @@ class WearTimerTileService : TileService() {
         val isPaused = prefs.getBoolean("isPaused", false)
         val isAlarming = prefs.getBoolean("isAlarming", false)
 
-        val mins = remainingSeconds / 60
-        val secs = remainingSeconds % 60
-        val timeText = if (taskName == "No Active Task" || taskName == "No task selected") {
-            "--:--"
-        } else if (isAlarming) {
-            "Time's Up!"
-        } else {
-            String.format("%02d:%02d", mins, secs)
-        }
+        val isActive = taskName.isNotEmpty() && taskName != "No Active Task" && taskName != "No task selected"
 
-        val displayTaskName = if (taskName == "No task selected") {
-            "No Active Task"
+        var displayHeader = "📅 TIME BLOCK"
+        var displayTaskName = taskName
+        var displayTimeText = "--:--"
+
+        if (isActive) {
+            val mins = remainingSeconds / 60
+            val secs = remainingSeconds % 60
+            displayTimeText = if (isAlarming) "Time's Up!" else String.format("%02d:%02d", mins, secs)
+            displayTaskName = taskName
         } else {
-            taskName
+            val blocksJson = prefs.getString("schedule_blocks_json", "[]") ?: "[]"
+            var nextTitle: String? = null
+            var nextTime: String? = null
+            try {
+                val arr = JSONArray(blocksJson)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    if (!obj.optBoolean("isCompleted", false)) {
+                        nextTitle = obj.optString("title", "")
+                        nextTime = obj.optString("time", "")
+                        break
+                    }
+                }
+            } catch (_: Exception) {}
+
+            if (!nextTitle.isNullOrEmpty()) {
+                displayHeader = "📅 NEXT BLOCK"
+                displayTaskName = nextTitle
+                displayTimeText = if (nextTime.isNullOrEmpty()) "Ready" else nextTime
+            } else {
+                displayHeader = "📅 SCHEDULE ASSISTANT"
+                displayTaskName = "All tasks done"
+                displayTimeText = "Ready"
+            }
         }
 
         // Build the layout
@@ -70,7 +93,7 @@ class WearTimerTileService : TileService() {
                     .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
                     .addContent(
                         LayoutElementBuilders.Text.Builder()
-                            .setText("📅 TIME BLOCK")
+                            .setText(displayHeader)
                             .setFontStyle(
                                 LayoutElementBuilders.FontStyle.Builder()
                                     .setSize(DimensionBuilders.sp(10f))
@@ -103,10 +126,10 @@ class WearTimerTileService : TileService() {
                     )
                     .addContent(
                         LayoutElementBuilders.Text.Builder()
-                            .setText(timeText)
+                            .setText(displayTimeText)
                             .setFontStyle(
                                 LayoutElementBuilders.FontStyle.Builder()
-                                    .setSize(DimensionBuilders.sp(30f))
+                                    .setSize(DimensionBuilders.sp(if (displayTimeText.length > 5) 20f else 30f))
                                     .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
                                     .setColor(ColorBuilders.argb(if (isPaused) 0xFF888888.toInt() else 0xFFA882DD.toInt()))
                                     .build()
@@ -114,7 +137,7 @@ class WearTimerTileService : TileService() {
                             .build()
                     )
                     .apply {
-                        if (isPaused && displayTaskName != "No Active Task") {
+                        if (isPaused && isActive) {
                             addContent(
                                 LayoutElementBuilders.Spacer.Builder()
                                     .setHeight(DimensionBuilders.dp(4f))

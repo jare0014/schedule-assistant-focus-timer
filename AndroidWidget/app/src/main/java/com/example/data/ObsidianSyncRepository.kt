@@ -317,6 +317,7 @@ class ObsidianSyncRepository(private val context: Context) {
         if (parsedTasks.isNotEmpty()) {
             taskDao.insertTasks(parsedTasks)
             prefs.addLog("Parsed ${parsedTasks.size} tasks (smart-grouped by categories & timers).")
+            com.example.widget.TimerService.syncScheduleToWatch(context.applicationContext)
         } else {
             prefs.addLog("No checklists parsed. Make sure they use '- [ ] task name' or '* [ ] task name'.")
         }
@@ -425,6 +426,7 @@ class ObsidianSyncRepository(private val context: Context) {
             if (tasks.isNotEmpty()) {
                 taskDao.insertTasks(tasks)
                 prefs.addLog("Parsed ${tasks.size} tasks from JSON endpoint.")
+                com.example.widget.TimerService.syncScheduleToWatch(context.applicationContext)
             } else {
                 prefs.addLog("Found no active to-do items inside JSON payload.")
             }
