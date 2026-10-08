@@ -71,6 +71,10 @@ class SyncPreferences(private val context: Context) {
         get() = prefs.getBoolean("is_alarming", false)
         set(value) = prefs.edit().putBoolean("is_alarming", value).apply()
 
+    var todayHabitsJson: String
+        get() = prefs.getString("today_habits_json", "{}") ?: "{}"
+        set(value) = prefs.edit().putString("today_habits_json", value).apply()
+
     var selectedAudioTrackLabel: String
         get() = prefs.getString("selected_audio_track_label", "EquiSync Element") ?: "EquiSync Element"
         set(value) = prefs.edit().putString("selected_audio_track_label", value).apply()

@@ -61,6 +61,16 @@
             android:textColor="#A1A1AA"
             android:textSize="10sp"
             android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/start_next_checklist"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#D4D4D8"
+            android:textSize="9sp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- 1-Tap Start Chip -->

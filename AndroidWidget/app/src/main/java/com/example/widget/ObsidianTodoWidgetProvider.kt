@@ -133,6 +133,28 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
                 views.setChronometer(R.id.widget_timer_chronometer, base, null, true)
             }
 
+            val itemsJson = prefs.activeTimerItems
+            if (itemsJson.isNotEmpty()) {
+                try {
+                    val arr = org.json.JSONArray(itemsJson)
+                    val itemsList = mutableListOf<String>()
+                    for (i in 0 until arr.length()) {
+                        itemsList.add(arr.getString(i))
+                    }
+                    if (itemsList.isNotEmpty()) {
+                        val formatted = itemsList.take(5).joinToString("  •  ", prefix = "• ")
+                        views.setTextViewText(R.id.widget_timer_checklist, formatted)
+                        views.setViewVisibility(R.id.widget_timer_checklist, View.VISIBLE)
+                    } else {
+                        views.setViewVisibility(R.id.widget_timer_checklist, View.GONE)
+                    }
+                } catch (_: Exception) {
+                    views.setViewVisibility(R.id.widget_timer_checklist, View.GONE)
+                }
+            } else {
+                views.setViewVisibility(R.id.widget_timer_checklist, View.GONE)
+            }
+
             views.setImageViewResource(R.id.widget_timer_pause_btn,
                 if (isPaused) R.drawable.ic_play else R.drawable.ic_pause)
             views.setInt(R.id.widget_timer_pause_btn, "setColorFilter",
@@ -158,6 +180,7 @@ class ObsidianTodoWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_timer_cancel_btn, cancelPi)
         } else {
             views.setViewVisibility(R.id.widget_timer_container, View.GONE)
+            views.setViewVisibility(R.id.widget_timer_checklist, View.GONE)
             views.setChronometer(R.id.widget_timer_chronometer, 0L, null, false)
         }
 

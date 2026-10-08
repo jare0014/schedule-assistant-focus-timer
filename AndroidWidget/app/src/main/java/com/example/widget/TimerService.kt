@@ -68,19 +68,75 @@ class TimerService : Service() {
 
         fun syncScheduleToWatch(context: Context) {
             try {
+                val prefs = SyncPreferences(context)
                 val db = com.example.data.AppDatabase.getDatabase(context)
                 val tasks: List<com.example.data.Task> = db.taskDao().getAllTasksDirect()
-                val scheduleBlocks = tasks.filter { task ->
+
+                val scheduleBlocks = mutableListOf<org.json.JSONObject>()
+
+                // 1. Actionable Habits from todayHabitsJson
+                val habitsJson = prefs.todayHabitsJson
+                if (habitsJson.isNotEmpty() && habitsJson != "{}") {
+                    try {
+                        val habitsObj = org.json.JSONObject(habitsJson)
+                        val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                        val sectionOrder = when {
+                            currentHour < 12 -> listOf("morning", "work", "house", "midday", "evening")
+                            currentHour < 17 -> listOf("work", "house", "midday", "morning", "evening")
+                            else -> listOf("evening", "house", "work", "midday", "morning")
+                        }
+
+                        val pendingHabits = mutableListOf<org.json.JSONObject>()
+                        val completedHabits = mutableListOf<org.json.JSONObject>()
+
+                        for (sec in sectionOrder) {
+                            val arr = habitsObj.optJSONArray(sec) ?: continue
+                            for (i in 0 until arr.length()) {
+                                val item = arr.getJSONObject(i)
+                                val name = item.optString("name", "")
+                                if (name.isEmpty()) continue
+                                val isDone = item.optBoolean("completed", false)
+                                val obj = org.json.JSONObject().apply {
+                                    put("id", "habit_${sec}_${name.hashCode()}")
+                                    put("title", name)
+                                    put("time", sec.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() })
+                                    put("isCompleted", isDone)
+                                    put("category", "HABIT")
+                                }
+                                if (isDone) completedHabits.add(obj) else pendingHabits.add(obj)
+                            }
+                        }
+                        scheduleBlocks.addAll(pendingHabits)
+                    } catch (e: Exception) {
+                        Log.e("TimerService", "Failed parsing habits for watch: ${e.message}")
+                    }
+                }
+
+                // 2. Daily note backlog tasks (untimed, non-focus blocks)
+                val pendingBacklog = tasks.filter { it.category != "FOCUS BLOCKS" && it.parentLineNumber == null && !it.isCompleted }.map { task ->
+                    org.json.JSONObject().apply {
+                        put("id", task.id)
+                        put("title", task.displayTitle.ifEmpty { task.text })
+                        put("time", task.timeRange ?: "Task")
+                        put("isCompleted", false)
+                        put("category", task.category)
+                    }
+                }
+                scheduleBlocks.addAll(pendingBacklog)
+
+                // 3. Focus blocks / scheduled blocks
+                val focusBlocks = tasks.filter { task ->
                     task.category == "FOCUS BLOCKS" || (!task.timeRange.isNullOrEmpty() && task.timeRange != "null")
                 }.map { task ->
-                    val obj = org.json.JSONObject()
-                    obj.put("id", task.id)
-                    obj.put("title", task.displayTitle.ifEmpty { task.text })
-                    obj.put("time", task.timeRange ?: "")
-                    obj.put("isCompleted", task.isCompleted)
-                    obj.put("category", task.category)
-                    obj
+                    org.json.JSONObject().apply {
+                        put("id", task.id)
+                        put("title", task.displayTitle.ifEmpty { task.text })
+                        put("time", task.timeRange ?: "")
+                        put("isCompleted", task.isCompleted)
+                        put("category", task.category)
+                    }
                 }
+                scheduleBlocks.addAll(focusBlocks)
 
                 val jsonArray = org.json.JSONArray(scheduleBlocks)
                 val request = com.google.android.gms.wearable.PutDataMapRequest.create("/schedule_data").apply {
@@ -519,6 +575,7 @@ class TimerService : Service() {
         val clean = taskName.lowercase()
         return when {
             clean.contains("wake") || clean.contains("waffle") || clean.contains("esther") -> 25
+            clean.contains("hygiene") || clean.contains("shower") -> 15
             clean.contains("exercise") || clean.contains("phase") -> 10
             else -> 20
         }
@@ -542,6 +599,12 @@ class TimerService : Service() {
                 "Esther's teeth",
                 "Esther's hair"
             )
+            clean.contains("hygiene") || clean.contains("shower") || (clean.contains("teeth") && clean.contains("face")) -> listOf(
+                "Teeth",
+                "Shower",
+                "Face",
+                "Clothes"
+            )
             clean.contains("phase 1") -> listOf(
                 "Sun Salute A / B",
                 "Cat-Cow & Thoracic Rotation",
@@ -551,6 +614,26 @@ class TimerService : Service() {
                 "World's Greatest Stretch",
                 "Kettlebell Deadlift / Goblet Squat",
                 "Pec / Doorway Stretch"
+            )
+            clean.contains("phase 2") -> listOf(
+                "Deadbugs with overhead reach",
+                "Side Planks with hip abduction",
+                "Single-Leg Glute Bridges",
+                "Copenhagen Adductor Planks",
+                "Pallof Press",
+                "Standing Banded Face Pulls / External Rotations",
+                "Single-Leg Romanian Deadlifts",
+                "Half-Kneeling Hip Flexor Stretch"
+            )
+            clean.contains("phase 3") -> listOf(
+                "Deep Squat & Thoracic Rotations",
+                "Standing Hip Flexor / Couch Stretch",
+                "Half-Kneeling Adductor Rock-Backs",
+                "Downward Dog into Cobra Flow",
+                "Scapular Wall Slides",
+                "Prone Y-T-W Raises",
+                "Band Pull-Aparts",
+                "Doorway Pectoral Stretch"
             )
             else -> emptyList()
         }

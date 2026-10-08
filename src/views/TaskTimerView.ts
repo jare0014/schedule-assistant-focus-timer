@@ -860,6 +860,14 @@ export class TaskTimerView extends ItemView {
                 "Esther's hair"
             ];
         }
+        if (clean.includes("hygiene") || clean.includes("shower") || (clean.includes("teeth") && clean.includes("face"))) {
+            return [
+                "Teeth",
+                "Shower",
+                "Face",
+                "Clothes"
+            ];
+        }
         return [];
     }
 
@@ -867,6 +875,9 @@ export class TaskTimerView extends ItemView {
         const clean = (taskName || '').toLowerCase();
         if (clean.includes("wake") || clean.includes("waffle") || clean.includes("esther")) {
             return 25;
+        }
+        if (clean.includes("hygiene") || clean.includes("shower")) {
+            return 15;
         }
         if (clean.includes("exercise") || clean.includes("phase")) {
             return 10;

@@ -742,6 +742,8 @@ class ObsidianSyncRepository(private val context: Context) {
                     }
                 }
                 _todayHabits.value = parsedHabits
+                prefs.todayHabitsJson = habitsObj.toString()
+                com.example.widget.TimerService.syncScheduleToWatch(context.applicationContext)
             }
             val pcIsAlarming = obj.optBoolean("isAlarming", false)
             if (!pcIsAlarming && prefs.isAlarming) {

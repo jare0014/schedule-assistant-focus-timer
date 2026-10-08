@@ -67,7 +67,7 @@ class WearTimerTileService : TileService() {
             }
         }
 
-        val targetClass = if (isActive) "com.example.wear.WearMainActivity" else "com.example.wear.StartNextTaskActivity"
+        val targetClass = "com.example.wear.WearMainActivity"
         val rootBox = LayoutElementBuilders.Box.Builder()
             .setWidth(DimensionBuilders.expand())
             .setHeight(DimensionBuilders.expand())

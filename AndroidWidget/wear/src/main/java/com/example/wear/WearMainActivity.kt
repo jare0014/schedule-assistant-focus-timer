@@ -108,17 +108,27 @@ class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener, 
 
     private fun loadFromPrefs() {
         val prefs = getSharedPreferences("wear_prefs", MODE_PRIVATE)
-        taskName = prefs.getString("taskName", "No task selected") ?: "No task selected"
-        remainingSeconds = prefs.getInt("remainingSeconds", 0)
-        totalSeconds = prefs.getInt("totalSeconds", 0)
-        isPaused = prefs.getBoolean("isPaused", false)
-        isAlarming = prefs.getBoolean("isAlarming", false)
+        val tName = prefs.getString("taskName", "No task selected") ?: "No task selected"
+        val remSec = prefs.getInt("remainingSeconds", 0)
+        val totSec = prefs.getInt("totalSeconds", 0)
+        val paused = prefs.getBoolean("isPaused", false)
+        val alarming = prefs.getBoolean("isAlarming", false)
 
         val itemsJson = prefs.getString("items_json", "[]") ?: "[]"
-        timerItems = parseItemsJson(itemsJson)
+        val parsedItems = parseItemsJson(itemsJson)
 
         val blocksJson = prefs.getString("schedule_blocks_json", "[]") ?: "[]"
-        scheduleBlocks = parseScheduleBlocksJson(blocksJson)
+        val parsedBlocks = parseScheduleBlocksJson(blocksJson)
+
+        runOnUiThread {
+            taskName = tName
+            remainingSeconds = remSec
+            totalSeconds = totSec
+            isPaused = paused
+            isAlarming = alarming
+            timerItems = parsedItems
+            scheduleBlocks = parsedBlocks
+        }
     }
 
     private fun parseItemsJson(jsonStr: String): List<String> {
@@ -158,21 +168,32 @@ class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener, 
                 val path = event.dataItem.uri.path
                 if (path == "/timer_state") {
                     val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
-                    taskName = dataMap.getString("taskName", "No task selected")
-                    remainingSeconds = dataMap.getInt("remainingSeconds", 0)
-                    totalSeconds = dataMap.getInt("totalSeconds", 0)
-                    isPaused = dataMap.getBoolean("isPaused", false)
-                    isAlarming = dataMap.getBoolean("isAlarming", false)
+                    val tName = dataMap.getString("taskName", "No task selected")
+                    val remSec = dataMap.getInt("remainingSeconds", 0)
+                    val totSec = dataMap.getInt("totalSeconds", 0)
+                    val paused = dataMap.getBoolean("isPaused", false)
+                    val alarming = dataMap.getBoolean("isAlarming", false)
                     val items = dataMap.getStringArrayList("items") ?: arrayListOf()
-                    timerItems = items
-                    Log.d("WearMainActivity", "Data changed: $taskName, $remainingSeconds, isPaused=$isPaused, items=${items.size}")
 
-                    saveToPrefsAndUpdateTile(taskName, remainingSeconds, totalSeconds, isPaused, isAlarming, items)
+                    runOnUiThread {
+                        taskName = tName
+                        remainingSeconds = remSec
+                        totalSeconds = totSec
+                        isPaused = paused
+                        isAlarming = alarming
+                        timerItems = items
+                    }
+                    Log.d("WearMainActivity", "Data changed: $tName, $remSec, isPaused=$paused, items=${items.size}")
+
+                    saveToPrefsAndUpdateTile(tName, remSec, totSec, paused, alarming, items)
                 } else if (path == "/schedule_data") {
                     val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
                     val blocksJson = dataMap.getString("blocksJson", "[]")
                     Log.d("WearMainActivity", "Schedule data changed: $blocksJson")
-                    scheduleBlocks = parseScheduleBlocksJson(blocksJson)
+                    val parsedBlocks = parseScheduleBlocksJson(blocksJson)
+                    runOnUiThread {
+                        scheduleBlocks = parsedBlocks
+                    }
                     val prefs = getSharedPreferences("wear_prefs", MODE_PRIVATE)
                     prefs.edit().putString("schedule_blocks_json", blocksJson).apply()
                     try {
@@ -192,18 +213,28 @@ class WearMainActivity : ComponentActivity(), DataClient.OnDataChangedListener, 
                     val item = buffer.get(i)
                     if (item.uri.path == "/timer_state") {
                         val dataMap = DataMapItem.fromDataItem(item).dataMap
-                        taskName = dataMap.getString("taskName", "No task selected")
-                        remainingSeconds = dataMap.getInt("remainingSeconds", 0)
-                        totalSeconds = dataMap.getInt("totalSeconds", 0)
-                        isPaused = dataMap.getBoolean("isPaused", false)
-                        isAlarming = dataMap.getBoolean("isAlarming", false)
+                        val tName = dataMap.getString("taskName", "No task selected")
+                        val remSec = dataMap.getInt("remainingSeconds", 0)
+                        val totSec = dataMap.getInt("totalSeconds", 0)
+                        val paused = dataMap.getBoolean("isPaused", false)
+                        val alarming = dataMap.getBoolean("isAlarming", false)
                         val items = dataMap.getStringArrayList("items") ?: arrayListOf()
-                        timerItems = items
-                        saveToPrefsAndUpdateTile(taskName, remainingSeconds, totalSeconds, isPaused, isAlarming, items)
+                        runOnUiThread {
+                            taskName = tName
+                            remainingSeconds = remSec
+                            totalSeconds = totSec
+                            isPaused = paused
+                            isAlarming = alarming
+                            timerItems = items
+                        }
+                        saveToPrefsAndUpdateTile(tName, remSec, totSec, paused, alarming, items)
                     } else if (item.uri.path == "/schedule_data") {
                         val dataMap = DataMapItem.fromDataItem(item).dataMap
                         val blocksJson = dataMap.getString("blocksJson", "[]")
-                        scheduleBlocks = parseScheduleBlocksJson(blocksJson)
+                        val parsedBlocks = parseScheduleBlocksJson(blocksJson)
+                        runOnUiThread {
+                            scheduleBlocks = parsedBlocks
+                        }
                         val prefs = getSharedPreferences("wear_prefs", MODE_PRIVATE)
                         prefs.edit().putString("schedule_blocks_json", blocksJson).apply()
                     }
@@ -320,6 +351,8 @@ fun WearTimerScreen(
 
     val active = taskName.isNotEmpty() && taskName != "No task selected" && taskName != "No Active Task"
 
+    val listState = rememberScalingLazyListState()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -328,6 +361,8 @@ fun WearTimerScreen(
     ) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = listState,
+            autoCentering = AutoCenteringParams(itemIndex = 0),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Active Timer View
