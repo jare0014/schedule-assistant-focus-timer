@@ -63,7 +63,7 @@ test('FocusLogService: writes exercise session to workout and active_minutes fro
     await service.updateFrontmatterForCompletedSession({ basename: '2026-10-08' }, mockLog, '10:17:00');
 
     assert.equal(capturedFm.workout, 'Exercises: Phase 1 (15m)');
-    assert.equal(capturedFm.active_minutes, '25'); // 10 existing + 15
+    assert.equal(capturedFm.active_minutes, '10'); // Untouched; biometric active_minutes reserved for Health API
 });
 
 test('FocusLogService: appends subsequent exercise sessions without duplicate overwrite', async () => {
@@ -89,7 +89,7 @@ test('FocusLogService: appends subsequent exercise sessions without duplicate ov
     await service.updateFrontmatterForCompletedSession({ basename: '2026-10-08' }, mockLog, '11:20:00');
 
     assert.equal(capturedFm.workout, 'Exercises: Phase 1 (15m), Walking (20m)');
-    assert.equal(capturedFm.active_minutes, '45');
+    assert.equal(capturedFm.active_minutes, '25'); // Preserved
 });
 
 test('FocusLogService: writes meditation session to mindfulness_minutes frontmatter', async () => {

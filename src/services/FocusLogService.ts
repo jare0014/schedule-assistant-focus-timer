@@ -251,9 +251,6 @@ export class FocusLogService {
                             fm.workout = parts.join(', ');
                         }
                     }
-
-                    const currentActive = parseInt(String(fm.active_minutes || 0), 10);
-                    fm.active_minutes = String((isNaN(currentActive) ? 0 : currentActive) + elapsedMins);
                 }
 
                 if (isMeditation) {
