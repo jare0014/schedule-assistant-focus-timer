@@ -2,7 +2,7 @@
  * FocusLogService.ts - Logs focus sessions, pause timestamps, and completion times in Obsidian daily notes.
  */
 
-import { App, Notice } from 'obsidian';
+import { App, Notice, TFile } from 'obsidian';
 import { ActiveLogState } from '../types';
 import { DailyNoteManager } from './DailyNoteManager';
 
@@ -195,8 +195,74 @@ export class FocusLogService {
             }
 
             await this.app.vault.modify(dailyFile, lines.join('\n'));
+
+            if (isCompleted) {
+                await this.updateFrontmatterForCompletedSession(dailyFile, logInfo, actualEndTimeStr);
+            }
         } catch (e) {
             console.error("Error logging update:", e);
+        }
+    }
+
+    public async updateFrontmatterForCompletedSession(
+        file: TFile,
+        logInfo: ActiveLogState,
+        actualEndTimeStr: string
+    ): Promise<void> {
+        try {
+            const parseSecs = (str: string): number => {
+                const parts = str.split(':').map(Number);
+                return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+            };
+
+            let grossSecs = parseSecs(actualEndTimeStr) - parseSecs(logInfo.startTimeStr);
+            if (grossSecs < 0) grossSecs += 86400;
+
+            for (let i = 0; i < Math.min(logInfo.pauses.length, logInfo.resumes.length); i++) {
+                const ps = parseSecs(logInfo.pauses[i]);
+                const pe = parseSecs(logInfo.resumes[i]);
+                let pSecs = pe - ps;
+                if (pSecs < 0) pSecs += 86400;
+                grossSecs -= pSecs;
+            }
+
+            const elapsedMins = Math.max(1, Math.round(grossSecs / 60));
+            const cleanTaskName = logInfo.taskName.replace(/\[\[.*?\]\]/g, '').trim();
+
+            const isExercise = /(?:Exercise|Workout|Gym|Weights|Walk|Run|Cardio|Training|Stretching|Yoga|Fitness)/i.test(cleanTaskName);
+            const isMeditation = /(?:Meditation|Mindfulness)/i.test(cleanTaskName);
+
+            if (!isExercise && !isMeditation) return;
+
+            await this.app.fileManager.processFrontMatter(file, (fm) => {
+                if (isExercise) {
+                    const sessionEntry = `${cleanTaskName} (${elapsedMins}m)`;
+                    const existingWorkout = String(fm.workout || "").trim();
+                    if (!existingWorkout) {
+                        fm.workout = sessionEntry;
+                    } else {
+                        const parts = existingWorkout.split(',').map((s: string) => s.trim()).filter(Boolean);
+                        const matchIdx = parts.findIndex((p: string) => p.toLowerCase().startsWith(cleanTaskName.toLowerCase()));
+                        if (matchIdx !== -1) {
+                            parts[matchIdx] = sessionEntry;
+                            fm.workout = parts.join(', ');
+                        } else {
+                            parts.push(sessionEntry);
+                            fm.workout = parts.join(', ');
+                        }
+                    }
+
+                    const currentActive = parseInt(String(fm.active_minutes || 0), 10);
+                    fm.active_minutes = String((isNaN(currentActive) ? 0 : currentActive) + elapsedMins);
+                }
+
+                if (isMeditation) {
+                    const currentMind = parseInt(String(fm.mindfulness_minutes || fm.meditation || 0), 10);
+                    fm.mindfulness_minutes = String((isNaN(currentMind) ? 0 : currentMind) + elapsedMins);
+                }
+            });
+        } catch (err) {
+            console.warn("[FocusLogService] Could not update frontmatter for completed session:", err);
         }
     }
 }
